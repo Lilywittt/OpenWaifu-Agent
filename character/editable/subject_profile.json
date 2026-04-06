@@ -1,0 +1,35 @@
+{
+  "subject_id": "tsukimi_rion",
+  "display_name_zh": "月见璃音",
+  "identity_truth": {
+    "life_stage_zh": "初中女生",
+    "gender_read_zh": "少女",
+    "age_read_zh": "13岁，on the cusp of puberty，不允许成熟化"
+  },
+  "face_truth": {
+    "shape_zh": "清稚的少女脸",
+    "age_signal_zh": "脸部必须读成未成年少女，不允许画成成人脸"
+  },
+  "hair_truth": {
+    "color_family_zh": "黑色",
+    "length_zh": "齐肩",
+    "style_zh": "披肩细发",
+    "signature_markers_zh": [
+      "小红发夹"
+    ]
+  },
+  "body_truth": {
+    "build_zh": "清瘦",
+    "maturity_zh": "含苞待放，on the cusp of puberty",
+    "proportion_zh": "初中女生比例，贫乳，苗条"
+  },
+  "allowed_changes_zh": [
+    "允许临时改变发型的组织方式",
+    "允许增减饰品",
+    "允许增加临时脸部状态，比如汗、水滴、创可贴、红晕等"
+  ],
+  "forbidden_drift_zh": [
+    "不允许成熟面孔",
+    "不允许成熟化身体比例"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "runtimeRoot": "./runtime",
+  "creativeModelConfigPath": "./config/creative_model.json",
+  "providerCatalogPath": "./config/provider_catalog.json",
+  "renderProfilePath": "./config/render/comfyui_anime_engineering_profile.json",
+  "renderPromptPolicyPath": "./config/render_prompt_policy.json",
+  "defaultProvider": "comfyui-local-anime",
+  "defaultMode": "simulate"
+}

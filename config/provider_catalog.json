@@ -1,0 +1,216 @@
+{
+  "openai-images": {
+    "apiStyle": "openai-images",
+    "endpoint": "https://api.openai.com/v1/images/generations",
+    "requiredEnv": [
+      "OPENAI_API_KEY"
+    ],
+    "defaultModel": "gpt-image-1",
+    "responseContract": {
+      "jobIdField": "id",
+      "requestIdField": "id",
+      "imageUrlField": "data[0].url or data[0].b64_json"
+    },
+    "referenceHandling": {
+      "providerCapability": "text_prompt_only",
+      "hostTransport": "metadata_only",
+      "deliveryMode": "metadata_only"
+    },
+    "capabilities": {
+      "providerClass": "text_prompt_only",
+      "promptOnlyText2img": true,
+      "structuredControl": false,
+      "inpaint": false,
+      "identityConditioning": false,
+      "readableTextHardConstraint": false,
+      "localExecution": false
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024x1536",
+      "1:1": "1024x1024",
+      "9:16": "1024x1792"
+    }
+  },
+  "zhipu-images": {
+    "apiStyle": "openai-compatible",
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/images/generations",
+    "requiredEnv": [
+      "ZHIPU_API_KEY"
+    ],
+    "defaultModel": "glm-image-v1",
+    "responseContract": {
+      "jobIdField": "id",
+      "requestIdField": "id",
+      "imageUrlField": "data[0].url or data[0].b64_json"
+    },
+    "referenceHandling": {
+      "providerCapability": "text_prompt_only",
+      "hostTransport": "metadata_only",
+      "deliveryMode": "metadata_only"
+    },
+    "capabilities": {
+      "providerClass": "text_prompt_only",
+      "promptOnlyText2img": true,
+      "structuredControl": false,
+      "inpaint": false,
+      "identityConditioning": false,
+      "readableTextHardConstraint": false,
+      "localExecution": false
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024x1536",
+      "1:1": "1024x1024",
+      "9:16": "1024x1792"
+    }
+  },
+  "aliyun-qwen-image": {
+    "apiStyle": "dashscope-multimodal",
+    "endpoint": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+    "requiredEnv": [
+      "DASHSCOPE_API_KEY"
+    ],
+    "defaultModel": "qwen-image-2.0",
+    "dashScopeAsync": "disable",
+    "responseContract": {
+      "jobIdField": "request_id",
+      "requestIdField": "request_id",
+      "imageUrlField": "output.choices[0].message.content[?].image"
+    },
+    "referenceHandling": {
+      "providerCapability": "text_prompt_only",
+      "hostTransport": "metadata_only",
+      "deliveryMode": "metadata_only"
+    },
+    "capabilities": {
+      "providerClass": "text_prompt_only",
+      "promptOnlyText2img": true,
+      "structuredControl": false,
+      "inpaint": false,
+      "identityConditioning": false,
+      "readableTextHardConstraint": false,
+      "localExecution": false
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024*1280",
+      "1:1": "1024*1024",
+      "9:16": "720*1280"
+    }
+  },
+  "aliyun-z-image": {
+    "apiStyle": "dashscope-multimodal",
+    "endpoint": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+    "requiredEnv": [
+      "DASHSCOPE_API_KEY"
+    ],
+    "defaultModel": "z-image-turbo",
+    "dashScopeAsync": "disable",
+    "responseContract": {
+      "jobIdField": "request_id",
+      "requestIdField": "request_id",
+      "imageUrlField": "output.choices[0].message.content[?].image"
+    },
+    "referenceHandling": {
+      "providerCapability": "text_prompt_only",
+      "hostTransport": "metadata_only",
+      "deliveryMode": "metadata_only"
+    },
+    "capabilities": {
+      "providerClass": "text_prompt_only",
+      "promptOnlyText2img": true,
+      "structuredControl": false,
+      "inpaint": false,
+      "identityConditioning": false,
+      "readableTextHardConstraint": false,
+      "localExecution": false
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024*1280",
+      "1:1": "1024*1024",
+      "9:16": "720*1280"
+    }
+  },
+  "comfyui-local-anime": {
+    "apiStyle": "comfyui-workflow",
+    "endpoint": "http://127.0.0.1:8188",
+    "requiredEnv": [],
+    "defaultModel": "animagine-xl-4.0-opt.safetensors",
+    "workflowProfilePath": "./render/comfyui_anime_engineering_profile.json",
+    "workflowTransport": {
+      "submitPath": "/prompt",
+      "historyPath": "/history/{prompt_id}",
+      "viewPath": "/view",
+      "submitTimeoutMs": 120000,
+      "pollIntervalMs": 5000,
+      "pollTimeoutMs": 60000,
+      "timeoutMs": 900000,
+      "downloadTimeoutMs": 120000
+    },
+    "responseContract": {
+      "jobIdField": "prompt_id",
+      "requestIdField": "prompt_id",
+      "imageUrlField": "history.{prompt_id}.outputs[{node_id}].images[0]"
+    },
+    "referenceHandling": {
+      "providerCapability": "workflow_prompt_only",
+      "hostTransport": "workflow_json",
+      "deliveryMode": "local_only"
+    },
+    "capabilities": {
+      "providerClass": "workflow_prompt_only",
+      "promptOnlyText2img": true,
+      "structuredControl": false,
+      "inpaint": false,
+      "identityConditioning": false,
+      "readableTextHardConstraint": false,
+      "localExecution": true
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024x1280",
+      "1:1": "1024x1024",
+      "9:16": "832x1472"
+    }
+  },
+  "comfyui-local-anime-event-controlled": {
+    "apiStyle": "comfyui-workflow",
+    "endpoint": "http://127.0.0.1:8188",
+    "requiredEnv": [],
+    "defaultModel": "animagine-xl-4.0-opt.safetensors",
+    "workflowProfilePath": "./render/comfyui_anime_event_controlled_profile.json",
+    "assetStagingDir": "../../../../.tmp/ComfyUI/input",
+    "workflowTransport": {
+      "submitPath": "/prompt",
+      "historyPath": "/history/{prompt_id}",
+      "viewPath": "/view",
+      "submitTimeoutMs": 120000,
+      "pollIntervalMs": 5000,
+      "pollTimeoutMs": 90000,
+      "timeoutMs": 900000,
+      "downloadTimeoutMs": 120000
+    },
+    "responseContract": {
+      "jobIdField": "prompt_id",
+      "requestIdField": "prompt_id",
+      "imageUrlField": "history.{prompt_id}.outputs[{node_id}].images[0]"
+    },
+    "referenceHandling": {
+      "providerCapability": "workflow_event_controlled",
+      "hostTransport": "workflow_json_plus_staged_assets",
+      "deliveryMode": "local_only"
+    },
+    "capabilities": {
+      "providerClass": "workflow_event_controlled",
+      "promptOnlyText2img": false,
+      "structuredControl": false,
+      "inpaint": true,
+      "graphicEvidenceCompositing": true,
+      "identityConditioning": false,
+      "readableTextHardConstraint": true,
+      "localExecution": true
+    },
+    "sizeByAspectRatio": {
+      "4:5": "1024x1280",
+      "1:1": "1024x1024",
+      "9:16": "832x1472"
+    }
+  }
+}
