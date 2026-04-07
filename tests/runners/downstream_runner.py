@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""从已有场景设计稿回放三份下游设计稿的批量测试脚本。"""
+
 import argparse
 import shutil
 import sys
@@ -7,12 +9,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 TOOLS_DIR = Path(__file__).resolve().parent
-if str(TOOLS_DIR) not in sys.path:
-    sys.path.insert(0, str(TOOLS_DIR))
+SRC_DIR = PROJECT_DIR / "src"
+for import_path in (TOOLS_DIR, SRC_DIR):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
 from common import (
-    PROJECT_DIR,
     build_batch_dir,
     configure_utf8_stdio,
     create_sample_bundle,

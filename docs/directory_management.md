@@ -12,8 +12,10 @@
 ```text
 src/
   creative/
+  social_post/
   prompt_builder/
   execution/
+  publish/
 ```
 
 辅助基础模块保留在 `src/` 根下：
@@ -31,6 +33,7 @@ src/
 ```text
 prompts/
   creative/
+  social_post/
   prompt_builder/
 ```
 
@@ -53,8 +56,10 @@ runtime/
     <run_id>/
       input/
       creative/
+      social_post/
       prompt_builder/
       execution/
+      publish/
       output/
       trace/
 ```
@@ -63,10 +68,42 @@ runtime/
 
 - `input/`：输入快照
 - `creative/`：creative 层产物
+- `social_post/`：社媒文案模块产物
 - `prompt_builder/`：prompt 编译产物
 - `execution/`：workflow 注入与执行记录
+- `publish/`：发布输入包、发布计划与平台回执
 - `output/`：最终图片与运行摘要
 - `trace/`：LLM request/response trace
+
+## 测试脚本目录
+
+所有可直接运行的测试脚本统一收口在：
+
+```text
+tests/
+  runners/
+```
+
+例如：
+
+- `run_generate_product.py`
+- `prompt_execution_runner.py`
+- `social_post_runner.py`
+- `publish_runner.py`
+- `full_publish_runner.py`
+
+## 单元测试目录
+
+所有 `test_*.py` 统一收口在：
+
+```text
+tests/
+  unit/
+```
+
+这样区分清楚：
+- `tests/runners/`：可直接执行的回放脚本
+- `tests/unit/`：`unittest` 模块
 
 ## 目录管理原则
 

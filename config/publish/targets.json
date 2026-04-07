@@ -1,0 +1,12 @@
+{
+  "defaultTargetIds": [
+    "local_archive"
+  ],
+  "targets": {
+    "local_archive": {
+      "adapter": "local_archive",
+      "displayName": "Local Archive",
+      "archiveRoot": "runtime/service_state/publish/local_archive"
+    }
+  }
+}

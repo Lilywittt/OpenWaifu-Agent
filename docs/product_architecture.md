@@ -7,11 +7,17 @@
                         -> 场景设计稿 -> 环境、布景与光影设计
 外部发散变量采样层 ----/               -> 服装与造型设计
                                         -> 动作与姿态、神态设计
+                        -> 社媒文案
 
 人物原始资产 + 三份设计 ---------------------------------> 生图Prompt(JSON: positive / negative)
 
 生图Prompt + 执行配置 + ComfyUI workflow -----------------> 生成图像
 ```
+
+入口约定：
+
+- 完整产品链路入口：`run_product.py`
+- 只跑生成层的测试入口：`tests/runners/run_generate_product.py`
 
 ## 分层职责
 
@@ -28,7 +34,17 @@
 
 这里是当前产品里真正的创意层。
 
-### 2. Prompt Builder
+### 2. Social Post
+
+`src/social_post/` 负责：
+
+- 读取原始人物资产
+- 读取场景设计稿
+- 产出主角口吻的社媒文案
+
+它是独立于生图链路的旁支，不参与 prompt 编译。
+
+### 3. Prompt Builder
 
 `src/prompt_builder/` 负责：
 
@@ -59,7 +75,7 @@
 }
 ```
 
-### 3. Execution
+### 4. Execution
 
 `src/execution/` 负责：
 
@@ -77,6 +93,7 @@
   - `环境、布景与光影设计`
   - `服装与造型设计`
   - `动作与姿态、神态设计`
+- `场景设计稿` 同时喂给 `social_post`
 - `prompt_builder` 接收原始人物资产和三份设计稿
 - `execution` 接收 prompt package
 

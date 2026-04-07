@@ -20,8 +20,10 @@ class RunBundle:
     root: Path
     input_dir: Path
     creative_dir: Path
+    social_post_dir: Path
     prompt_builder_dir: Path
     execution_dir: Path
+    publish_dir: Path
     output_dir: Path
     trace_dir: Path
 
@@ -52,15 +54,19 @@ def create_run_bundle(project_dir: Path, mode: str, label: str = "") -> RunBundl
         root=root,
         input_dir=root / "input",
         creative_dir=root / "creative",
+        social_post_dir=root / "social_post",
         prompt_builder_dir=root / "prompt_builder",
         execution_dir=root / "execution",
+        publish_dir=root / "publish",
         output_dir=root / "output",
         trace_dir=root / "trace",
     )
     ensure_dir(bundle.input_dir)
     ensure_dir(bundle.creative_dir)
+    ensure_dir(bundle.social_post_dir)
     ensure_dir(bundle.prompt_builder_dir)
     ensure_dir(bundle.execution_dir)
+    ensure_dir(bundle.publish_dir)
     ensure_dir(bundle.output_dir)
     ensure_dir(bundle.trace_dir)
     write_json(bundle.root / "bundle.json", bundle.to_dict())

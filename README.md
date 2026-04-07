@@ -5,10 +5,11 @@
 ```text
 人物原始资产 + 外部发散变量采样层
 -> 场景设计稿
--> 环境、布景与光影设计 + 服装与造型设计 + 动作与姿态、神态设计
--> 生图Prompt(JSON: positive / negative)
--> ComfyUI workflow
--> 生成图像
+   -> 社媒文案
+   -> 环境、布景与光影设计 + 服装与造型设计 + 动作与姿态、神态设计
+      -> 生图Prompt(JSON: positive / negative)
+      -> ComfyUI workflow
+      -> 生成图像
 ```
 
 镜头与构图内容已经并入 `环境、布景与光影设计`，不再保留单独镜头模块。
@@ -24,9 +25,11 @@
 ## 当前目录分层
 
 - `src/creative/`
+- `src/social_post/`
 - `src/prompt_builder/`
 - `src/execution/`
 - `prompts/creative/`
+- `prompts/social_post/`
 - `prompts/prompt_builder/`
 - `config/execution/`
 - `config/workflows/comfyui/`

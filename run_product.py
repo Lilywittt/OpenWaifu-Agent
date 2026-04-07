@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -11,11 +10,8 @@ SRC_DIR = PROJECT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from character_assets import load_character_assets
-from creative import build_default_run_context, run_creative_pipeline
-from execution import run_execution_pipeline
-from io_utils import read_json, write_json
-from prompt_builder import run_prompt_builder_pipeline
+from io_utils import read_json
+from product_pipeline import run_full_product_pipeline
 from runtime_layout import create_run_bundle, delete_run_bundle, runtime_root, update_latest
 
 
@@ -50,76 +46,22 @@ def normalize_argv(argv: list[str]) -> list[str]:
     return argv
 
 
-def _build_run_summary(bundle, creative_package: dict, prompt_package: dict, execution_package: dict) -> dict:
-    summary = {
-        "runId": bundle.run_id,
-        "creativePackagePath": str(bundle.creative_dir / "05_creative_package.json"),
-        "promptPackagePath": str(bundle.prompt_builder_dir / "01_prompt_package.json"),
-        "imagePromptPath": str(bundle.prompt_builder_dir / "00_image_prompt.json"),
-        "executionPackagePath": str(bundle.execution_dir / "04_execution_package.json"),
-        "socialSignalSampleZh": creative_package.get("socialSignalSample", {}).get("sampledSignalsZh", []),
-        "sceneDraftPremiseZh": creative_package.get("worldDesign", {}).get("scenePremiseZh", ""),
-        "sceneDraftTextZh": creative_package.get("worldDesign", {}).get("worldSceneZh", ""),
-        "environmentDesignTextZh": str(creative_package.get("environmentDesign", "")).strip(),
-        "stylingDesignTextZh": str(creative_package.get("stylingDesign", "")).strip(),
-        "actionDesignTextZh": str(creative_package.get("actionDesign", "")).strip(),
-        "positivePromptText": str(prompt_package.get("positivePrompt", "")).strip(),
-        "negativePromptText": str(prompt_package.get("negativePrompt", "")).strip(),
-        "generatedImagePath": str(execution_package.get("imagePath", "")).strip(),
-        "checkpointName": str(execution_package.get("checkpointName", "")).strip(),
-    }
-    write_json(bundle.output_dir / "run_summary.json", summary)
-    return summary
-
-
 def run_single(args) -> int:
     mode_label = "default"
     bundle = create_run_bundle(PROJECT_DIR, mode_label, args.run_label or mode_label)
     try:
-        character_assets = load_character_assets(PROJECT_DIR)
-        default_run_context = build_default_run_context(
-            now_local=datetime.now().isoformat(timespec="seconds"),
-        )
-        write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-        write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-
-        log("creative layer: 人物原始资产 + 外部发散变量采样层 -> 场景设计稿 -> 环境、布景与光影设计+服装与造型设计+动作与姿态、神态设计")
-        creative_package = run_creative_pipeline(
-            PROJECT_DIR,
-            bundle,
-            default_run_context,
-            character_assets,
-            PROJECT_DIR / "config" / "creative_model.json",
-        )
-
-        log("prompt builder layer: 原始人物资产 + 三份设计 -> 生图Prompt")
-        prompt_package = run_prompt_builder_pipeline(
-            PROJECT_DIR,
-            bundle,
-            default_run_context,
-            character_assets,
-            creative_package,
-            PROJECT_DIR / "config" / "creative_model.json",
-        )
-
-        log("execution layer: 生图Prompt -> ComfyUI workflow -> generated image")
-        execution_package = run_execution_pipeline(
-            PROJECT_DIR,
-            bundle,
-            default_run_context,
-            prompt_package,
-            PROJECT_DIR / "config" / "execution" / "comfyui_local_animagine_xl.json",
-        )
-
-        summary = _build_run_summary(bundle, creative_package, prompt_package, execution_package)
+        result = run_full_product_pipeline(PROJECT_DIR, bundle, log=log)
+        summary = result["summary"]
         latest_path = update_latest(
             PROJECT_DIR,
             bundle,
             {
                 "runId": bundle.run_id,
                 "creativePackagePath": summary["creativePackagePath"],
+                "socialPostPackagePath": summary["socialPostPackagePath"],
                 "promptPackagePath": summary["promptPackagePath"],
                 "executionPackagePath": summary["executionPackagePath"],
+                "publishPackagePath": summary["publishPackagePath"],
                 "summaryPath": str(bundle.output_dir / "run_summary.json"),
                 "sceneDraftPremiseZh": summary["sceneDraftPremiseZh"],
             },
@@ -127,8 +69,10 @@ def run_single(args) -> int:
 
         log(f"Run dir: {bundle.root}")
         log(f"Creative package: {summary['creativePackagePath']}")
+        log(f"Social post package: {summary['socialPostPackagePath']}")
         log(f"Prompt package: {summary['promptPackagePath']}")
         log(f"Execution package: {summary['executionPackagePath']}")
+        log(f"Publish package: {summary['publishPackagePath']}")
         log(f"Generated image: {summary['generatedImagePath']}")
         log(f"Summary: {bundle.output_dir / 'run_summary.json'}")
         log(f"Latest: {latest_path}")
@@ -146,14 +90,18 @@ def review_latest() -> int:
     latest = read_json(latest_path)
     summary_path = Path(latest["summary"]["summaryPath"])
     creative_package_path = Path(latest["summary"]["creativePackagePath"])
+    social_post_package_path = Path(latest["summary"]["socialPostPackagePath"])
     prompt_package_path = Path(latest["summary"]["promptPackagePath"])
     execution_package_path = Path(latest["summary"]["executionPackagePath"])
+    publish_package_path = Path(latest["summary"]["publishPackagePath"])
     payload = {
         "latest": latest,
         "summary": read_json(summary_path),
         "creativePackage": read_json(creative_package_path),
+        "socialPostPackage": read_json(social_post_package_path),
         "promptPackage": read_json(prompt_package_path),
         "executionPackage": read_json(execution_package_path),
+        "publishPackage": read_json(publish_package_path),
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0

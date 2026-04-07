@@ -21,6 +21,7 @@ python run_product.py
 
 - 采样
 - creative
+- social_post
 - prompt_builder
 - execution
 - 出图
@@ -43,14 +44,72 @@ python run_product.py review
 python run_product.py paths
 ```
 
+### 5. 从已有设计稿直接跑中下游
+
+如果已经有 `creative/05_creative_package.json`，可以直接跳过 creative 层，只跑 `prompt_builder + execution`：
+
+```powershell
+python tests/runners/prompt_execution_runner.py --source F:\path\to\runtime\runs\<run_id>
+```
+
+`--source` 支持三种输入：
+
+- 一个完整 run 目录
+- 一个 `creative/` 目录
+- 一个 `05_creative_package.json` 文件
+
+如果要从一个批次里连续取多个样本，可以用：
+
+```powershell
+python tests/runners/prompt_execution_runner.py --source-batch F:\path\to\batch --count 3 --label replay
+```
+
+### 6. 从已有设计稿直接回放社媒文案
+
+如果只想测试 `social_post`，可以直接吃已有 `creative` 产物：
+
+```powershell
+python tests/runners/social_post_runner.py --count 3 --label social_review
+```
+
+不传 `--source` 时，会默认取最近几次正式 run 的 `creative/05_creative_package.json`。
+
+也可以显式指定来源：
+
+```powershell
+python tests/runners/social_post_runner.py --source F:\path\to\runtime\runs\<run_id> --count 1
+```
+
+或者从一个批次里连续取多个样本：
+
+```powershell
+python tests/runners/social_post_runner.py --source-batch F:\path\to\batch --count 3 --label social_review
+```
+
+### 7. 只运行生成层产品链路
+
+如果要恢复旧的“只跑生成层，不进入发布层”入口，可以用：
+
+```powershell
+python tests/runners/run_generate_product.py --run-label generate_test
+```
+
+### 8. 运行全部单元测试
+
+```powershell
+python -m unittest discover -s tests/unit -v
+```
+
 ## 成功运行后会得到什么
 
 一次成功运行后，会生成：
 
 - creative 产物
+- social post 产物
 - prompt builder 产物
 - execution 产物
 - 最终图片
+- `output/social_post.txt`
 - `output/run_summary.json`
 
 所有正式产物都落在：

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""从采样到场景设计稿的 world_design 批量测试脚本。"""
+
 import argparse
 import json
 import shutil
@@ -58,19 +60,23 @@ def build_batch_dir(label: str) -> Path:
 
 def create_sample_bundle(sample_root: Path, sample_id: int) -> RunBundle:
     creative_dir = sample_root / "creative"
+    social_post_dir = sample_root / "social_post"
     prompt_builder_dir = sample_root / "prompt_builder"
     execution_dir = sample_root / "execution"
+    publish_dir = sample_root / "publish"
     output_dir = sample_root / "output"
     trace_dir = sample_root / "trace"
-    for path in (sample_root, creative_dir, prompt_builder_dir, execution_dir, output_dir, trace_dir):
+    for path in (sample_root, creative_dir, social_post_dir, prompt_builder_dir, execution_dir, publish_dir, output_dir, trace_dir):
         ensure_dir(path)
     bundle = RunBundle(
         run_id=f"{sample_root.parent.name}_sample{sample_id:02d}",
         root=sample_root,
         input_dir=sample_root / "input",
         creative_dir=creative_dir,
+        social_post_dir=social_post_dir,
         prompt_builder_dir=prompt_builder_dir,
         execution_dir=execution_dir,
+        publish_dir=publish_dir,
         output_dir=output_dir,
         trace_dir=trace_dir,
     )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""从采样开始运行完整 creative 链路的批量测试脚本。"""
+
 import argparse
 import shutil
 import sys
@@ -7,11 +9,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 TOOLS_DIR = Path(__file__).resolve().parent
-if str(TOOLS_DIR) not in sys.path:
-    sys.path.insert(0, str(TOOLS_DIR))
+SRC_DIR = PROJECT_DIR / "src"
+for import_path in (TOOLS_DIR, SRC_DIR):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
-from common import PROJECT_DIR, build_batch_dir, configure_utf8_stdio, create_sample_bundle
+from common import build_batch_dir, configure_utf8_stdio, create_sample_bundle
 
 from character_assets import load_character_assets
 from creative import build_default_run_context, run_creative_pipeline

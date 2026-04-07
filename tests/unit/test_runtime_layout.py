@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 import sys
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -18,8 +18,10 @@ class RuntimeLayoutTests(unittest.TestCase):
             bundle = create_run_bundle(project_dir, "default", "demo")
             self.assertTrue(bundle.input_dir.is_dir())
             self.assertTrue(bundle.creative_dir.is_dir())
+            self.assertTrue(bundle.social_post_dir.is_dir())
             self.assertTrue(bundle.prompt_builder_dir.is_dir())
             self.assertTrue(bundle.execution_dir.is_dir())
+            self.assertTrue(bundle.publish_dir.is_dir())
             self.assertTrue(bundle.output_dir.is_dir())
             self.assertTrue(bundle.trace_dir.is_dir())
             self.assertTrue((bundle.root / "bundle.json").exists())

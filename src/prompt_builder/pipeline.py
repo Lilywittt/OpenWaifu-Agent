@@ -18,7 +18,7 @@ PROMPT_PATH = "prompts/prompt_builder/image_prompt.md"
 INPUT_FILENAME = "00_image_prompt_input.json"
 OUTPUT_FILENAME = "00_image_prompt.json"
 PACKAGE_FILENAME = "01_prompt_package.json"
-STAGE_NAME = "06_image_prompt"
+STAGE_NAME = "07_image_prompt"
 
 
 def _system_prompt(project_dir: Path) -> str:

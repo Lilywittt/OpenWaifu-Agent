@@ -52,18 +52,18 @@ def _build_body(
     *,
     model_config: dict[str, Any],
     system_prompt: str,
-    user_payload: dict[str, Any],
+    user_payload: dict[str, Any] | None,
     temperature: float | None,
     max_tokens: int | None,
 ) -> dict[str, Any]:
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    if user_payload is not None:
+        messages.append({"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, indent=2)})
     return {
         "model": model_config["model"],
         "temperature": model_config.get("temperature", 0.8) if temperature is None else temperature,
         "max_tokens": model_config.get("maxTokens", 1800) if max_tokens is None else max_tokens,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, indent=2)},
-        ],
+        "messages": messages,
     }
 
 
@@ -95,7 +95,7 @@ def _call_model_once(
     model_config: dict[str, Any],
     api_key: str,
     system_prompt: str,
-    user_payload: dict[str, Any],
+    user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
@@ -139,7 +139,7 @@ def _call_model(
     project_dir: Path,
     model_config_path: Path,
     system_prompt: str,
-    user_payload: dict[str, Any],
+    user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
@@ -177,7 +177,7 @@ def call_json_task(
     project_dir: Path,
     model_config_path: Path,
     system_prompt: str,
-    user_payload: dict[str, Any],
+    user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
@@ -214,7 +214,7 @@ def call_text_task(
     project_dir: Path,
     model_config_path: Path,
     system_prompt: str,
-    user_payload: dict[str, Any],
+    user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
