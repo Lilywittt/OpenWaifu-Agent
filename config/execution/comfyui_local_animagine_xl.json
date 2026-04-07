@@ -1,0 +1,82 @@
+{
+  "version": "1.0.0",
+  "profileId": "comfyui_local_animagine_xl_v1",
+  "templatePath": "../workflows/comfyui/animagine_xl_basic.workflow.json",
+  "endpointEnvName": "COMFYUI_ENDPOINT",
+  "checkpointPath": "../../../.local/ComfyUI/models/checkpoints/animagine-xl-4.0-opt.safetensors",
+  "checkpointName": "animagine-xl-4.0-opt.safetensors",
+  "request": {
+    "healthPath": "/system_stats",
+    "submitPath": "/prompt",
+    "historyPath": "/history/{prompt_id}",
+    "viewPath": "/view",
+    "submitTimeoutMs": 120000,
+    "pollIntervalMs": 5000,
+    "pollTimeoutMs": 900000,
+    "downloadTimeoutMs": 120000,
+    "startTimeoutMs": 180000
+  },
+  "nodes": {
+    "checkpoint": {
+      "id": "3",
+      "input": "ckpt_name"
+    },
+    "positivePrompt": {
+      "id": "6",
+      "input": "text"
+    },
+    "negativePrompt": {
+      "id": "7",
+      "input": "text"
+    },
+    "latentImage": {
+      "id": "10",
+      "widthInput": "width",
+      "heightInput": "height",
+      "batchInput": "batch_size"
+    },
+    "sampler": {
+      "id": "13",
+      "seedInput": "seed",
+      "stepsInput": "steps",
+      "cfgInput": "cfg",
+      "samplerInput": "sampler_name",
+      "schedulerInput": "scheduler",
+      "denoiseInput": "denoise"
+    },
+    "saveImage": {
+      "id": "9",
+      "input": "filename_prefix"
+    },
+    "output": {
+      "preferredNodeIds": [
+        "9"
+      ]
+    }
+  },
+  "defaults": {
+    "aspectRatio": "4:5",
+    "steps": 28,
+    "cfg": 5.6,
+    "samplerName": "dpmpp_2m",
+    "scheduler": "karras",
+    "denoise": 1.0,
+    "batchSize": 1,
+    "filenamePrefix": "ig_roleplay_v3_animagine"
+  },
+  "sizeByAspectRatio": {
+    "4:5": {
+      "width": 1024,
+      "height": 1280
+    },
+    "1:1": {
+      "width": 1024,
+      "height": 1024
+    },
+    "9:16": {
+      "width": 832,
+      "height": 1472
+    }
+  },
+  "negativePromptFallback": "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark"
+}

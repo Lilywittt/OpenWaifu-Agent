@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -11,12 +10,8 @@ SRC_DIR = PROJECT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from character_assets import load_character_assets
-from comfyui_engine import build_workflow_request, run_generation
-from creative import build_default_run_context, run_creative_pipeline
-from io_utils import read_json, write_json
-from render import build_render_blueprint, build_render_packet, compile_prompt_bundle
-from review import build_review
+from io_utils import read_json
+from product_pipeline import run_full_product_pipeline
 from runtime_layout import create_run_bundle, delete_run_bundle, runtime_root, update_latest
 
 
@@ -32,16 +27,13 @@ def log(message: str) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="IG Roleplay v3 unified product entrypoint.")
+    parser = argparse.ArgumentParser(description="IG Roleplay v3 full creative-to-image entrypoint.")
     subparsers = parser.add_subparsers(dest="command")
 
-    single = subparsers.add_parser("single", help="Run one v3 product image.")
-    single.add_argument("--provider", default="")
+    single = subparsers.add_parser("single", help="Run one full upstream-to-image pipeline.")
     single.add_argument("--run-label", default="")
-    single.add_argument("--comfyui-endpoint", default="")
-    single.add_argument("--no-auto-start-comfyui", action="store_true")
 
-    subparsers.add_parser("review", help="Print the latest v3 review bundle.")
+    subparsers.add_parser("review", help="Print the latest run summary.")
     subparsers.add_parser("paths", help="Print the runtime root and latest bundle file.")
     return parser
 
@@ -55,65 +47,36 @@ def normalize_argv(argv: list[str]) -> list[str]:
 
 
 def run_single(args) -> int:
-    runtime_profile = read_json(PROJECT_DIR / "config" / "runtime_profile.json")
-    provider = args.provider or runtime_profile["defaultProvider"]
     mode_label = "default"
     bundle = create_run_bundle(PROJECT_DIR, mode_label, args.run_label or mode_label)
     try:
-        character_assets = load_character_assets(PROJECT_DIR)
-        default_run_context = build_default_run_context(
-            now_local=datetime.now().isoformat(timespec="seconds"),
-        )
-        write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-        write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-
-        log("creative layer: scene draft -> scene-to-design")
-        creative_package = run_creative_pipeline(
-            PROJECT_DIR,
-            bundle,
-            default_run_context,
-            character_assets,
-            PROJECT_DIR / "config" / "creative_model.json",
-        )
-
-        log("render layer: render director -> render packet -> prompt bundle -> workflow request")
-        render_blueprint = build_render_blueprint(
-            PROJECT_DIR,
-            bundle,
-            default_run_context,
-            character_assets,
-            creative_package,
-            PROJECT_DIR / "config" / "creative_model.json",
-        )
-        render_packet = build_render_packet(PROJECT_DIR, bundle, render_blueprint)
-        prompt_bundle = compile_prompt_bundle(PROJECT_DIR, bundle, render_packet)
-        workflow_bundle = build_workflow_request(PROJECT_DIR, bundle, render_packet, prompt_bundle, provider, args.comfyui_endpoint)
-
-        log("running local ComfyUI generation")
-        generation_result = run_generation(
-            PROJECT_DIR,
-            bundle,
-            workflow_bundle,
-            args.comfyui_endpoint,
-            auto_start=not args.no_auto_start_comfyui,
-        )
-
-        review = build_review(bundle, creative_package, render_blueprint, render_packet, prompt_bundle, generation_result)
+        result = run_full_product_pipeline(PROJECT_DIR, bundle, log=log)
+        summary = result["summary"]
         latest_path = update_latest(
             PROJECT_DIR,
             bundle,
             {
                 "runId": bundle.run_id,
-                "imagePath": generation_result["imagePath"],
-                "reviewPath": str(bundle.output_dir / "review.json"),
+                "creativePackagePath": summary["creativePackagePath"],
+                "socialPostPackagePath": summary["socialPostPackagePath"],
+                "promptPackagePath": summary["promptPackagePath"],
+                "executionPackagePath": summary["executionPackagePath"],
+                "publishPackagePath": summary["publishPackagePath"],
+                "summaryPath": str(bundle.output_dir / "run_summary.json"),
+                "sceneDraftPremiseZh": summary["sceneDraftPremiseZh"],
             },
         )
 
         log(f"Run dir: {bundle.root}")
-        log(f"Image: {generation_result['imagePath']}")
-        log(f"Review: {bundle.output_dir / 'review.json'}")
+        log(f"Creative package: {summary['creativePackagePath']}")
+        log(f"Social post package: {summary['socialPostPackagePath']}")
+        log(f"Prompt package: {summary['promptPackagePath']}")
+        log(f"Execution package: {summary['executionPackagePath']}")
+        log(f"Publish package: {summary['publishPackagePath']}")
+        log(f"Generated image: {summary['generatedImagePath']}")
+        log(f"Summary: {bundle.output_dir / 'run_summary.json'}")
         log(f"Latest: {latest_path}")
-        print(json.dumps(review, ensure_ascii=False, indent=2))
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
     except Exception:
         delete_run_bundle(bundle)
@@ -125,9 +88,22 @@ def review_latest() -> int:
     if not latest_path.exists():
         raise RuntimeError("No latest run exists yet.")
     latest = read_json(latest_path)
-    review_path = Path(latest["summary"]["reviewPath"])
-    review = read_json(review_path)
-    print(json.dumps({"latest": latest, "review": review}, ensure_ascii=False, indent=2))
+    summary_path = Path(latest["summary"]["summaryPath"])
+    creative_package_path = Path(latest["summary"]["creativePackagePath"])
+    social_post_package_path = Path(latest["summary"]["socialPostPackagePath"])
+    prompt_package_path = Path(latest["summary"]["promptPackagePath"])
+    execution_package_path = Path(latest["summary"]["executionPackagePath"])
+    publish_package_path = Path(latest["summary"]["publishPackagePath"])
+    payload = {
+        "latest": latest,
+        "summary": read_json(summary_path),
+        "creativePackage": read_json(creative_package_path),
+        "socialPostPackage": read_json(social_post_package_path),
+        "promptPackage": read_json(prompt_package_path),
+        "executionPackage": read_json(execution_package_path),
+        "publishPackage": read_json(publish_package_path),
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 
