@@ -6,27 +6,34 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from io_utils import normalize_spaces, unique_list, write_json
-from llm import call_json_task
+from io_utils import normalize_spaces, write_json, write_text
+from llm import call_json_task, call_text_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
 from prompt_loader import load_prompt_text
-from .contracts import (
-    action_design_contract,
-    camera_design_contract,
-    scene_draft_contract,
-    scene_to_design_contract,
-    wardrobe_design_contract,
-)
+
+from .contracts import scene_draft_contract, social_signal_filter_contract
 from .social_trends import collect_social_trend_sample
 
 
 STAGE_CONFIGS = {
+    "social_signal_filter": {
+        "prompt_path": "prompts/creative/social_signal_filter.md",
+        "temperature": 0.2,
+    },
     "world_design": {
         "prompt_path": "prompts/creative/world_design.md",
         "temperature": 1.3,
     },
-    "scene_to_design": {
-        "prompt_path": "prompts/creative/scene_to_design.md",
+    "environment_design": {
+        "prompt_path": "prompts/creative/environment_design.md",
+        "temperature": 0.7,
+    },
+    "styling_design": {
+        "prompt_path": "prompts/creative/styling_design.md",
+        "temperature": 0.7,
+    },
+    "action_design": {
+        "prompt_path": "prompts/creative/action_design.md",
         "temperature": 0.7,
     },
 }
@@ -39,14 +46,14 @@ def build_default_run_context(*, now_local: str) -> dict[str, Any]:
     }
 
 
-def _system_prompt(project_dir: Path, prompt_path: str, output_contract: dict[str, Any]) -> str:
+def _json_system_prompt(project_dir: Path, prompt_path: str, output_contract: dict[str, Any]) -> str:
     prompt_text = load_prompt_text(project_dir, prompt_path)
     output_schema = json.dumps(to_deepseek_payload(output_contract), ensure_ascii=False, indent=2)
     return "\n\n".join(
         [
-            "<任务书>",
+            "<任务区>",
             prompt_text,
-            "</任务书>",
+            "</任务区>",
             "<返回格式>",
             "请只返回符合下列骨架的合法 JSON。",
             output_schema,
@@ -55,7 +62,23 @@ def _system_prompt(project_dir: Path, prompt_path: str, output_contract: dict[st
     )
 
 
-def _run_stage(
+def _text_system_prompt(project_dir: Path, prompt_path: str) -> str:
+    prompt_text = load_prompt_text(project_dir, prompt_path)
+    return "\n\n".join(
+        [
+            "<任务区>",
+            prompt_text,
+            "</任务区>",
+            "<输出要求>",
+            "直接输出最终设计稿正文。",
+            "不要输出 JSON。",
+            "不要解释规则或补充题外话。",
+            "</输出要求>",
+        ]
+    )
+
+
+def _run_json_stage(
     *,
     project_dir: Path,
     model_config_path: Path,
@@ -70,7 +93,7 @@ def _run_stage(
     result = call_json_task(
         project_dir=project_dir,
         model_config_path=model_config_path,
-        system_prompt=_system_prompt(project_dir, stage_config["prompt_path"], output_contract),
+        system_prompt=_json_system_prompt(project_dir, stage_config["prompt_path"], output_contract),
         user_payload=to_deepseek_payload(user_payload),
         trace_request_path=trace_dir / f"{stage_name}.request.json",
         trace_response_path=trace_dir / f"{stage_name}.response.json",
@@ -81,45 +104,41 @@ def _run_stage(
     return normalized_result
 
 
-def _normalize_text_list(payload: dict[str, Any], key: str) -> None:
-    payload[key] = unique_list(
-        [normalize_spaces(str(item)) for item in payload.get(key, []) if normalize_spaces(str(item))]
+def _normalize_text_output(raw_text: str, *, stage_name: str) -> str:
+    text = str(raw_text or "").replace("\r\n", "\n").strip()
+    if not text:
+        raise RuntimeError(f"{stage_name} returned empty text.")
+    return text
+
+
+def _run_text_stage(
+    *,
+    project_dir: Path,
+    model_config_path: Path,
+    bundle,
+    stage_name: str,
+    stage_key: str,
+    output_filename: str,
+    user_payload: dict[str, Any],
+) -> str:
+    trace_dir = bundle.trace_dir / "llm"
+    stage_config = STAGE_CONFIGS[stage_key]
+    result = call_text_task(
+        project_dir=project_dir,
+        model_config_path=model_config_path,
+        system_prompt=_text_system_prompt(project_dir, stage_config["prompt_path"]),
+        user_payload=to_deepseek_payload(user_payload),
+        trace_request_path=trace_dir / f"{stage_name}.request.json",
+        trace_response_path=trace_dir / f"{stage_name}.response.json",
+        temperature=stage_config.get("temperature"),
     )
+    normalized_result = _normalize_text_output(result, stage_name=stage_name)
+    write_text(bundle.creative_dir / output_filename, normalized_result + "\n")
+    return normalized_result
 
 
 def _normalize_summary(payload: dict[str, Any], key: str) -> None:
     payload[key] = normalize_spaces(str(payload.get(key, "")))
-
-
-def _normalize_world_design(world_design: dict[str, Any]) -> dict[str, Any]:
-    for key in ("scenePremiseZh", "worldSceneZh"):
-        _normalize_summary(world_design, key)
-    return world_design
-
-
-def _normalize_action_design(action_design: dict[str, Any]) -> dict[str, Any]:
-    for key in ("actionSummaryZh", "momentZh", "bodyActionZh"):
-        _normalize_summary(action_design, key)
-    for key in ("mustReadZh", "forbiddenDriftZh", "notesZh"):
-        _normalize_text_list(action_design, key)
-    return action_design
-
-
-def _normalize_wardrobe_design(wardrobe_design: dict[str, Any]) -> dict[str, Any]:
-    _normalize_summary(wardrobe_design, "wardrobeSummaryZh")
-    for key in ("requiredZh", "optionalZh", "forbiddenZh", "notesZh"):
-        _normalize_text_list(wardrobe_design, key)
-    return wardrobe_design
-
-
-def _normalize_camera_design(camera_design: dict[str, Any]) -> dict[str, Any]:
-    for key in ("cameraSummaryZh", "angleZh", "compositionGoalZh"):
-        _normalize_summary(camera_design, key)
-    for key in ("mustIncludeZh", "forbiddenZh", "notesZh"):
-        _normalize_text_list(camera_design, key)
-    camera_design["framing"] = normalize_spaces(str(camera_design.get("framing", ""))) or "full_body"
-    camera_design["aspectRatio"] = normalize_spaces(str(camera_design.get("aspectRatio", ""))) or "4:5"
-    return camera_design
 
 
 def _build_subject_stage_input(subject_profile: dict[str, Any]) -> dict[str, Any]:
@@ -128,69 +147,216 @@ def _build_subject_stage_input(subject_profile: dict[str, Any]) -> dict[str, Any
     return subject_input
 
 
-def build_world_design_input(project_dir: Path, subject_profile: dict[str, Any]) -> dict[str, Any]:
+def _build_social_signal_filter_input(social_signal_sample: dict[str, Any]) -> dict[str, Any]:
+    signal_candidates = []
+    for index, signal in enumerate(social_signal_sample.get("sampledSignalsZh", []), start=1):
+        text = normalize_spaces(str(signal))
+        if not text:
+            continue
+        signal_candidates.append(
+            {
+                "id": f"signal_{index:02d}",
+                "textZh": text,
+            }
+        )
     return {
-        "subjectProfile": _build_subject_stage_input(subject_profile),
-        "socialSignalSample": collect_social_trend_sample(project_dir),
+        "signalCandidates": signal_candidates,
     }
 
 
-def _build_scene_to_design_input(subject_profile: dict[str, Any], world_design: dict[str, Any]) -> dict[str, Any]:
+def _normalize_social_signal_filter_result(payload: dict[str, Any]) -> dict[str, Any]:
+    payload["selectedSignalId"] = normalize_spaces(str(payload.get("selectedSignalId", "")))
+    return payload
+
+
+def _select_social_signal(social_signal_sample: dict[str, Any], filter_result: dict[str, Any]) -> dict[str, Any]:
+    filter_input = _build_social_signal_filter_input(social_signal_sample)
+    candidate_lookup = {item["id"]: item["textZh"] for item in filter_input.get("signalCandidates", [])}
+    selected_signal_id = normalize_spaces(str(filter_result.get("selectedSignalId", "")))
+    if selected_signal_id not in candidate_lookup:
+        raise RuntimeError(f"social signal filter returned unknown id: {selected_signal_id or '<empty>'}")
+    selected_signal = copy.deepcopy(social_signal_sample)
+    selected_signal["sampledSignalsZh"] = [candidate_lookup[selected_signal_id]]
+    return selected_signal
+
+
+def build_world_design_input(subject_profile: dict[str, Any], social_signal_sample: dict[str, Any]) -> dict[str, Any]:
     return {
         "subjectProfile": _build_subject_stage_input(subject_profile),
-        "sceneDraft": world_design,
+        "socialSignalSample": copy.deepcopy(social_signal_sample),
     }
 
 
-def run_world_design_stage(project_dir: Path, bundle, subject_profile: dict[str, Any], model_config_path: Path) -> dict[str, Any]:
-    world_design_input = build_world_design_input(project_dir, subject_profile)
-    write_json(bundle.creative_dir / "00_world_design_input.json", world_design_input)
-    return _normalize_world_design(
-        _run_stage(
+def _build_world_derivative_input(subject_profile: dict[str, Any], world_design: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "subjectProfile": _build_subject_stage_input(subject_profile),
+        "sceneDraft": copy.deepcopy(world_design),
+    }
+
+
+def _normalize_world_design(world_design: dict[str, Any]) -> dict[str, Any]:
+    for key in ("scenePremiseZh", "worldSceneZh"):
+        _normalize_summary(world_design, key)
+    return world_design
+
+
+def run_social_signal_filter_stage(project_dir: Path, bundle, model_config_path: Path) -> dict[str, Any]:
+    social_signal_sample = collect_social_trend_sample(project_dir)
+    filter_input = _build_social_signal_filter_input(social_signal_sample)
+    if len(filter_input.get("signalCandidates", [])) != 3:
+        raise RuntimeError("social signal shortlist must contain exactly 3 candidates")
+    write_json(bundle.creative_dir / "00_social_signal_filter_input.json", filter_input)
+    filter_result = _normalize_social_signal_filter_result(
+        _run_json_stage(
+            project_dir=project_dir,
+            model_config_path=model_config_path,
+            bundle=bundle,
+            stage_name="00_social_signal_filter",
+            stage_key="social_signal_filter",
+            output_contract=social_signal_filter_contract(),
+            user_payload={"socialSignalFilterInput": filter_input},
+        )
+    )
+    return _select_social_signal(social_signal_sample, filter_result)
+
+
+def run_world_design_stage(
+    project_dir: Path,
+    bundle,
+    subject_profile: dict[str, Any],
+    social_signal_sample: dict[str, Any],
+    model_config_path: Path,
+) -> dict[str, Any]:
+    world_design_input = build_world_design_input(subject_profile, social_signal_sample)
+    write_json(bundle.creative_dir / "01_world_design_input.json", world_design_input)
+    world_design = _normalize_world_design(
+        _run_json_stage(
             project_dir=project_dir,
             model_config_path=model_config_path,
             bundle=bundle,
             stage_name="01_world_design",
             stage_key="world_design",
             output_contract=scene_draft_contract(),
-            user_payload={
-                "worldDesignInput": world_design_input,
-            },
+            user_payload={"worldDesignInput": world_design_input},
         )
     )
+    return world_design
 
 
-def run_scene_to_design_stage(
+def _run_world_derivative_stage(
+    *,
     project_dir: Path,
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
     model_config_path: Path,
-) -> dict[str, Any]:
-    scene_to_design_input = _build_scene_to_design_input(subject_profile, world_design)
-    write_json(bundle.creative_dir / "01_scene_to_design_input.json", scene_to_design_input)
-    result = _run_stage(
+    stage_name: str,
+    stage_key: str,
+    input_filename: str,
+    output_filename: str,
+    input_key: str,
+) -> str:
+    stage_input = _build_world_derivative_input(subject_profile, world_design)
+    write_json(bundle.creative_dir / input_filename, stage_input)
+    return _run_text_stage(
         project_dir=project_dir,
         model_config_path=model_config_path,
         bundle=bundle,
-        stage_name="02_scene_to_design",
-        stage_key="scene_to_design",
-        output_contract=scene_to_design_contract(),
-        user_payload={
-            "sceneToDesignInput": scene_to_design_input,
-        },
+        stage_name=stage_name,
+        stage_key=stage_key,
+        output_filename=output_filename,
+        user_payload={input_key: stage_input},
     )
+
+
+def run_environment_design_stage(
+    project_dir: Path,
+    bundle,
+    subject_profile: dict[str, Any],
+    world_design: dict[str, Any],
+    model_config_path: Path,
+) -> str:
+    return _run_world_derivative_stage(
+        project_dir=project_dir,
+        bundle=bundle,
+        subject_profile=subject_profile,
+        world_design=world_design,
+        model_config_path=model_config_path,
+        stage_name="02_environment_design",
+        stage_key="environment_design",
+        input_filename="02_environment_design_input.json",
+        output_filename="02_environment_design.md",
+        input_key="environmentDesignInput",
+    )
+
+
+def run_styling_design_stage(
+    project_dir: Path,
+    bundle,
+    subject_profile: dict[str, Any],
+    world_design: dict[str, Any],
+    model_config_path: Path,
+) -> str:
+    return _run_world_derivative_stage(
+        project_dir=project_dir,
+        bundle=bundle,
+        subject_profile=subject_profile,
+        world_design=world_design,
+        model_config_path=model_config_path,
+        stage_name="03_styling_design",
+        stage_key="styling_design",
+        input_filename="03_styling_design_input.json",
+        output_filename="03_styling_design.md",
+        input_key="stylingDesignInput",
+    )
+
+
+def run_action_design_stage(
+    project_dir: Path,
+    bundle,
+    subject_profile: dict[str, Any],
+    world_design: dict[str, Any],
+    model_config_path: Path,
+) -> str:
+    return _run_world_derivative_stage(
+        project_dir=project_dir,
+        bundle=bundle,
+        subject_profile=subject_profile,
+        world_design=world_design,
+        model_config_path=model_config_path,
+        stage_name="04_action_design",
+        stage_key="action_design",
+        input_filename="04_action_design_input.json",
+        output_filename="04_action_design.md",
+        input_key="actionDesignInput",
+    )
+
+
+def run_parallel_design_stages(
+    project_dir: Path,
+    bundle,
+    subject_profile: dict[str, Any],
+    world_design: dict[str, Any],
+    model_config_path: Path,
+) -> dict[str, str]:
     return {
-        "actionDesign": _normalize_action_design(result.get("actionDesign", action_design_contract())),
-        "wardrobeDesign": _normalize_wardrobe_design(result.get("wardrobeDesign", wardrobe_design_contract())),
-        "cameraDesign": _normalize_camera_design(result.get("cameraDesign", camera_design_contract())),
+        "environmentDesign": run_environment_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
+        "stylingDesign": run_styling_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
+        "actionDesign": run_action_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
     }
 
 
-def run_creative_pipeline(project_dir: Path, bundle, default_run_context: dict[str, Any], character_assets: dict, model_config_path: Path) -> dict[str, Any]:
+def run_creative_pipeline(
+    project_dir: Path,
+    bundle,
+    default_run_context: dict[str, Any],
+    character_assets: dict,
+    model_config_path: Path,
+) -> dict[str, Any]:
     subject_profile = character_assets["subjectProfile"]
-    world_design = run_world_design_stage(project_dir, bundle, subject_profile, model_config_path)
-    scene_to_design = run_scene_to_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path)
+    social_signal_sample = run_social_signal_filter_stage(project_dir, bundle, model_config_path)
+    world_design = run_world_design_stage(project_dir, bundle, subject_profile, social_signal_sample, model_config_path)
+    design_branches = run_parallel_design_stages(project_dir, bundle, subject_profile, world_design, model_config_path)
 
     creative_package = {
         "meta": {
@@ -198,10 +364,9 @@ def run_creative_pipeline(project_dir: Path, bundle, default_run_context: dict[s
             "runMode": "default",
         },
         "defaultRunContext": default_run_context,
+        "socialSignalSample": social_signal_sample,
         "worldDesign": world_design,
-        "actionDesign": scene_to_design["actionDesign"],
-        "wardrobeDesign": scene_to_design["wardrobeDesign"],
-        "cameraDesign": scene_to_design["cameraDesign"],
+        **design_branches,
     }
-    write_json(bundle.creative_dir / "creative_package.json", creative_package)
+    write_json(bundle.creative_dir / "05_creative_package.json", creative_package)
     return creative_package

@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+from pathlib import Path
+from typing import Any
+
+from io_utils import read_json
+
+
+def load_execution_profile(project_dir: Path, profile_path: Path) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    resolved_profile_path = profile_path if profile_path.is_absolute() else (project_dir / profile_path).resolve()
+    profile = read_json(resolved_profile_path)
+    template_path = (resolved_profile_path.parent / profile["templatePath"]).resolve()
+    workflow_template = read_json(template_path)
+    return profile, workflow_template, template_path
+
+
+def resolve_checkpoint_path(project_dir: Path, profile: dict[str, Any]) -> Path:
+    raw_path = str(profile.get("checkpointPath", "")).strip()
+    if not raw_path:
+        return Path()
+    checkpoint_path = Path(raw_path)
+    if checkpoint_path.is_absolute():
+        return checkpoint_path
+    return (project_dir / checkpoint_path).resolve()
+
+
+def compute_prompt_seed(positive_prompt: str, negative_prompt: str) -> int:
+    material = f"{positive_prompt}\n--\n{negative_prompt}".encode("utf-8")
+    digest = hashlib.sha256(material).hexdigest()
+    return int(digest[:8], 16)
+
+
+def select_image_size(profile: dict[str, Any]) -> tuple[str, int, int]:
+    defaults = profile["defaults"]
+    aspect_ratio = str(defaults["aspectRatio"])
+    size = profile["sizeByAspectRatio"][aspect_ratio]
+    return aspect_ratio, int(size["width"]), int(size["height"])
+
+
+def build_execution_input(profile: dict[str, Any], prompt_package: dict[str, Any]) -> dict[str, Any]:
+    aspect_ratio, width, height = select_image_size(profile)
+    positive_prompt = str(prompt_package.get("positivePrompt", "")).strip()
+    negative_prompt = str(prompt_package.get("negativePrompt", "")).strip()
+    seed = compute_prompt_seed(positive_prompt, negative_prompt)
+    defaults = profile["defaults"]
+    return {
+        "checkpointName": str(profile["checkpointName"]),
+        "positivePrompt": positive_prompt,
+        "negativePrompt": negative_prompt or str(profile.get("negativePromptFallback", "")).strip(),
+        "aspectRatio": aspect_ratio,
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "steps": int(defaults["steps"]),
+        "cfg": float(defaults["cfg"]),
+        "samplerName": str(defaults["samplerName"]),
+        "scheduler": str(defaults["scheduler"]),
+        "denoise": float(defaults["denoise"]),
+        "batchSize": int(defaults["batchSize"]),
+        "filenamePrefix": str(defaults["filenamePrefix"]),
+    }
+
+
+def _set_node_input(workflow: dict[str, Any], node_id: str, input_name: str, value: Any) -> None:
+    workflow[str(node_id)]["inputs"][input_name] = value
+
+
+def build_workflow_request(
+    profile: dict[str, Any],
+    workflow_template: dict[str, Any],
+    execution_input: dict[str, Any],
+    *,
+    run_id: str,
+) -> dict[str, Any]:
+    workflow = copy.deepcopy(workflow_template)
+    nodes = profile["nodes"]
+
+    _set_node_input(workflow, nodes["checkpoint"]["id"], nodes["checkpoint"]["input"], execution_input["checkpointName"])
+    _set_node_input(workflow, nodes["positivePrompt"]["id"], nodes["positivePrompt"]["input"], execution_input["positivePrompt"])
+    _set_node_input(workflow, nodes["negativePrompt"]["id"], nodes["negativePrompt"]["input"], execution_input["negativePrompt"])
+    _set_node_input(workflow, nodes["latentImage"]["id"], nodes["latentImage"]["widthInput"], execution_input["width"])
+    _set_node_input(workflow, nodes["latentImage"]["id"], nodes["latentImage"]["heightInput"], execution_input["height"])
+    _set_node_input(workflow, nodes["latentImage"]["id"], nodes["latentImage"]["batchInput"], execution_input["batchSize"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["seedInput"], execution_input["seed"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["stepsInput"], execution_input["steps"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["cfgInput"], execution_input["cfg"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["samplerInput"], execution_input["samplerName"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["schedulerInput"], execution_input["scheduler"])
+    _set_node_input(workflow, nodes["sampler"]["id"], nodes["sampler"]["denoiseInput"], execution_input["denoise"])
+
+    filename_prefix = f"{execution_input['filenamePrefix']}_{run_id}"
+    _set_node_input(workflow, nodes["saveImage"]["id"], nodes["saveImage"]["input"], filename_prefix)
+    return workflow

@@ -12,11 +12,10 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from character_assets import load_character_assets
-from comfyui_engine import build_workflow_request, run_generation
 from creative import build_default_run_context, run_creative_pipeline
+from execution import run_execution_pipeline
 from io_utils import read_json, write_json
-from render import build_render_blueprint, build_render_packet, compile_prompt_bundle
-from review import build_review
+from prompt_builder import run_prompt_builder_pipeline
 from runtime_layout import create_run_bundle, delete_run_bundle, runtime_root, update_latest
 
 
@@ -32,16 +31,13 @@ def log(message: str) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="IG Roleplay v3 unified product entrypoint.")
+    parser = argparse.ArgumentParser(description="IG Roleplay v3 full creative-to-image entrypoint.")
     subparsers = parser.add_subparsers(dest="command")
 
-    single = subparsers.add_parser("single", help="Run one v3 product image.")
-    single.add_argument("--provider", default="")
+    single = subparsers.add_parser("single", help="Run one full upstream-to-image pipeline.")
     single.add_argument("--run-label", default="")
-    single.add_argument("--comfyui-endpoint", default="")
-    single.add_argument("--no-auto-start-comfyui", action="store_true")
 
-    subparsers.add_parser("review", help="Print the latest v3 review bundle.")
+    subparsers.add_parser("review", help="Print the latest run summary.")
     subparsers.add_parser("paths", help="Print the runtime root and latest bundle file.")
     return parser
 
@@ -54,9 +50,29 @@ def normalize_argv(argv: list[str]) -> list[str]:
     return argv
 
 
+def _build_run_summary(bundle, creative_package: dict, prompt_package: dict, execution_package: dict) -> dict:
+    summary = {
+        "runId": bundle.run_id,
+        "creativePackagePath": str(bundle.creative_dir / "05_creative_package.json"),
+        "promptPackagePath": str(bundle.prompt_builder_dir / "01_prompt_package.json"),
+        "imagePromptPath": str(bundle.prompt_builder_dir / "00_image_prompt.json"),
+        "executionPackagePath": str(bundle.execution_dir / "04_execution_package.json"),
+        "socialSignalSampleZh": creative_package.get("socialSignalSample", {}).get("sampledSignalsZh", []),
+        "sceneDraftPremiseZh": creative_package.get("worldDesign", {}).get("scenePremiseZh", ""),
+        "sceneDraftTextZh": creative_package.get("worldDesign", {}).get("worldSceneZh", ""),
+        "environmentDesignTextZh": str(creative_package.get("environmentDesign", "")).strip(),
+        "stylingDesignTextZh": str(creative_package.get("stylingDesign", "")).strip(),
+        "actionDesignTextZh": str(creative_package.get("actionDesign", "")).strip(),
+        "positivePromptText": str(prompt_package.get("positivePrompt", "")).strip(),
+        "negativePromptText": str(prompt_package.get("negativePrompt", "")).strip(),
+        "generatedImagePath": str(execution_package.get("imagePath", "")).strip(),
+        "checkpointName": str(execution_package.get("checkpointName", "")).strip(),
+    }
+    write_json(bundle.output_dir / "run_summary.json", summary)
+    return summary
+
+
 def run_single(args) -> int:
-    runtime_profile = read_json(PROJECT_DIR / "config" / "runtime_profile.json")
-    provider = args.provider or runtime_profile["defaultProvider"]
     mode_label = "default"
     bundle = create_run_bundle(PROJECT_DIR, mode_label, args.run_label or mode_label)
     try:
@@ -67,7 +83,7 @@ def run_single(args) -> int:
         write_json(bundle.input_dir / "default_run_context.json", default_run_context)
         write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
 
-        log("creative layer: scene draft -> scene-to-design")
+        log("creative layer: 人物原始资产 + 外部发散变量采样层 -> 场景设计稿 -> 环境、布景与光影设计+服装与造型设计+动作与姿态、神态设计")
         creative_package = run_creative_pipeline(
             PROJECT_DIR,
             bundle,
@@ -76,8 +92,8 @@ def run_single(args) -> int:
             PROJECT_DIR / "config" / "creative_model.json",
         )
 
-        log("render layer: render director -> render packet -> prompt bundle -> workflow request")
-        render_blueprint = build_render_blueprint(
+        log("prompt builder layer: 原始人物资产 + 三份设计 -> 生图Prompt")
+        prompt_package = run_prompt_builder_pipeline(
             PROJECT_DIR,
             bundle,
             default_run_context,
@@ -85,35 +101,38 @@ def run_single(args) -> int:
             creative_package,
             PROJECT_DIR / "config" / "creative_model.json",
         )
-        render_packet = build_render_packet(PROJECT_DIR, bundle, render_blueprint)
-        prompt_bundle = compile_prompt_bundle(PROJECT_DIR, bundle, render_packet)
-        workflow_bundle = build_workflow_request(PROJECT_DIR, bundle, render_packet, prompt_bundle, provider, args.comfyui_endpoint)
 
-        log("running local ComfyUI generation")
-        generation_result = run_generation(
+        log("execution layer: 生图Prompt -> ComfyUI workflow -> generated image")
+        execution_package = run_execution_pipeline(
             PROJECT_DIR,
             bundle,
-            workflow_bundle,
-            args.comfyui_endpoint,
-            auto_start=not args.no_auto_start_comfyui,
+            default_run_context,
+            prompt_package,
+            PROJECT_DIR / "config" / "execution" / "comfyui_local_animagine_xl.json",
         )
 
-        review = build_review(bundle, creative_package, render_blueprint, render_packet, prompt_bundle, generation_result)
+        summary = _build_run_summary(bundle, creative_package, prompt_package, execution_package)
         latest_path = update_latest(
             PROJECT_DIR,
             bundle,
             {
                 "runId": bundle.run_id,
-                "imagePath": generation_result["imagePath"],
-                "reviewPath": str(bundle.output_dir / "review.json"),
+                "creativePackagePath": summary["creativePackagePath"],
+                "promptPackagePath": summary["promptPackagePath"],
+                "executionPackagePath": summary["executionPackagePath"],
+                "summaryPath": str(bundle.output_dir / "run_summary.json"),
+                "sceneDraftPremiseZh": summary["sceneDraftPremiseZh"],
             },
         )
 
         log(f"Run dir: {bundle.root}")
-        log(f"Image: {generation_result['imagePath']}")
-        log(f"Review: {bundle.output_dir / 'review.json'}")
+        log(f"Creative package: {summary['creativePackagePath']}")
+        log(f"Prompt package: {summary['promptPackagePath']}")
+        log(f"Execution package: {summary['executionPackagePath']}")
+        log(f"Generated image: {summary['generatedImagePath']}")
+        log(f"Summary: {bundle.output_dir / 'run_summary.json'}")
         log(f"Latest: {latest_path}")
-        print(json.dumps(review, ensure_ascii=False, indent=2))
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
     except Exception:
         delete_run_bundle(bundle)
@@ -125,9 +144,18 @@ def review_latest() -> int:
     if not latest_path.exists():
         raise RuntimeError("No latest run exists yet.")
     latest = read_json(latest_path)
-    review_path = Path(latest["summary"]["reviewPath"])
-    review = read_json(review_path)
-    print(json.dumps({"latest": latest, "review": review}, ensure_ascii=False, indent=2))
+    summary_path = Path(latest["summary"]["summaryPath"])
+    creative_package_path = Path(latest["summary"]["creativePackagePath"])
+    prompt_package_path = Path(latest["summary"]["promptPackagePath"])
+    execution_package_path = Path(latest["summary"]["executionPackagePath"])
+    payload = {
+        "latest": latest,
+        "summary": read_json(summary_path),
+        "creativePackage": read_json(creative_package_path),
+        "promptPackage": read_json(prompt_package_path),
+        "executionPackage": read_json(execution_package_path),
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 

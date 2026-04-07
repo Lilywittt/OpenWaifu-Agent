@@ -17,7 +17,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from character_assets import load_character_assets
-from creative.pipeline import run_world_design_stage
+from creative.pipeline import run_social_signal_filter_stage, run_world_design_stage
 from io_utils import ensure_dir, read_json, write_json, write_text
 from runtime_layout import RunBundle, sanitize_segment
 
@@ -58,17 +58,19 @@ def build_batch_dir(label: str) -> Path:
 
 def create_sample_bundle(sample_root: Path, sample_id: int) -> RunBundle:
     creative_dir = sample_root / "creative"
-    render_dir = sample_root / "render"
+    prompt_builder_dir = sample_root / "prompt_builder"
+    execution_dir = sample_root / "execution"
     output_dir = sample_root / "output"
     trace_dir = sample_root / "trace"
-    for path in (sample_root, creative_dir, render_dir, output_dir, trace_dir):
+    for path in (sample_root, creative_dir, prompt_builder_dir, execution_dir, output_dir, trace_dir):
         ensure_dir(path)
     bundle = RunBundle(
         run_id=f"{sample_root.parent.name}_sample{sample_id:02d}",
         root=sample_root,
         input_dir=sample_root / "input",
         creative_dir=creative_dir,
-        render_dir=render_dir,
+        prompt_builder_dir=prompt_builder_dir,
+        execution_dir=execution_dir,
         output_dir=output_dir,
         trace_dir=trace_dir,
     )
@@ -85,7 +87,7 @@ def patch_world_input(
 ) -> None:
     if not source_key and not provider_key:
         return
-    input_path = sample_root / "creative" / "00_world_design_input.json"
+    input_path = sample_root / "creative" / "01_world_design_input.json"
     if not input_path.exists():
         return
     payload = read_json(input_path)
@@ -97,7 +99,7 @@ def patch_world_input(
 
 
 def collect_sample_record(sample_dir: Path) -> dict[str, Any] | None:
-    input_path = sample_dir / "creative" / "00_world_design_input.json"
+    input_path = sample_dir / "creative" / "01_world_design_input.json"
     output_path = sample_dir / "creative" / "01_world_design.json"
     if not input_path.exists() or not output_path.exists():
         return None
@@ -217,7 +219,8 @@ def run_batch(*, count: int, label: str, source_key: str, provider_key: str) -> 
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            run_world_design_stage(PROJECT_DIR, bundle, character_assets["subjectProfile"], model_config_path)
+            social_signal_sample = run_social_signal_filter_stage(PROJECT_DIR, bundle, model_config_path)
+            run_world_design_stage(PROJECT_DIR, bundle, character_assets["subjectProfile"], social_signal_sample, model_config_path)
             patch_world_input(sample_root, source_key=source_key, provider_key=provider_key)
             completed += 1
         except Exception:

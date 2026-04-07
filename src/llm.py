@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -47,21 +48,15 @@ def extract_json_block(raw: str) -> str:
     raise RuntimeError("Model response JSON block was incomplete.")
 
 
-def call_json_task(
+def _build_body(
     *,
-    project_dir: Path,
-    model_config_path: Path,
+    model_config: dict[str, Any],
     system_prompt: str,
     user_payload: dict[str, Any],
-    trace_request_path: Path,
-    trace_response_path: Path,
-    temperature: float | None = None,
-    max_tokens: int | None = None,
-) -> Any:
-    model_config = read_json(model_config_path)
-    api_key = require_env_value(project_dir, model_config["envName"])
-
-    body = {
+    temperature: float | None,
+    max_tokens: int | None,
+) -> dict[str, Any]:
+    return {
         "model": model_config["model"],
         "temperature": model_config.get("temperature", 0.8) if temperature is None else temperature,
         "max_tokens": model_config.get("maxTokens", 1800) if max_tokens is None else max_tokens,
@@ -70,6 +65,49 @@ def call_json_task(
             {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, indent=2)},
         ],
     }
+
+
+def _extract_response_text(payload: dict[str, Any]) -> str:
+    content = payload["choices"][0]["message"]["content"]
+    if isinstance(content, list):
+        text = "\n".join(str(item.get("text", "")) for item in content)
+    else:
+        text = str(content)
+    return text
+
+
+def _strip_text_fence(raw: str) -> str:
+    text = str(raw or "").strip().replace("\r\n", "\n")
+    fenced = re.fullmatch(r"```(?:[A-Za-z0-9_-]+)?\s*(.*?)\s*```", text, flags=re.DOTALL)
+    if fenced:
+        return fenced.group(1).strip()
+    return text
+
+
+def _attempt_path(path: Path, attempt: int) -> Path:
+    if attempt <= 1:
+        return path
+    return path.with_name(f"{path.stem}.attempt{attempt}{path.suffix}")
+
+
+def _call_model_once(
+    *,
+    model_config: dict[str, Any],
+    api_key: str,
+    system_prompt: str,
+    user_payload: dict[str, Any],
+    trace_request_path: Path,
+    trace_response_path: Path,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> Any:
+    body = _build_body(
+        model_config=model_config,
+        system_prompt=system_prompt,
+        user_payload=user_payload,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
     trace_request_path.parent.mkdir(parents=True, exist_ok=True)
     trace_request_path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -93,10 +131,103 @@ def call_json_task(
 
     trace_response_path.parent.mkdir(parents=True, exist_ok=True)
     trace_response_path.write_text(raw_response, encoding="utf-8")
-    payload = json.loads(raw_response)
-    content = payload["choices"][0]["message"]["content"]
-    if isinstance(content, list):
-        text = "\n".join(str(item.get("text", "")) for item in content)
-    else:
-        text = str(content)
-    return json.loads(extract_json_block(text))
+    return json.loads(raw_response)
+
+
+def _call_model(
+    *,
+    project_dir: Path,
+    model_config_path: Path,
+    system_prompt: str,
+    user_payload: dict[str, Any],
+    trace_request_path: Path,
+    trace_response_path: Path,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    model_config = read_json(model_config_path)
+    api_key = require_env_value(project_dir, model_config["envName"])
+    retry_attempts = max(int(model_config.get("retryAttempts", 1)), 1)
+    retry_base_delay_ms = max(int(model_config.get("retryBaseDelayMs", 0)), 0)
+    last_error: Exception | None = None
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            payload = _call_model_once(
+                model_config=model_config,
+                api_key=api_key,
+                system_prompt=system_prompt,
+                user_payload=user_payload,
+                trace_request_path=_attempt_path(trace_request_path, attempt),
+                trace_response_path=_attempt_path(trace_response_path, attempt),
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return model_config, payload
+        except Exception as error:
+            last_error = error
+            if attempt >= retry_attempts:
+                break
+            time.sleep((retry_base_delay_ms * attempt) / 1000)
+    assert last_error is not None
+    raise last_error
+
+
+def call_json_task(
+    *,
+    project_dir: Path,
+    model_config_path: Path,
+    system_prompt: str,
+    user_payload: dict[str, Any],
+    trace_request_path: Path,
+    trace_response_path: Path,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> Any:
+    model_config = read_json(model_config_path)
+    parse_retry_attempts = max(int(model_config.get("parseRetryAttempts", 1)), 1)
+    parse_retry_delay_ms = max(int(model_config.get("parseRetryDelayMs", 0)), 0)
+    last_error: Exception | None = None
+    for attempt in range(1, parse_retry_attempts + 1):
+        try:
+            _, payload = _call_model(
+                project_dir=project_dir,
+                model_config_path=model_config_path,
+                system_prompt=system_prompt,
+                user_payload=user_payload,
+                trace_request_path=trace_request_path,
+                trace_response_path=trace_response_path,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return json.loads(extract_json_block(_extract_response_text(payload)))
+        except Exception as error:
+            last_error = error
+            if attempt >= parse_retry_attempts:
+                break
+            time.sleep((parse_retry_delay_ms * attempt) / 1000)
+    assert last_error is not None
+    raise last_error
+
+
+def call_text_task(
+    *,
+    project_dir: Path,
+    model_config_path: Path,
+    system_prompt: str,
+    user_payload: dict[str, Any],
+    trace_request_path: Path,
+    trace_response_path: Path,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    _, payload = _call_model(
+        project_dir=project_dir,
+        model_config_path=model_config_path,
+        system_prompt=system_prompt,
+        user_payload=user_payload,
+        trace_request_path=trace_request_path,
+        trace_response_path=trace_response_path,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return _strip_text_fence(_extract_response_text(payload))
