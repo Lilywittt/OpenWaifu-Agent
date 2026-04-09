@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-"""从已有 creative 产物直接回放社媒文案模块的测试脚本。"""
+"""从已有 world design 设计稿直接运行到生图的批量测试脚本。"""
 
 import argparse
 import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -18,51 +19,50 @@ for import_path in (TOOLS_DIR, SRC_DIR):
 from common import (
     build_batch_dir,
     configure_utf8_stdio,
-    latest_creative_package_paths,
     create_sample_bundle,
-    resolve_creative_package_paths,
+    resolve_scene_draft_paths,
 )
 
-from character_assets import load_character_assets
-from creative import build_default_run_context
 from io_utils import ensure_dir, read_json, write_json, write_text
-from social_post import run_social_post_pipeline
+from product_pipeline import run_scene_draft_generation_pipeline
 
 
-BATCH_KIND = "social_post_from_creative"
+BATCH_KIND = "world_design_to_image"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the social_post module directly from existing creative outputs."
+        description="Run the three design modules, social post, prompt builder, and execution from existing world design drafts."
     )
-    parser.add_argument("--count", type=int, default=3)
+    parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--label", default="batch")
     parser.add_argument("--source", action="append", default=[])
     parser.add_argument("--source-batch", default="")
     return parser
 
 
-def resolve_input_creative_packages(*, sources: list[str], source_batch: str, count: int) -> list[Path]:
-    if sources or source_batch:
-        return resolve_creative_package_paths(sources=sources, source_batch=source_batch, count=count)
-    return latest_creative_package_paths(count)
-
-
-def build_record(sample_dir: Path) -> dict:
-    source_meta = read_json(sample_dir / "input" / "creative_source.json")
-    scene_draft = read_json(sample_dir / "input" / "scene_draft_snapshot.json")
+def build_record(sample_dir: Path) -> dict[str, Any]:
+    source_meta = read_json(sample_dir / "input" / "scene_draft_source.json")
+    scene_draft = read_json(sample_dir / "creative" / "01_world_design.json")
+    creative_package = read_json(sample_dir / "creative" / "05_creative_package.json")
     social_post_package = read_json(sample_dir / "social_post" / "01_social_post_package.json")
+    prompt_package = read_json(sample_dir / "prompt_builder" / "01_prompt_package.json")
+    execution_package = read_json(sample_dir / "execution" / "04_execution_package.json")
     return {
         "sampleId": sample_dir.name,
         "source": source_meta,
         "sceneDraft": scene_draft,
+        "environmentDesign": str(creative_package.get("environmentDesign", "")).strip(),
+        "stylingDesign": str(creative_package.get("stylingDesign", "")).strip(),
+        "actionDesign": str(creative_package.get("actionDesign", "")).strip(),
         "socialPostText": str(social_post_package.get("socialPostText", "")).strip(),
-        "socialPostOutputPath": str(sample_dir / "output" / "social_post.txt"),
+        "positivePrompt": str(prompt_package.get("positivePrompt", "")).strip(),
+        "negativePrompt": str(prompt_package.get("negativePrompt", "")).strip(),
+        "generatedImagePath": str(execution_package.get("imagePath", "")).strip(),
     }
 
 
-def write_summary(batch_dir: Path) -> dict:
+def write_summary(batch_dir: Path) -> dict[str, Any]:
     samples_dir = batch_dir / "samples"
     records = [
         build_record(sample_dir)
@@ -76,7 +76,7 @@ def write_summary(batch_dir: Path) -> dict:
     write_json(batch_dir / "batch_summary.json", summary)
 
     lines = [
-        "# 已有设计稿直跑社媒文案测试结果",
+        "# 已有 world design 设计稿直跑到生图的测试结果",
         "",
         f"- 批次目录: `{batch_dir}`",
         f"- 样本数: {len(records)}",
@@ -84,67 +84,71 @@ def write_summary(batch_dir: Path) -> dict:
     ]
     for record in records:
         lines.append(f"## {record['sampleId']}")
-        lines.append(f"- 来源 creative package: `{record['source']['creativePackagePath']}`")
+        lines.append(f"- 来源场景稿: `{record['source']['sceneDraftPath']}`")
         lines.append(f"- 场景命题: {record['sceneDraft'].get('scenePremiseZh', '')}")
         lines.append("### 场景正文")
         lines.append("```text")
         lines.append(str(record["sceneDraft"].get("worldSceneZh", "")).strip())
         lines.append("```")
+        lines.append("### 环境、布景与光影设计")
+        lines.append("```text")
+        lines.append(record["environmentDesign"])
+        lines.append("```")
+        lines.append("### 服装与造型设计")
+        lines.append("```text")
+        lines.append(record["stylingDesign"])
+        lines.append("```")
+        lines.append("### 动作与姿态、神态设计")
+        lines.append("```text")
+        lines.append(record["actionDesign"])
+        lines.append("```")
         lines.append("### 社媒文案")
         lines.append("```text")
         lines.append(record["socialPostText"])
         lines.append("```")
-        lines.append(f"- 文案输出: `{record['socialPostOutputPath']}`")
+        lines.append("### 正向 Prompt")
+        lines.append("```text")
+        lines.append(record["positivePrompt"])
+        lines.append("```")
+        lines.append("### 负向 Prompt")
+        lines.append("```text")
+        lines.append(record["negativePrompt"])
+        lines.append("```")
+        lines.append(f"- 生成图片: `{record['generatedImagePath']}`")
         lines.append("")
     write_text(batch_dir / "complete_results.md", "\n".join(lines))
     return summary
 
 
 def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) -> Path:
-    creative_package_paths = resolve_input_creative_packages(
+    scene_draft_paths = resolve_scene_draft_paths(
         sources=sources,
         source_batch=source_batch,
         count=count,
     )
-    batch_dir = build_batch_dir(BATCH_KIND, f"{label}_batch{len(creative_package_paths)}")
+    batch_dir = build_batch_dir(BATCH_KIND, f"{label}_batch{len(scene_draft_paths)}")
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
 
-    character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = PROJECT_DIR / "config" / "creative_model.json"
     write_json(
         batch_dir / "batch_meta.json",
         {
             "createdAt": datetime.now().isoformat(timespec="seconds"),
-            "count": len(creative_package_paths),
-            "creativePackagePaths": [str(path) for path in creative_package_paths],
+            "count": len(scene_draft_paths),
+            "sceneDraftPaths": [str(path) for path in scene_draft_paths],
         },
     )
 
-    for index, creative_package_path in enumerate(creative_package_paths, start=1):
+    for index, scene_draft_path in enumerate(scene_draft_paths, start=1):
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            creative_package = read_json(creative_package_path)
-            default_run_context = creative_package.get("defaultRunContext") or build_default_run_context(
-                now_local=datetime.now().isoformat(timespec="seconds"),
-            )
-            write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-            write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-            write_json(
-                bundle.input_dir / "creative_source.json",
-                {
-                    "creativePackagePath": str(creative_package_path),
-                },
-            )
-            write_json(bundle.input_dir / "scene_draft_snapshot.json", creative_package.get("worldDesign", {}))
-            run_social_post_pipeline(
+            scene_draft = read_json(scene_draft_path)
+            run_scene_draft_generation_pipeline(
                 PROJECT_DIR,
                 bundle,
-                default_run_context,
-                character_assets,
-                creative_package,
-                model_config_path,
+                scene_draft=scene_draft,
+                source_meta={"sceneDraftPath": str(scene_draft_path)},
             )
         except Exception:
             shutil.rmtree(sample_root, ignore_errors=True)

@@ -7,28 +7,22 @@ import json
 import shutil
 import sys
 from collections import Counter
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
+TOOLS_DIR = Path(__file__).resolve().parent
 SRC_DIR = PROJECT_DIR / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+for import_path in (TOOLS_DIR, SRC_DIR):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
 from character_assets import load_character_assets
 from creative.pipeline import run_social_signal_filter_stage, run_world_design_stage
 from io_utils import ensure_dir, read_json, write_json, write_text
-from runtime_layout import RunBundle, sanitize_segment
-
-
-def configure_utf8_stdio() -> None:
-    for stream_name in ("stdout", "stderr"):
-        stream = getattr(sys, stream_name, None)
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
+from common import build_batch_dir, configure_utf8_stdio, create_sample_bundle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,40 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def test_root() -> Path:
-    return PROJECT_DIR / "runtime" / "test_batches" / "world_design"
-
-
-def build_batch_dir(label: str) -> Path:
-    stamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    return test_root() / f"{stamp}_{sanitize_segment(label)}"
-
-
-def create_sample_bundle(sample_root: Path, sample_id: int) -> RunBundle:
-    creative_dir = sample_root / "creative"
-    social_post_dir = sample_root / "social_post"
-    prompt_builder_dir = sample_root / "prompt_builder"
-    execution_dir = sample_root / "execution"
-    publish_dir = sample_root / "publish"
-    output_dir = sample_root / "output"
-    trace_dir = sample_root / "trace"
-    for path in (sample_root, creative_dir, social_post_dir, prompt_builder_dir, execution_dir, publish_dir, output_dir, trace_dir):
-        ensure_dir(path)
-    bundle = RunBundle(
-        run_id=f"{sample_root.parent.name}_sample{sample_id:02d}",
-        root=sample_root,
-        input_dir=sample_root / "input",
-        creative_dir=creative_dir,
-        social_post_dir=social_post_dir,
-        prompt_builder_dir=prompt_builder_dir,
-        execution_dir=execution_dir,
-        publish_dir=publish_dir,
-        output_dir=output_dir,
-        trace_dir=trace_dir,
-    )
-    ensure_dir(bundle.input_dir)
-    write_json(bundle.root / "bundle.json", bundle.to_dict())
-    return bundle
+BATCH_KIND = "world_design"
 
 
 def patch_world_input(
@@ -205,7 +166,7 @@ def summarize_batch(batch_dir: Path) -> dict[str, Any]:
 
 
 def run_batch(*, count: int, label: str, source_key: str, provider_key: str) -> Path:
-    batch_dir = build_batch_dir(label=f"{label}_batch{count}")
+    batch_dir = build_batch_dir(BATCH_KIND, f"{label}_batch{count}")
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
 

@@ -31,7 +31,10 @@ def run_execution_pipeline(
     default_run_context: dict[str, Any],
     prompt_package: dict[str, Any],
     profile_path: Path | None = None,
+    should_abort=None,
 ) -> dict[str, Any]:
+    if should_abort is not None and should_abort():
+        raise InterruptedError("Generation interrupted by command.")
     resolved_profile_path = profile_path or (project_dir / PROFILE_PATH)
     profile, workflow_template, template_path = load_execution_profile(project_dir, resolved_profile_path)
     checkpoint_path = resolve_checkpoint_path(project_dir, profile)
@@ -69,6 +72,8 @@ def run_execution_pipeline(
     prompt_id = str(submit_response.get("prompt_id", "")).strip()
     if not prompt_id:
         raise RuntimeError("ComfyUI submit response did not contain prompt_id.")
+    if should_abort is not None and should_abort():
+        raise InterruptedError("Generation interrupted by command.")
 
     history_payload = wait_for_prompt_completion(
         execution_input["endpoint"],
@@ -76,12 +81,15 @@ def run_execution_pipeline(
         prompt_id,
         poll_interval_ms=int(request_config["pollIntervalMs"]),
         poll_timeout_ms=int(request_config["pollTimeoutMs"]),
+        should_abort=should_abort,
     )
     write_json(bundle.execution_dir / "03_workflow_history.json", history_payload)
 
     image_payload = extract_first_output_image(history_payload, list(profile["nodes"]["output"]["preferredNodeIds"]))
     extension = Path(str(image_payload.get("filename", "generated.png"))).suffix or ".png"
     image_output_path = bundle.output_dir / f"{execution_input['filenamePrefix']}_{bundle.run_id}{extension}"
+    if should_abort is not None and should_abort():
+        raise InterruptedError("Generation interrupted by command.")
     download_image(
         execution_input["endpoint"],
         str(request_config["viewPath"]),

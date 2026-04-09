@@ -40,8 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the three downstream creative modules from existing scene drafts.")
     parser.add_argument("--count", type=int, default=3)
     parser.add_argument("--label", default="batch")
+    parser.add_argument("--source", action="append", default=[])
     parser.add_argument("--source-batch", default="")
-    parser.add_argument("--scene-file", action="append", default=[])
     return parser
 
 
@@ -102,8 +102,8 @@ def write_summary(batch_dir: Path) -> dict[str, Any]:
     return summary
 
 
-def run_batch(*, count: int, label: str, source_batch: str, scene_files: list[str]) -> Path:
-    scene_paths = resolve_scene_draft_paths(scene_files=scene_files, source_batch=source_batch, count=count)
+def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) -> Path:
+    scene_paths = resolve_scene_draft_paths(sources=sources, source_batch=source_batch, count=count)
     batch_dir = build_batch_dir(BATCH_KIND, f"{label}_batch{len(scene_paths)}")
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
@@ -165,8 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     batch_dir = run_batch(
         count=args.count,
         label=args.label,
+        sources=args.source,
         source_batch=args.source_batch,
-        scene_files=args.scene_file,
     )
     print(batch_dir)
     return 0

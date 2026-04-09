@@ -7,6 +7,13 @@
       "adapter": "local_archive",
       "displayName": "Local Archive",
       "archiveRoot": "runtime/service_state/publish/local_archive"
+    },
+    "qq_bot_user": {
+      "adapter": "qq_bot_user",
+      "displayName": "QQ Bot User",
+      "scene": "user",
+      "configPath": "config/publish/qq_bot_message.json",
+      "userOpenIdEnvName": "QQ_BOT_USER_OPENID"
     }
   }
 }

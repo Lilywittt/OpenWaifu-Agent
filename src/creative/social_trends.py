@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from io_utils import normalize_spaces, read_json, unique_list, write_json
 
@@ -123,7 +123,16 @@ def _fetch_json(
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
-    except URLError as error:
+    except (URLError, OSError) as error:
+        try:
+            opener = build_opener(ProxyHandler({}))
+            with opener.open(request, timeout=timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as retry_error:
+            detail = retry_error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"HTTP {retry_error.code}: {detail}") from retry_error
+        except (URLError, OSError):
+            pass
         raise RuntimeError(f"transport error: {error}") from error
 
 
@@ -146,7 +155,16 @@ def _fetch_text(
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
-    except URLError as error:
+    except (URLError, OSError) as error:
+        try:
+            opener = build_opener(ProxyHandler({}))
+            with opener.open(request, timeout=timeout_seconds) as response:
+                return response.read().decode("utf-8", errors="replace")
+        except HTTPError as retry_error:
+            detail = retry_error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"HTTP {retry_error.code}: {detail}") from retry_error
+        except (URLError, OSError):
+            pass
         raise RuntimeError(f"transport error: {error}") from error
 
 

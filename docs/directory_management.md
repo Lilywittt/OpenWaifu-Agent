@@ -1,13 +1,6 @@
 # 目录结构管理说明
 
-## 目标
-
-目录管理的目标只有两个：
-
-1. 当前有效结构一眼能看清
-2. 不让历史遗留在主链路里继续堆积
-
-## 当前源码分层
+## 源码分层
 
 ```text
 src/
@@ -18,37 +11,17 @@ src/
   publish/
 ```
 
-辅助基础模块保留在 `src/` 根下：
+基础设施模块保留在 `src/` 根下，例如：
 
 - `character_assets.py`
 - `env.py`
 - `io_utils.py`
 - `llm.py`
-- `llm_schema.py`
 - `prompt_loader.py`
 - `runtime_layout.py`
+- `product_pipeline.py`
 
-## 当前 prompt 分层
-
-```text
-prompts/
-  creative/
-  social_post/
-  prompt_builder/
-```
-
-## 当前配置分层
-
-```text
-config/
-  creative_model.json
-  execution/
-  workflows/comfyui/
-```
-
-## Runtime 管理规则
-
-正式运行产物只允许进入：
+## 正式运行目录
 
 ```text
 runtime/
@@ -64,67 +37,60 @@ runtime/
       trace/
 ```
 
-说明：
+规则：
 
-- `input/`：输入快照
-- `creative/`：creative 层产物
-- `social_post/`：社媒文案模块产物
-- `prompt_builder/`：prompt 编译产物
-- `execution/`：workflow 注入与执行记录
-- `publish/`：发布输入包、发布计划与平台回执
-- `output/`：最终图片与运行摘要
-- `trace/`：LLM request/response trace
+- `runtime/runs/` 只放正式运行产物。
+- `runtime/test_batches/` 只放测试批次。
+- `output/` 只放最终结果和摘要。
+- `trace/` 只放 LLM 请求与响应。
+
+## QQ 私聊附加目录
+
+```text
+runtime/
+  service_state/
+    publish/
+      qq_bot_generate_service/
+      qq_bot_private_state/
+  service_logs/
+    publish/
+      qq_bot_generate_service.stdout.log
+      qq_bot_generate_service.stderr.log
+```
+
+开发者模式的场景稿缓存单独归到运行时服务状态里：
+
+```text
+runtime/
+  service_state/
+    publish/
+      qq_bot_scene_drafts/
+        <user>/
+          latest.json
+          history/
+            <timestamp>.json
+```
+
+用途：
+
+- `qq_bot_scene_drafts/` 只存开发者模式下最近一次场景稿和历史注入记录
+- 它属于运行时服务状态，不属于正式 run 产物
+- 正式 run 仍只落在 `runtime/runs/`
+- `latest.json` 始终覆盖最近一次注入，`history/` 追加历史并按每用户最近 `20` 份自动清理
+- `service_logs/publish/` 只放后台服务 stdout/stderr，不放正式产物
 
 ## 测试脚本目录
-
-所有可直接运行的测试脚本统一收口在：
 
 ```text
 tests/
   runners/
-```
-
-例如：
-
-- `run_generate_product.py`
-- `prompt_execution_runner.py`
-- `social_post_runner.py`
-- `publish_runner.py`
-- `full_publish_runner.py`
-
-## 单元测试目录
-
-所有 `test_*.py` 统一收口在：
-
-```text
-tests/
   unit/
 ```
 
-这样区分清楚：
-- `tests/runners/`：可直接执行的回放脚本
-- `tests/unit/`：`unittest` 模块
+规则：
 
-## 目录管理原则
+- `tests/runners/` 只放可直接执行的 runner
+- `tests/unit/` 只放 `test_*.py`
+- 生产逻辑不直接调用 `tests/runners/`
 
-### 1. 不保留半迁移目录
-
-如果某一层退出现行架构，就不应再保留与之并行的旧目录。
-
-### 2. 不在 runtime 里堆临时垃圾
-
-正式运行只写 `runtime/runs/`。  
-测试批次和服务状态分别单独管理，不混进正式产物目录。
-
-### 3. 不提交缓存
-
-`__pycache__`、运行缓存、临时输出不进入源码树。
-
-### 4. 目录名反映职责，不反映历史
-
-目录应该描述当前职责，比如：
-
-- `prompt_builder`
-- `execution`
-
-而不是继续沿用已经失效的旧名。
+这也是为什么“从场景稿直跑到生图”的正式实现已经抽回到 `src/product_pipeline.py`，runner 只是壳。

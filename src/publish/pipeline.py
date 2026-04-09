@@ -57,11 +57,15 @@ def run_publish_stage(
     *,
     targets_path: Path | None = None,
     target_ids: list[str] | None = None,
+    explicit_targets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     write_json(bundle.publish_dir / INPUT_FILENAME, publish_input)
 
-    targets_config = load_publish_targets(project_dir, targets_path)
-    targets = resolve_publish_targets(targets_config, target_ids)
+    if explicit_targets is not None:
+        targets = [dict(target) for target in explicit_targets]
+    else:
+        targets_config = load_publish_targets(project_dir, targets_path)
+        targets = resolve_publish_targets(targets_config, target_ids)
     publish_plan = {
         "meta": {
             "createdAt": datetime.now().isoformat(timespec="seconds"),
@@ -133,6 +137,7 @@ def run_publish_pipeline(
     *,
     targets_path: Path | None = None,
     target_ids: list[str] | None = None,
+    explicit_targets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     publish_input = build_publish_input(
         bundle=bundle,
@@ -148,4 +153,5 @@ def run_publish_pipeline(
         publish_input,
         targets_path=targets_path,
         target_ids=target_ids,
+        explicit_targets=explicit_targets,
     )

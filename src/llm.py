@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from env import require_env_value
 from io_utils import read_json
@@ -126,8 +126,17 @@ def _call_model_once(
             raw_response = response.read().decode("utf-8")
     except HTTPError as error:
         raise RuntimeError(f"Creative model HTTP {error.code}: {error.read().decode('utf-8', errors='replace')}") from error
-    except URLError as error:
-        raise RuntimeError(f"Creative model transport error: {error}") from error
+    except (URLError, OSError) as error:
+        try:
+            opener = build_opener(ProxyHandler({}))
+            with opener.open(request, timeout=model_config.get("timeoutMs", 180000) / 1000) as response:
+                raw_response = response.read().decode("utf-8")
+        except HTTPError as retry_error:
+            raise RuntimeError(
+                f"Creative model HTTP {retry_error.code}: {retry_error.read().decode('utf-8', errors='replace')}"
+            ) from retry_error
+        except (URLError, OSError):
+            raise RuntimeError(f"Creative model transport error: {error}") from error
 
     trace_response_path.parent.mkdir(parents=True, exist_ok=True)
     trace_response_path.write_text(raw_response, encoding="utf-8")

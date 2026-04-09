@@ -1,0 +1,10 @@
+{
+  "accessTokenUrl": "https://bots.qq.com/app/getAppAccessToken",
+  "apiBaseUrl": "https://api.sgroup.qq.com",
+  "appIdEnvName": "QQ_BOT_APP_ID",
+  "appSecretEnvName": "QQ_BOT_APP_SECRET",
+  "scene": "user",
+  "groupOpenIdEnvName": "QQ_BOT_GROUP_OPENID",
+  "userOpenIdEnvName": "QQ_BOT_USER_OPENID",
+  "timeoutMs": 10000
+}

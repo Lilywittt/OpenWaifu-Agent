@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     single = subparsers.add_parser("single", help="Run one full upstream-to-image pipeline.")
     single.add_argument("--run-label", default="")
+    single.add_argument("--publish-target", action="append", default=[])
 
     subparsers.add_parser("review", help="Print the latest run summary.")
     subparsers.add_parser("paths", help="Print the runtime root and latest bundle file.")
@@ -50,7 +51,12 @@ def run_single(args) -> int:
     mode_label = "default"
     bundle = create_run_bundle(PROJECT_DIR, mode_label, args.run_label or mode_label)
     try:
-        result = run_full_product_pipeline(PROJECT_DIR, bundle, log=log)
+        result = run_full_product_pipeline(
+            PROJECT_DIR,
+            bundle,
+            log=log,
+            publish_target_ids=args.publish_target or None,
+        )
         summary = result["summary"]
         latest_path = update_latest(
             PROJECT_DIR,

@@ -89,6 +89,53 @@ class PublishPipelineTests(unittest.TestCase):
             self.assertEqual(ledger["records"][0]["runId"], bundle.run_id)
             self.assertEqual(publish_package["receipts"][0]["status"], "published")
 
+    def test_publish_pipeline_accepts_explicit_targets(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "publish-explicit-targets")
+            image_path = bundle.output_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+
+            character_assets = {
+                "subjectProfile": {
+                    "subject_id": "tsukimi_rion",
+                    "display_name_zh": "月见璃音",
+                }
+            }
+            creative_package = {
+                "worldDesign": {
+                    "scenePremiseZh": "demo premise",
+                    "worldSceneZh": "demo scene",
+                }
+            }
+            social_post_package = {"socialPostText": "demo social post"}
+            execution_package = {
+                "meta": {"createdAt": "2026-04-08T18:20:00"},
+                "imagePath": str(image_path),
+            }
+
+            publish_package = run_publish_pipeline(
+                project_dir,
+                bundle,
+                {"runMode": "default", "nowLocal": "2026-04-08T18:20:00"},
+                character_assets,
+                creative_package,
+                social_post_package,
+                execution_package,
+                explicit_targets=[
+                    {
+                        "targetId": "local_archive_dynamic",
+                        "adapter": "local_archive",
+                        "displayName": "Local Archive Dynamic",
+                        "archiveRoot": "runtime/service_state/publish/local_archive_dynamic",
+                    }
+                ],
+            )
+
+            publish_plan = read_json(bundle.publish_dir / "01_publish_plan.json")
+            self.assertEqual(publish_plan["targets"][0]["targetId"], "local_archive_dynamic")
+            self.assertEqual(publish_package["receipts"][0]["targetId"], "local_archive_dynamic")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,142 +1,193 @@
 # 产品使用说明
 
-## 运行前提
+## 第一次上手
 
-需要满足两类前提：
+如果你是第一次运行这个项目，最推荐先做两件事：
 
-1. LLM 可用
-2. ComfyUI 可用
-
-具体环境变量和本地资源见 [环境配置说明](./environment_setup.md)。
-
-## 最常用命令
-
-### 1. 直接运行一次完整链路
+1. 跑一轮完整产品链：
 
 ```powershell
 python run_product.py
 ```
 
-这会默认执行一次 `single`：
-
-- 采样
-- creative
-- social_post
-- prompt_builder
-- execution
-- 出图
-
-### 2. 带标签运行一次
+2. 启动 QQ 私聊服务：
 
 ```powershell
+python tests/runners/qq_bot_generate_service_ctl.py start
+```
+
+然后去 QQ 私聊机器人发送：
+
+```text
+帮助
+```
+
+## 正式入口
+
+完整产品链：
+
+```powershell
+python run_product.py
 python run_product.py single --run-label my_test
+python run_product.py single --run-label my_test --publish-target qq_bot_user
 ```
 
-### 3. 查看最新一次运行结果
-
-```powershell
-python run_product.py review
-```
-
-### 4. 查看 runtime 路径
-
-```powershell
-python run_product.py paths
-```
-
-### 5. 从已有设计稿直接跑中下游
-
-如果已经有 `creative/05_creative_package.json`，可以直接跳过 creative 层，只跑 `prompt_builder + execution`：
-
-```powershell
-python tests/runners/prompt_execution_runner.py --source F:\path\to\runtime\runs\<run_id>
-```
-
-`--source` 支持三种输入：
-
-- 一个完整 run 目录
-- 一个 `creative/` 目录
-- 一个 `05_creative_package.json` 文件
-
-如果要从一个批次里连续取多个样本，可以用：
-
-```powershell
-python tests/runners/prompt_execution_runner.py --source-batch F:\path\to\batch --count 3 --label replay
-```
-
-### 6. 从已有设计稿直接回放社媒文案
-
-如果只想测试 `social_post`，可以直接吃已有 `creative` 产物：
-
-```powershell
-python tests/runners/social_post_runner.py --count 3 --label social_review
-```
-
-不传 `--source` 时，会默认取最近几次正式 run 的 `creative/05_creative_package.json`。
-
-也可以显式指定来源：
-
-```powershell
-python tests/runners/social_post_runner.py --source F:\path\to\runtime\runs\<run_id> --count 1
-```
-
-或者从一个批次里连续取多个样本：
-
-```powershell
-python tests/runners/social_post_runner.py --source-batch F:\path\to\batch --count 3 --label social_review
-```
-
-### 7. 只运行生成层产品链路
-
-如果要恢复旧的“只跑生成层，不进入发布层”入口，可以用：
+只跑生成层：
 
 ```powershell
 python tests/runners/run_generate_product.py --run-label generate_test
 ```
 
-### 8. 运行全部单元测试
+QQ 私聊服务正式入口：
 
 ```powershell
-python -m unittest discover -s tests/unit -v
+python tests/runners/qq_bot_generate_service_ctl.py start
+python tests/runners/qq_bot_generate_service_ctl.py status
+python tests/runners/qq_bot_generate_service_ctl.py stop
+python tests/runners/qq_bot_generate_service_ctl.py restart
 ```
 
-## 成功运行后会得到什么
+## 调试入口
 
-一次成功运行后，会生成：
+只在前台调试 QQ 私聊服务时使用：
 
-- creative 产物
-- social post 产物
-- prompt builder 产物
-- execution 产物
-- 最终图片
-- `output/social_post.txt`
-- `output/run_summary.json`
+```powershell
+python tests/runners/qq_bot_generate_service.py
+```
 
-所有正式产物都落在：
+## 主要回放脚本
 
-`runtime/runs/<run_id>/`
+所有可执行 runner 都放在：
 
-## 推荐排查顺序
+`tests/runners/`
 
-如果结果不对，建议按这个顺序排查：
+常用几条：
 
-1. 先看 `creative/01_world_design.json`
-2. 再看三份设计稿
-3. 再看 `prompt_builder/00_image_prompt.json`
-4. 最后看 `execution/01_workflow_request.json`
+- 从采样跑到场景稿：`python tests/runners/world_design_runner.py run --count 5 --label wd_review`
+- 从已有场景稿直跑到生图：`python tests/runners/world_design_to_image_runner.py --source F:\path\to\01_world_design.json --count 1 --label scene_replay`
+- 从已有采样输入直跑到生图：`python tests/runners/sample_to_image_runner.py --source F:\path\to\01_world_design_input.json --count 1 --label sample_replay`
+- 从已有 creative package 直跑 prompt 和 execution：`python tests/runners/prompt_execution_runner.py --source F:\path\to\05_creative_package.json --count 1 --label prompt_replay`
+- 独立回放社媒文案：`python tests/runners/social_post_runner.py --source F:\path\to\05_creative_package.json --count 1 --label social_review`
 
-这样可以区分问题是在：
+## QQ 私聊服务
 
-- 创意层
-- prompt 编译层
-- 执行层
+当前是纯文本交互，不支持按钮触发。
 
-## 当前验收标准
+当前客户端会容忍少量常见误输入：
+- 命令前后空格
+- 外层引号
+- 句末标点
 
-当前基础验收标准是：
+但正式推荐仍然是直接发送裸命令。
 
-- 可以稳定从采样跑到出图
-- 运行目录结构稳定
-- prompt 可以稳定注入 ComfyUI workflow
+体验者模式指令：
+- `生成`
+- `状态`
+- `帮助`
+- `/g`
+- `/s`
+- `/h`
 
-内容质量本身还需要持续迭代，尤其是 prompt_builder 对冲突约束的处理。
+开发者模式指令：
+- `开发者模式`
+- `注入场景稿`
+- `体验者模式`
+- `/d`
+- `/i`
+- `/e`
+
+### 体验者模式
+
+启动服务后，直接去 QQ 私聊机器人发送：
+
+```text
+生成
+```
+
+也可以发送：
+
+```text
+/g
+```
+
+生成过程中可发送：
+
+```text
+状态
+帮助
+```
+
+也可以发送：
+
+```text
+/s
+/h
+```
+
+### 开发者模式
+
+启动服务后，按这个顺序操作：
+
+1. 发送：
+```text
+开发者模式
+```
+2. 再发送：
+```text
+注入场景稿
+```
+也可以发送：
+```text
+/i
+```
+3. 然后直接发送场景设计正文，或发送一段 JSON：
+
+```text
+午后的旧书店阁楼里，主角踮脚从高处木书架抽出一本蒙尘厚书，阳光穿过斜顶小窗照在书页与漂浮灰尘上，画面安静而带一点发现秘密时的轻微紧张感。
+```
+
+```json
+{
+  "scenePremiseZh": "旧书店阁楼里的午后魔法",
+  "worldSceneZh": "午后的旧书店阁楼里，主角踮脚从高处木书架抽出一本蒙尘厚书，阳光穿过斜顶小窗照在书页与漂浮灰尘上，画面安静而带一点发现秘密时的轻微紧张感。"
+}
+```
+
+系统会把这份场景稿保存到：
+
+```text
+runtime/service_state/publish/qq_bot_scene_drafts/<user>/latest.json
+```
+
+然后直接从场景稿跑到出图。
+
+进入注入态后，后续非命令消息会继续按新的场景稿处理；只有检测到命令，才会切回命令分支。
+
+### 服务控制脚本
+
+启动：
+
+```powershell
+python tests/runners/qq_bot_generate_service_ctl.py start
+```
+
+查看状态：
+
+```powershell
+python tests/runners/qq_bot_generate_service_ctl.py status
+```
+
+这条命令还会返回后台日志路径：
+- `runtime/service_logs/publish/qq_bot_generate_service.stdout.log`
+- `runtime/service_logs/publish/qq_bot_generate_service.stderr.log`
+- `runtime/service_state/publish/qq_bot_generate_service/service_events.jsonl`
+
+停止：
+
+```powershell
+python tests/runners/qq_bot_generate_service_ctl.py stop
+```
+
+完整说明见：
+
+[qq_bot_private_service.md](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/docs/qq_bot_private_service.md)

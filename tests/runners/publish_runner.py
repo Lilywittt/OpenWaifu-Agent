@@ -6,7 +6,6 @@ import argparse
 import json
 import shutil
 import sys
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,7 +18,7 @@ for import_path in (TOOLS_DIR, SRC_DIR):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
-from common import build_batch_dir, configure_utf8_stdio
+from common import build_batch_dir, configure_utf8_stdio, create_sample_bundle
 
 from character_assets import load_character_assets
 from creative import build_default_run_context
@@ -28,30 +27,6 @@ from publish import build_publish_input, run_publish_stage
 
 
 BATCH_KIND = "publish_from_package"
-
-
-@dataclass
-class PublishReplayBundle:
-    run_id: str
-    root: Path
-    input_dir: Path
-    publish_dir: Path
-    output_dir: Path
-    trace_dir: Path
-
-
-def create_publish_replay_bundle(sample_root: Path, sample_id: int) -> PublishReplayBundle:
-    bundle = PublishReplayBundle(
-        run_id=f"{sample_root.parent.name}_sample{sample_id:02d}",
-        root=sample_root,
-        input_dir=sample_root / "input",
-        publish_dir=sample_root / "publish",
-        output_dir=sample_root / "output",
-        trace_dir=sample_root / "trace",
-    )
-    for path in (bundle.root, bundle.input_dir, bundle.publish_dir, bundle.output_dir, bundle.trace_dir):
-        ensure_dir(path)
-    return bundle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -188,7 +163,7 @@ def run_once(*, source: str, label: str, target_ids: list[str]) -> Path:
     publish_input, default_run_context, source_meta = resolve_publish_source(source)
     batch_dir = build_batch_dir(BATCH_KIND, f"{label}_batch1")
     sample_root = batch_dir / "samples" / "01"
-    bundle = create_publish_replay_bundle(sample_root, 1)
+    bundle = create_sample_bundle(sample_root, 1)
     try:
         write_json(batch_dir / "batch_meta.json", {"createdAt": datetime.now().isoformat(timespec="seconds"), "source": source})
         write_json(bundle.input_dir / "default_run_context.json", default_run_context)

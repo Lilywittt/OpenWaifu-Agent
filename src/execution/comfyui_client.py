@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from env import get_env_value, resolve_env_path
 from io_utils import ensure_dir, write_json
@@ -25,6 +25,19 @@ def _default_comfyui_venv_dir(project_dir: Path) -> Path:
     return _workspace_root(project_dir) / ".local" / "comfyui-env"
 
 
+def _should_bypass_proxy(url: str) -> bool:
+    host = (urlparse(url).hostname or "").strip().casefold()
+    return host in {"127.0.0.1", "localhost", "::1"}
+
+
+def _open_request(request: Request, *, timeout_ms: int):
+    timeout_seconds = timeout_ms / 1000
+    if _should_bypass_proxy(request.full_url):
+        opener = build_opener(ProxyHandler({}))
+        return opener.open(request, timeout=timeout_seconds)
+    return urlopen(request, timeout=timeout_seconds)
+
+
 def _request_json(url: str, *, timeout_ms: int, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
     data = None
     headers: dict[str, str] = {}
@@ -32,7 +45,7 @@ def _request_json(url: str, *, timeout_ms: int, method: str = "GET", payload: di
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request = Request(url, data=data, headers=headers, method=method)
-    with urlopen(request, timeout=timeout_ms / 1000) as response:
+    with _open_request(request, timeout_ms=timeout_ms) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -122,10 +135,13 @@ def wait_for_prompt_completion(
     *,
     poll_interval_ms: int,
     poll_timeout_ms: int,
+    should_abort=None,
 ) -> dict[str, Any]:
     history_url = endpoint.rstrip("/") + history_path_template.format(prompt_id=prompt_id)
     deadline = time.time() + poll_timeout_ms / 1000
     while time.time() < deadline:
+        if should_abort is not None and should_abort():
+            raise InterruptedError("Generation interrupted by command.")
         payload = _request_json(history_url, timeout_ms=max(poll_interval_ms, 5000))
         if isinstance(payload, dict) and prompt_id in payload:
             prompt_payload = payload[prompt_id]
@@ -162,7 +178,7 @@ def download_image(endpoint: str, view_path: str, image_payload: dict[str, Any],
     )
     request = Request(endpoint.rstrip("/") + view_path + "?" + query, method="GET")
     try:
-        with urlopen(request, timeout=timeout_ms / 1000) as response:
+        with _open_request(request, timeout_ms=timeout_ms) as response:
             binary = response.read()
     except HTTPError as error:
         raise RuntimeError(f"ComfyUI image download failed with HTTP {error.code}: {error.read().decode('utf-8', errors='replace')}") from error

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -10,7 +11,7 @@ SRC_DIR = PROJECT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from io_utils import ensure_dir, read_json, write_json
+from io_utils import ensure_dir, write_json
 from runtime_layout import RunBundle, sanitize_segment
 
 
@@ -57,14 +58,6 @@ def create_sample_bundle(sample_root: Path, sample_id: int) -> RunBundle:
     return bundle
 
 
-def latest_world_design_batch() -> Path:
-    root = batch_root("world_design")
-    candidates = sorted([path for path in root.iterdir() if path.is_dir()], key=lambda path: path.name)
-    if not candidates:
-        raise RuntimeError("No world_design batch directory exists yet.")
-    return candidates[-1]
-
-
 def latest_run_dirs() -> list[Path]:
     root = PROJECT_DIR / "runtime" / "runs"
     if not root.exists():
@@ -85,23 +78,92 @@ def latest_creative_package_paths(count: int) -> list[Path]:
     raise RuntimeError(f"Requested {count} creative packages but only found {len(resolved)} in recent runs.")
 
 
-def resolve_source_path_to_creative_package(source: str) -> Path:
+def latest_world_design_input_paths(count: int) -> list[Path]:
+    if count <= 0:
+        raise RuntimeError("count must be greater than 0")
+    resolved: list[Path] = []
+    for run_dir in latest_run_dirs():
+        candidate = run_dir / "creative" / "01_world_design_input.json"
+        if candidate.exists():
+            resolved.append(candidate.resolve())
+        if len(resolved) >= count:
+            return resolved
+    raise RuntimeError(f"Requested {count} world design inputs but only found {len(resolved)} in recent runs.")
+
+
+def latest_scene_draft_paths(count: int) -> list[Path]:
+    if count <= 0:
+        raise RuntimeError("count must be greater than 0")
+    resolved: list[Path] = []
+    for run_dir in latest_run_dirs():
+        candidate = run_dir / "creative" / "01_world_design.json"
+        if candidate.exists():
+            resolved.append(candidate.resolve())
+        if len(resolved) >= count:
+            return resolved
+    raise RuntimeError(f"Requested {count} scene drafts but only found {len(resolved)} in recent runs.")
+
+
+def _resolve_stage_file_from_source(
+    source: str,
+    *,
+    expected_filename: str,
+    relative_candidates: list[str],
+) -> Path:
     path = Path(source).resolve()
     if path.is_file():
-        if path.name != "05_creative_package.json":
+        if path.name != expected_filename:
             raise RuntimeError(f"Unsupported source file: {path}")
         return path
-    candidates = [
-        path / "creative" / "05_creative_package.json",
-        path / "05_creative_package.json",
-    ]
-    for candidate in candidates:
+    for relative_path in relative_candidates:
+        candidate = path / relative_path
         if candidate.exists():
             return candidate.resolve()
-    raise RuntimeError(f"Could not find 05_creative_package.json under source: {path}")
+    raise RuntimeError(f"Could not find {expected_filename} under source: {path}")
 
 
-def resolve_creative_package_paths(*, sources: list[str], source_batch: str, count: int) -> list[Path]:
+def resolve_source_path_to_creative_package(source: str) -> Path:
+    return _resolve_stage_file_from_source(
+        source,
+        expected_filename="05_creative_package.json",
+        relative_candidates=[
+            "creative/05_creative_package.json",
+            "05_creative_package.json",
+        ],
+    )
+
+
+def resolve_source_path_to_world_design_input(source: str) -> Path:
+    return _resolve_stage_file_from_source(
+        source,
+        expected_filename="01_world_design_input.json",
+        relative_candidates=[
+            "creative/01_world_design_input.json",
+            "01_world_design_input.json",
+        ],
+    )
+
+
+def resolve_source_path_to_scene_draft(source: str) -> Path:
+    return _resolve_stage_file_from_source(
+        source,
+        expected_filename="01_world_design.json",
+        relative_candidates=[
+            "creative/01_world_design.json",
+            "01_world_design.json",
+        ],
+    )
+
+
+def _resolve_stage_paths(
+    *,
+    sources: list[str],
+    source_batch: str,
+    count: int,
+    resolve_source: Callable[[str], Path],
+    batch_pattern: str,
+    default_paths: Callable[[int], list[Path]] | None = None,
+) -> list[Path]:
     if count <= 0:
         raise RuntimeError("count must be greater than 0")
 
@@ -109,44 +171,62 @@ def resolve_creative_package_paths(*, sources: list[str], source_batch: str, cou
     seen: set[str] = set()
 
     for source in sources:
-        package_path = resolve_source_path_to_creative_package(source)
-        key = str(package_path).lower()
+        stage_path = resolve_source(source)
+        key = str(stage_path).lower()
         if key not in seen:
             seen.add(key)
-            resolved.append(package_path)
+            resolved.append(stage_path)
 
     if source_batch:
         batch_dir = Path(source_batch).resolve()
         batch_paths = sorted(
-            (batch_dir / "samples").glob("*/creative/05_creative_package.json"),
+            (batch_dir / "samples").glob(batch_pattern),
             key=lambda item: item.as_posix(),
         )
-        for package_path in batch_paths:
-            package_path = package_path.resolve()
-            key = str(package_path).lower()
+        for stage_path in batch_paths:
+            stage_path = stage_path.resolve()
+            key = str(stage_path).lower()
             if key not in seen:
                 seen.add(key)
-                resolved.append(package_path)
+                resolved.append(stage_path)
 
+    if not resolved and default_paths is not None:
+        return default_paths(count)
     if not resolved:
-        raise RuntimeError("No creative package sources were provided.")
+        raise RuntimeError("No sources were provided.")
     if len(resolved) < count:
-        raise RuntimeError(f"Requested {count} creative packages but only found {len(resolved)}.")
+        raise RuntimeError(f"Requested {count} sources but only found {len(resolved)}.")
     return resolved[:count]
 
 
-def resolve_scene_draft_paths(*, scene_files: list[str], source_batch: str, count: int) -> list[Path]:
-    if scene_files:
-        paths = [Path(path).resolve() for path in scene_files]
-    else:
-        batch_dir = Path(source_batch).resolve() if source_batch else latest_world_design_batch()
-        paths = sorted((batch_dir / "samples").glob("*/creative/01_world_design.json"), key=lambda path: path.as_posix())
-    if count <= 0:
-        raise RuntimeError("count must be greater than 0")
-    if len(paths) < count:
-        raise RuntimeError(f"Requested {count} scene drafts but only found {len(paths)}.")
-    return paths[:count]
+def resolve_creative_package_paths(*, sources: list[str], source_batch: str, count: int) -> list[Path]:
+    return _resolve_stage_paths(
+        sources=sources,
+        source_batch=source_batch,
+        count=count,
+        resolve_source=resolve_source_path_to_creative_package,
+        batch_pattern="*/creative/05_creative_package.json",
+        default_paths=None,
+    )
 
 
-def read_stage_json(path: Path) -> dict:
-    return read_json(path)
+def resolve_world_design_input_paths(*, sources: list[str], source_batch: str, count: int) -> list[Path]:
+    return _resolve_stage_paths(
+        sources=sources,
+        source_batch=source_batch,
+        count=count,
+        resolve_source=resolve_source_path_to_world_design_input,
+        batch_pattern="*/creative/01_world_design_input.json",
+        default_paths=latest_world_design_input_paths,
+    )
+
+
+def resolve_scene_draft_paths(*, sources: list[str], source_batch: str, count: int) -> list[Path]:
+    return _resolve_stage_paths(
+        sources=sources,
+        source_batch=source_batch,
+        count=count,
+        resolve_source=resolve_source_path_to_scene_draft,
+        batch_pattern="*/creative/01_world_design.json",
+        default_paths=latest_scene_draft_paths,
+    )

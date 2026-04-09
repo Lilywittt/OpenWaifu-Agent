@@ -6,3 +6,6 @@ runtime/service_state/
 runtime/service_logs/
 runtime/test_batches/
 .env
+.temp/
+qq_bot_selftest_report_filled.xlsx
+机器人自测报告模板-2023.xlsx
