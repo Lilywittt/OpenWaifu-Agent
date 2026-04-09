@@ -71,7 +71,7 @@ python tests/runners/qq_bot_generate_service.py
 
 ## QQ 私聊服务
 
-当前是纯文本交互，不支持按钮触发。
+当前交互方式为纯文本指令。
 
 当前客户端会容忍少量常见误输入：
 - 命令前后空格
