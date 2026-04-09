@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from env import get_env_value
 from io_utils import read_json
 
 
@@ -18,12 +19,23 @@ def load_execution_profile(project_dir: Path, profile_path: Path) -> tuple[dict[
 
 def resolve_checkpoint_path(project_dir: Path, profile: dict[str, Any]) -> Path:
     raw_path = str(profile.get("checkpointPath", "")).strip()
+    env_name = str(profile.get("checkpointPathEnvName", "")).strip()
+    if env_name:
+        raw_path = get_env_value(project_dir, env_name, raw_path).strip()
     if not raw_path:
         return Path()
     checkpoint_path = Path(raw_path)
     if checkpoint_path.is_absolute():
         return checkpoint_path
     return (project_dir / checkpoint_path).resolve()
+
+
+def resolve_checkpoint_name(project_dir: Path, profile: dict[str, Any]) -> str:
+    raw_name = str(profile.get("checkpointName", "")).strip()
+    env_name = str(profile.get("checkpointNameEnvName", "")).strip()
+    if env_name:
+        raw_name = get_env_value(project_dir, env_name, raw_name).strip()
+    return raw_name
 
 
 def compute_prompt_seed(positive_prompt: str, negative_prompt: str) -> int:

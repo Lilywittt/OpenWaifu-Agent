@@ -3,6 +3,8 @@
   "profileId": "comfyui_local_animagine_xl_v1",
   "templatePath": "../workflows/comfyui/animagine_xl_basic.workflow.json",
   "endpointEnvName": "COMFYUI_ENDPOINT",
+  "checkpointPathEnvName": "COMFYUI_CHECKPOINT_PATH",
+  "checkpointNameEnvName": "COMFYUI_CHECKPOINT_NAME",
   "checkpointPath": "../../../.local/ComfyUI/models/checkpoints/animagine-xl-4.0-opt.safetensors",
   "checkpointName": "animagine-xl-4.0-opt.safetensors",
   "request": {

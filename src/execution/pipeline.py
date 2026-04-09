@@ -14,7 +14,13 @@ from .comfyui_client import (
     submit_workflow,
     wait_for_prompt_completion,
 )
-from .workflow import build_execution_input, build_workflow_request, load_execution_profile, resolve_checkpoint_path
+from .workflow import (
+    build_execution_input,
+    build_workflow_request,
+    load_execution_profile,
+    resolve_checkpoint_name,
+    resolve_checkpoint_path,
+)
 
 
 PROFILE_PATH = "config/execution/comfyui_local_animagine_xl.json"
@@ -42,6 +48,9 @@ def run_execution_pipeline(
         raise RuntimeError(f"Configured checkpoint path does not exist: {checkpoint_path}")
 
     execution_input = build_execution_input(profile, prompt_package)
+    execution_input["checkpointName"] = resolve_checkpoint_name(project_dir, profile)
+    if not execution_input["checkpointName"]:
+        raise RuntimeError("Configured checkpoint name is empty.")
     execution_input["checkpointPath"] = str(checkpoint_path)
     execution_input["endpoint"] = _resolve_endpoint(project_dir, profile)
     write_json(bundle.execution_dir / "00_execution_input.json", execution_input)
