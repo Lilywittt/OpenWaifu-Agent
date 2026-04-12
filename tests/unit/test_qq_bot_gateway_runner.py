@@ -5,11 +5,11 @@ import unittest
 from websocket._exceptions import WebSocketTimeoutException
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / "tests" / "runners"
+TOOLS = ROOT / "tools" / "qq_bot"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
-from qq_bot_c2c_gateway_runner import _extract_media_specs, _recv_gateway_payload, _resolve_auto_reply_content
+from listen_c2c_gateway import _extract_media_specs, _recv_gateway_payload, _resolve_auto_reply_content
 
 
 class _FakeWebSocket:

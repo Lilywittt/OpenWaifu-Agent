@@ -15,6 +15,19 @@ from runtime_layout import create_run_bundle
 
 
 class ExecutionPipelineTests(unittest.TestCase):
+    def test_execution_pipeline_raises_clear_error_when_active_profile_config_is_missing(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "execution-missing-active-profile")
+
+            with self.assertRaisesRegex(RuntimeError, "execution active profile config does not exist"):
+                run_execution_pipeline(
+                    project_dir,
+                    bundle,
+                    {"runMode": "default", "nowLocal": "2026-04-11T18:00:00"},
+                    {"positivePrompt": "positive text", "negativePrompt": "negative text"},
+                )
+
     def test_execution_pipeline_builds_workflow_and_materializes_image(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
@@ -41,6 +54,14 @@ class ExecutionPipelineTests(unittest.TestCase):
 
             execution_dir = project_dir / "config" / "execution"
             execution_dir.mkdir(parents=True)
+            (execution_dir / "active_profile.json").write_text(
+                """
+{
+  "profilePath": "config/execution/comfyui_local_animagine_xl.json"
+}
+                """.strip(),
+                encoding="utf-8",
+            )
             (execution_dir / "comfyui_local_animagine_xl.json").write_text(
                 f"""
 {{
@@ -113,7 +134,6 @@ class ExecutionPipelineTests(unittest.TestCase):
                     bundle,
                     {"runMode": "default", "nowLocal": "2026-04-07T12:00:00"},
                     prompt_package,
-                    project_dir / "config" / "execution" / "comfyui_local_animagine_xl.json",
                 )
 
             execution_input = read_json(bundle.execution_dir / "00_execution_input.json")
@@ -166,6 +186,14 @@ class ExecutionPipelineTests(unittest.TestCase):
 
             execution_dir = project_dir / "config" / "execution"
             execution_dir.mkdir(parents=True)
+            (execution_dir / "active_profile.json").write_text(
+                """
+{
+  "profilePath": "config/execution/comfyui_local_animagine_xl.json"
+}
+                """.strip(),
+                encoding="utf-8",
+            )
             (execution_dir / "comfyui_local_animagine_xl.json").write_text(
                 """
 {
@@ -240,7 +268,6 @@ class ExecutionPipelineTests(unittest.TestCase):
                     bundle,
                     {"runMode": "default", "nowLocal": "2026-04-09T18:00:00"},
                     prompt_package,
-                    project_dir / "config" / "execution" / "comfyui_local_animagine_xl.json",
                 )
 
             execution_input = read_json(bundle.execution_dir / "00_execution_input.json")

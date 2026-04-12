@@ -9,6 +9,28 @@ from env import get_env_value
 from io_utils import read_json
 
 
+ACTIVE_PROFILE_CONFIG_PATH = Path("config") / "execution" / "active_profile.json"
+
+
+def resolve_active_execution_profile_path(project_dir: Path) -> Path:
+    config_path = project_dir / ACTIVE_PROFILE_CONFIG_PATH
+    if not config_path.is_file():
+        raise RuntimeError(f"execution active profile config does not exist: {config_path}")
+
+    config = read_json(config_path)
+    raw_path = str(config.get("profilePath", "")).strip()
+    if not raw_path:
+        raise RuntimeError(f"{ACTIVE_PROFILE_CONFIG_PATH.as_posix()} is missing profilePath.")
+
+    profile_path = Path(raw_path)
+    if not profile_path.is_absolute():
+        profile_path = (project_dir / profile_path).resolve()
+
+    if not profile_path.is_file():
+        raise RuntimeError(f"execution profile does not exist: {profile_path}")
+    return profile_path
+
+
 def load_execution_profile(project_dir: Path, profile_path: Path) -> tuple[dict[str, Any], dict[str, Any], Path]:
     resolved_profile_path = profile_path if profile_path.is_absolute() else (project_dir / profile_path).resolve()
     profile = read_json(resolved_profile_path)

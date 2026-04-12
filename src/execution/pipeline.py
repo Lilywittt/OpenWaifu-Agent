@@ -18,12 +18,10 @@ from .workflow import (
     build_execution_input,
     build_workflow_request,
     load_execution_profile,
+    resolve_active_execution_profile_path,
     resolve_checkpoint_name,
     resolve_checkpoint_path,
 )
-
-
-PROFILE_PATH = "config/execution/comfyui_local_animagine_xl.json"
 
 
 def _resolve_endpoint(project_dir: Path, profile: dict[str, Any]) -> str:
@@ -41,7 +39,7 @@ def run_execution_pipeline(
 ) -> dict[str, Any]:
     if should_abort is not None and should_abort():
         raise InterruptedError("Generation interrupted by command.")
-    resolved_profile_path = profile_path or (project_dir / PROFILE_PATH)
+    resolved_profile_path = profile_path or resolve_active_execution_profile_path(project_dir)
     profile, workflow_template, template_path = load_execution_profile(project_dir, resolved_profile_path)
     checkpoint_path = resolve_checkpoint_path(project_dir, profile)
     if not checkpoint_path.exists():

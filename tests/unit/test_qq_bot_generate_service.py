@@ -9,17 +9,16 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from publish.qq_bot_job_queue import QQBotJobQueue
 from publish.qq_bot_generate_service import (
     QQGenerateServiceAlreadyRunningError,
     _acquire_service_lock,
+    _accept_full_generation,
+    _accept_scene_draft_generation,
     _build_dynamic_publish_target,
     _build_dynamic_reply_target,
-    _build_full_generation_task,
     _build_help_text,
     _load_latest_known_user_openid,
-    _is_interrupting_command,
-    _is_non_interrupting_command,
-    _replace_or_cancel_busy_task,
     _send_startup_guidance_if_possible,
     _build_started_text,
     _build_status_text,
@@ -613,6 +612,148 @@ class QQBotGenerateServiceTests(unittest.TestCase):
 
         self.assertIn("开发者模式", text)
 
+    def test_status_text_prefers_user_queue_position_when_other_user_is_running(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            state_root = qq_bot_generate_service_state_root(project_dir)
+            (state_root / "latest_status.json").write_text(
+                '{"status":"running","stage":"execution layer","queuedCount":1,"userOpenId":"other-user","runId":"run-123"}',
+                encoding="utf-8",
+            )
+            queue = QQBotJobQueue(project_dir)
+            queue.enqueue(
+                user_openid="user-1",
+                job_kind="full_generation",
+                payload={"taskType": "full_generation"},
+                mode="experience",
+            )
+
+            text = _build_status_text(project_dir, user_openid="user-1", job_queue=queue)
+
+        self.assertIn("队列位置：第 1 位", text)
+        self.assertNotIn("run-123", text)
+
+    def test_status_text_can_tell_idle_user_system_is_processing_other_users(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            state_root = qq_bot_generate_service_state_root(project_dir)
+            (state_root / "latest_status.json").write_text(
+                '{"status":"running","stage":"execution layer","queuedCount":2,"userOpenId":"other-user","runId":"run-123"}',
+                encoding="utf-8",
+            )
+            queue = QQBotJobQueue(project_dir)
+
+            text = _build_status_text(project_dir, user_openid="user-2", job_queue=queue)
+
+        self.assertIn("系统当前正在处理其他用户的任务", text)
+
+    def test_accept_full_generation_preserves_running_status_when_other_user_queues(self):
+        import threading
+
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            queue = QQBotJobQueue(project_dir)
+            service_runtime = {
+                "activeRunId": "run-active",
+                "activeUserOpenId": "active-user",
+                "activeSourceMessageId": "message-active",
+                "currentStage": "execution layer: image prompt -> ComfyUI workflow -> generated image",
+                "reserved": False,
+            }
+            lock = threading.Lock()
+
+            result = _accept_full_generation(
+                project_dir=project_dir,
+                job_queue=queue,
+                service_runtime=service_runtime,
+                service_runtime_lock=lock,
+                user_openid="queued-user",
+                source_message_id="message-queued",
+            )
+
+            status_payload = read_service_status(project_dir)
+            active_text = _build_status_text(project_dir, user_openid="active-user", job_queue=queue)
+            queued_text = _build_status_text(project_dir, user_openid="queued-user", job_queue=queue)
+
+        self.assertTrue(result["accepted"])
+        self.assertEqual(status_payload["status"], "running")
+        self.assertEqual(status_payload["userOpenId"], "active-user")
+        self.assertEqual(status_payload["runId"], "run-active")
+        self.assertEqual(status_payload["queuedCount"], 1)
+        self.assertIn("run-active", active_text)
+        self.assertIn("队列位置：第 1 位", queued_text)
+
+    def test_accept_full_generation_blocks_same_user_when_running(self):
+        import threading
+
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            queue = QQBotJobQueue(project_dir)
+            queue.enqueue(
+                user_openid="user-1",
+                job_kind="full_generation",
+                payload={"taskType": "full_generation"},
+                mode="experience",
+            )
+            queue.fetch_next_pending()
+            service_runtime = {
+                "activeRunId": "run-user-1",
+                "activeUserOpenId": "user-1",
+                "activeSourceMessageId": "message-active",
+                "currentStage": "execution layer: image prompt -> ComfyUI workflow -> generated image",
+                "reserved": False,
+            }
+            lock = threading.Lock()
+
+            result = _accept_full_generation(
+                project_dir=project_dir,
+                job_queue=queue,
+                service_runtime=service_runtime,
+                service_runtime_lock=lock,
+                user_openid="user-1",
+                source_message_id="message-next",
+            )
+
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["reason"], "user_inflight")
+        self.assertEqual(result["inflightStatus"], "running")
+
+    def test_accept_scene_draft_generation_blocks_same_user_when_pending(self):
+        import threading
+
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            queue = QQBotJobQueue(project_dir)
+            queue.enqueue(
+                user_openid="user-1",
+                job_kind="scene_draft_to_image",
+                payload={"taskType": "scene_draft_to_image"},
+                mode="developer",
+            )
+            service_runtime = {
+                "activeRunId": None,
+                "activeUserOpenId": "",
+                "activeSourceMessageId": "",
+                "currentStage": "",
+                "reserved": False,
+            }
+            lock = threading.Lock()
+
+            result = _accept_scene_draft_generation(
+                project_dir=project_dir,
+                job_queue=queue,
+                service_runtime=service_runtime,
+                service_runtime_lock=lock,
+                user_openid="user-1",
+                scene_draft={"worldSceneZh": "雨夜的书店门口。", "scenePremiseZh": ""},
+                scene_draft_path=project_dir / "scene.json",
+                source_message_id="message-scene",
+            )
+
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["reason"], "user_inflight")
+        self.assertEqual(result["inflightStatus"], "pending")
+
     def test_build_dynamic_publish_target_uses_runtime_user_openid(self):
         target = _build_dynamic_publish_target("openid-demo")
 
@@ -767,21 +908,6 @@ class QQBotGenerateServiceTests(unittest.TestCase):
             self.assertTrue(removed)
             self.assertFalse(lock_path.exists())
 
-    def test_command_kind_classification_matches_busy_policy(self):
-        self.assertTrue(_is_non_interrupting_command("help"))
-        self.assertTrue(_is_non_interrupting_command("status"))
-        self.assertTrue(_is_non_interrupting_command("wrong_mode_command"))
-        self.assertTrue(_is_non_interrupting_command("same_mode_guidance"))
-        self.assertTrue(_is_non_interrupting_command("unknown"))
-        self.assertTrue(_is_non_interrupting_command("awaiting_scene_draft"))
-        self.assertTrue(_is_non_interrupting_command("invalid_scene_draft"))
-        self.assertTrue(_is_non_interrupting_command("scene_draft_submission"))
-        self.assertFalse(_is_non_interrupting_command("trigger_generation"))
-        self.assertTrue(_is_interrupting_command("trigger_generation"))
-        self.assertTrue(_is_interrupting_command("switch_mode"))
-        self.assertTrue(_is_interrupting_command("developer_scene_prompt"))
-        self.assertFalse(_is_interrupting_command("unknown"))
-
     def test_should_reply_busy_once_only_returns_true_first_time(self):
         import threading
 
@@ -791,62 +917,6 @@ class QQBotGenerateServiceTests(unittest.TestCase):
         self.assertTrue(_should_reply_busy_once(service_runtime, lock, user_openid="user-1"))
         self.assertFalse(_should_reply_busy_once(service_runtime, lock, user_openid="user-1"))
         self.assertTrue(_should_reply_busy_once(service_runtime, lock, user_openid="user-2"))
-
-    def test_replace_or_cancel_busy_task_replaces_reserved_task_without_active_run(self):
-        import queue
-        import threading
-
-        task_queue: queue.Queue[dict] = queue.Queue(maxsize=1)
-        task_queue.put(_build_full_generation_task(user_openid="old-user", source_message_id="old-msg"))
-        service_runtime = {
-            "activeRunId": None,
-            "reserved": True,
-            "interruptRequested": False,
-            "interruptReason": "",
-            "busyNoticeUsers": {"old-user"},
-        }
-        lock = threading.Lock()
-
-        replaced = _replace_or_cancel_busy_task(
-            task_queue=task_queue,
-            service_runtime=service_runtime,
-            service_runtime_lock=lock,
-            replacement_task=_build_full_generation_task(user_openid="new-user", source_message_id="new-msg"),
-            reason="trigger_generation",
-        )
-
-        self.assertTrue(replaced)
-        self.assertTrue(service_runtime["reserved"])
-        queued = task_queue.get_nowait()
-        self.assertEqual(queued["userOpenId"], "new-user")
-        self.assertEqual(queued["sourceMessageId"], "new-msg")
-        task_queue.task_done()
-
-    def test_replace_or_cancel_busy_task_marks_interrupt_when_active_run_exists(self):
-        import queue
-        import threading
-
-        task_queue: queue.Queue[dict] = queue.Queue(maxsize=1)
-        service_runtime = {
-            "activeRunId": "run-1",
-            "reserved": False,
-            "interruptRequested": False,
-            "interruptReason": "",
-            "busyNoticeUsers": set(),
-        }
-        lock = threading.Lock()
-
-        replaced = _replace_or_cancel_busy_task(
-            task_queue=task_queue,
-            service_runtime=service_runtime,
-            service_runtime_lock=lock,
-            replacement_task=None,
-            reason="switch_mode:developer",
-        )
-
-        self.assertTrue(replaced)
-        self.assertTrue(service_runtime["interruptRequested"])
-        self.assertEqual(service_runtime["interruptReason"], "switch_mode:developer")
 
 
 if __name__ == "__main__":

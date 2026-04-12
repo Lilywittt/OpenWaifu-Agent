@@ -4,11 +4,11 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / "tests" / "runners"
-if str(TOOLS) not in sys.path:
-    sys.path.insert(0, str(TOOLS))
+RUNNERS = ROOT / "tests" / "runners"
+if str(RUNNERS) not in sys.path:
+    sys.path.insert(0, str(RUNNERS))
 
-from publish_runner import resolve_publish_source
+from publish_from_package_runner import resolve_publish_source
 
 
 class PublishRunnerTests(unittest.TestCase):

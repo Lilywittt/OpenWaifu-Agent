@@ -20,6 +20,7 @@ class RuntimeLayoutTests(unittest.TestCase):
             self.assertTrue(bundle.creative_dir.is_dir())
             self.assertTrue(bundle.social_post_dir.is_dir())
             self.assertTrue(bundle.prompt_builder_dir.is_dir())
+            self.assertTrue(bundle.prompt_guard_dir.is_dir())
             self.assertTrue(bundle.execution_dir.is_dir())
             self.assertTrue(bundle.publish_dir.is_dir())
             self.assertTrue(bundle.output_dir.is_dir())

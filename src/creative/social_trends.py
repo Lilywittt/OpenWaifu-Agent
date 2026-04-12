@@ -39,7 +39,6 @@ _BLUESKY_FEED_CACHE: dict[str, Any] = {
     "feeds": [],
 }
 
-
 @dataclass(frozen=True)
 class SocialPartition:
     source_key: str
@@ -280,7 +279,12 @@ def _list_bluesky_feeds() -> list[dict[str, str]]:
     cached_feeds = _BLUESKY_FEED_CACHE.get("feeds", [])
     if isinstance(cached_at, datetime) and datetime.now() - cached_at < _BLUESKY_FEED_CACHE_WINDOW and cached_feeds:
         return [dict(item) for item in cached_feeds]
-    payload = _fetch_json("https://api.bsky.app/xrpc/app.bsky.unspecced.getPopularFeedGenerators?limit=30")
+    try:
+        payload = _fetch_json("https://api.bsky.app/xrpc/app.bsky.unspecced.getPopularFeedGenerators?limit=30")
+    except Exception:
+        if cached_feeds:
+            return [dict(item) for item in cached_feeds]
+        raise
     feeds = payload.get("feeds", [])
     items: list[dict[str, str]] = []
     for item in feeds:
@@ -509,7 +513,11 @@ def _build_registry() -> list[SocialPartition]:
         "at://did:plc:geoqe3qls5mwezckxxsewys2/app.bsky.feed.generator/aaabrbjcg4hmk": ("bluesky_booksky", "Bluesky / BookSky", 0.97),
         "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/hot-classic": ("bluesky_hot_classic", "Bluesky / What's Hot Classic", 1.0),
     }
-    for feed in _list_bluesky_feeds():
+    try:
+        bluesky_feeds = _list_bluesky_feeds()
+    except Exception:
+        bluesky_feeds = []
+    for feed in bluesky_feeds:
         uri = feed["uri"]
         if uri not in allowed_bluesky_feeds:
             continue

@@ -4,11 +4,12 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / "tests" / "runners"
-if str(TOOLS) not in sys.path:
-    sys.path.insert(0, str(TOOLS))
+RUNNERS = ROOT / "tests" / "runners"
+if str(RUNNERS) not in sys.path:
+    sys.path.insert(0, str(RUNNERS))
 
-from common import (
+from runner_common import (
+    create_sample_bundle,
     resolve_scene_draft_paths,
     resolve_source_path_to_scene_draft,
     resolve_source_path_to_world_design_input,
@@ -17,6 +18,15 @@ from common import (
 
 
 class RunnerCommonTests(unittest.TestCase):
+    def test_create_sample_bundle_matches_current_run_bundle_schema(self):
+        with TemporaryDirectory() as temp_dir:
+            sample_root = Path(temp_dir) / "batch" / "samples" / "01"
+            bundle = create_sample_bundle(sample_root, 1)
+
+            self.assertTrue(bundle.input_dir.is_dir())
+            self.assertTrue(bundle.prompt_guard_dir.is_dir())
+            self.assertTrue((bundle.root / "bundle.json").is_file())
+
     def test_resolve_source_path_to_world_design_input_accepts_run_dir_creative_dir_and_file(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

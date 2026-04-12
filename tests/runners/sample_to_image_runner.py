@@ -16,19 +16,19 @@ for import_path in (TOOLS_DIR, SRC_DIR):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
-from common import (
+from runner_common import (
     build_batch_dir,
     configure_utf8_stdio,
     create_sample_bundle,
     resolve_world_design_input_paths,
 )
 
-from character_assets import load_character_assets
-from creative import build_default_run_context, run_parallel_design_stages, run_world_design_stage
-from execution import run_execution_pipeline
 from io_utils import ensure_dir, read_json, write_json, write_text
-from prompt_builder import run_prompt_builder_pipeline
-from social_post import run_social_post_pipeline
+from test_pipeline import (
+    END_STAGE_IMAGE,
+    SOURCE_KIND_SAMPLE_FILE,
+    execute_workbench_task_in_bundle,
+)
 
 
 BATCH_KIND = "sample_to_image"
@@ -46,11 +46,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def build_record(sample_dir: Path) -> dict[str, Any]:
-    source_meta = read_json(sample_dir / "input" / "sample_source.json")
+    source_meta_path = sample_dir / "input" / "content_workbench_source.json"
+    if not source_meta_path.exists():
+        source_meta_path = sample_dir / "input" / "sample_source.json"
+    source_meta = read_json(source_meta_path)
     source_snapshot = read_json(sample_dir / "input" / "social_signal_sample_snapshot.json")
     creative_package = read_json(sample_dir / "creative" / "05_creative_package.json")
     social_post_package = read_json(sample_dir / "social_post" / "01_social_post_package.json")
-    prompt_package = read_json(sample_dir / "prompt_builder" / "01_prompt_package.json")
+    summary = read_json(sample_dir / "output" / "run_summary.json")
     execution_package = read_json(sample_dir / "execution" / "04_execution_package.json")
     return {
         "sampleId": sample_dir.name,
@@ -61,8 +64,8 @@ def build_record(sample_dir: Path) -> dict[str, Any]:
         "stylingDesign": str(creative_package.get("stylingDesign", "")).strip(),
         "actionDesign": str(creative_package.get("actionDesign", "")).strip(),
         "socialPostText": str(social_post_package.get("socialPostText", "")).strip(),
-        "positivePrompt": str(prompt_package.get("positivePrompt", "")).strip(),
-        "negativePrompt": str(prompt_package.get("negativePrompt", "")).strip(),
+        "positivePrompt": str(summary.get("positivePromptText", "")).strip(),
+        "negativePrompt": str(summary.get("negativePromptText", "")).strip(),
         "generatedImagePath": str(execution_package.get("imagePath", "")).strip(),
     }
 
@@ -90,7 +93,7 @@ def write_summary(batch_dir: Path) -> dict[str, Any]:
     for record in records:
         social = record["socialSignalSample"]
         lines.append(f"## {record['sampleId']}")
-        lines.append(f"- 来源采样输入: `{record['source']['worldDesignInputPath']}`")
+        lines.append(f"- 来源采样输入: `{record['source'].get('sourcePath', record['source'].get('worldDesignInputPath', ''))}`")
         lines.append(f"- 采样来源: {social.get('sourceZh', '')} / {social.get('providerZh', '')}")
         lines.append("### 采样内容")
         lines.append("```json")
@@ -137,9 +140,6 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
 
-    character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = PROJECT_DIR / "config" / "creative_model.json"
-    execution_profile_path = PROJECT_DIR / "config" / "execution" / "comfyui_local_animagine_xl.json"
     write_json(
         batch_dir / "batch_meta.json",
         {
@@ -153,74 +153,16 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            source_payload = read_json(world_design_input_path)
-            social_signal_sample = source_payload.get("socialSignalSample", {})
-            if not isinstance(social_signal_sample, dict) or not social_signal_sample.get("sampledSignalsZh"):
-                raise RuntimeError(f"Missing socialSignalSample in {world_design_input_path}")
-
-            default_run_context = build_default_run_context(
-                now_local=datetime.now().isoformat(timespec="seconds"),
-            )
-            write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-            write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-            write_json(
-                bundle.input_dir / "sample_source.json",
+            execute_workbench_task_in_bundle(
+                PROJECT_DIR,
+                bundle,
                 {
-                    "worldDesignInputPath": str(world_design_input_path),
+                    "sourceKind": SOURCE_KIND_SAMPLE_FILE,
+                    "endStage": END_STAGE_IMAGE,
+                    "label": f"{BATCH_KIND}_{index:02d}",
+                    "sourcePath": str(world_design_input_path),
                 },
             )
-            write_json(bundle.input_dir / "social_signal_sample_snapshot.json", social_signal_sample)
-
-            world_design = run_world_design_stage(
-                PROJECT_DIR,
-                bundle,
-                character_assets["subjectProfile"],
-                social_signal_sample,
-                model_config_path,
-            )
-            design_branches = run_parallel_design_stages(
-                PROJECT_DIR,
-                bundle,
-                character_assets["subjectProfile"],
-                world_design,
-                model_config_path,
-            )
-            creative_package = {
-                "meta": {
-                    "createdAt": datetime.now().isoformat(timespec="seconds"),
-                    "runMode": "sample_to_image",
-                },
-                "defaultRunContext": default_run_context,
-                "socialSignalSample": social_signal_sample,
-                "worldDesign": world_design,
-                **design_branches,
-            }
-            write_json(bundle.creative_dir / "05_creative_package.json", creative_package)
-
-            social_post_package = run_social_post_pipeline(
-                PROJECT_DIR,
-                bundle,
-                default_run_context,
-                character_assets,
-                creative_package,
-                model_config_path,
-            )
-            prompt_package = run_prompt_builder_pipeline(
-                PROJECT_DIR,
-                bundle,
-                default_run_context,
-                character_assets,
-                creative_package,
-                model_config_path,
-            )
-            run_execution_pipeline(
-                PROJECT_DIR,
-                bundle,
-                default_run_context,
-                prompt_package,
-                execution_profile_path,
-            )
-            write_json(bundle.social_post_dir / "01_social_post_package.json", social_post_package)
         except Exception:
             shutil.rmtree(sample_root, ignore_errors=True)
             raise

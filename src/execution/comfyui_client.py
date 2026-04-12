@@ -11,6 +11,7 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from env import get_env_value, resolve_env_path
 from io_utils import ensure_dir, write_json
+from process_utils import build_windows_background_popen_kwargs, resolve_background_python_executable
 
 
 def _workspace_root(project_dir: Path) -> Path:
@@ -66,6 +67,7 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
         raise RuntimeError(f"ComfyUI python not found: {python_path}")
     if not main_py.exists():
         raise RuntimeError(f"ComfyUI main.py not found: {main_py}")
+    launch_python_path = resolve_background_python_executable(python_path)
 
     parsed = urlparse(endpoint)
     host = parsed.hostname or "127.0.0.1"
@@ -81,15 +83,14 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
     stdout_handle = stdout_path.open("ab")
     stderr_handle = stderr_path.open("ab")
     try:
-        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
         process = subprocess.Popen(
-            [str(python_path), str(main_py), "--listen", host, "--port", port],
+            [str(launch_python_path), str(main_py), "--listen", host, "--port", port],
             cwd=str(install_root),
             stdin=subprocess.DEVNULL,
             stdout=stdout_handle,
             stderr=stderr_handle,
-            creationflags=creationflags,
             close_fds=True,
+            **build_windows_background_popen_kwargs(),
         )
     finally:
         stdout_handle.close()
@@ -102,7 +103,7 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
             "endpoint": endpoint,
             "startedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "installRoot": str(install_root),
-            "pythonPath": str(python_path),
+            "pythonPath": str(launch_python_path),
         },
     )
 

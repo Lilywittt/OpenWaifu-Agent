@@ -1,84 +1,96 @@
 # ig_roleplay_v3
 
-`ig_roleplay_v3` 当前是一个已经打通的单角色内容生产链路：
+`ig_roleplay_v3` 是一条单角色内容生产链：从人物资产和外部采样出发，生成场景设计稿、三份衍生设计稿、社媒文案、最终生图 Prompt，并通过 ComfyUI 出图。
 
-```text
-人物原始资产 + 外部发散变量采样层
--> 场景设计稿
-   -> 社媒文案
-   -> 环境、布景与光影设计 + 服装与造型设计 + 动作与姿态、神态设计
-      -> 生图Prompt(JSON: positive / negative)
-      -> ComfyUI workflow
-      -> 生成图像
-```
+## 先看什么
 
-镜头与构图内容已经并入 `环境、布景与光影设计`，不再保留单独镜头模块。
+第一次接手项目，按这个顺序看：
 
-## 项目亮点
-
-- 单角色内容生产链已经打通：`creative -> social_post -> prompt_builder -> execution -> publish`
-- 生图执行层走本地 ComfyUI，固定基座为 `animagine-xl-4.0-opt.safetensors`
-- QQ 私聊产品链已经可用，支持体验者模式和开发者模式两种文本交互
-
-## 当前真实可用能力
-
-- 完整产品链运行：从创意到生图，再到 QQ 私聊发布
-- 生成层独立运行：只跑 `creative -> social_post -> prompt_builder -> execution`
-- QQ 私聊体验者模式：`生成 / 状态 / 帮助`
-- QQ 私聊开发者模式：注入场景稿后直跑到出图
-
-## 第一次看项目建议
-
-如果你是第一次点进来，建议按这个顺序看：
-
-1. [架构说明](./docs/product_architecture.md)
-2. [产品使用说明](./docs/usage.md)
+1. [产品架构说明](./docs/product_architecture.md)
+2. [使用说明](./docs/usage.md)
 3. [QQ 私聊服务说明](./docs/qq_bot_private_service.md)
+4. [运维面板说明](./docs/ops_dashboard.md)
+5. [内容测试工作台说明](./docs/content_workbench.md)
+6. [目录管理说明](./docs/directory_management.md)
 
-## 文档索引
+## 正式入口
 
-- [技术思路说明](./docs/technical_strategy.md)
-- [架构说明](./docs/product_architecture.md)
-- [产品使用说明](./docs/usage.md)
-- [QQ 私聊服务说明](./docs/qq_bot_private_service.md)
-- [目录结构管理说明](./docs/directory_management.md)
-- [环境配置说明](./docs/environment_setup.md)
-
-## 常用入口
-
-完整产品链：
+这些脚本都在项目根目录直接运行：
 
 ```powershell
 python run_product.py
+python run_generate_product.py --run-label generate_test
+python run_qq_bot_service.py start
+python run_ops_dashboard.py
+python run_content_workbench.py
 ```
 
-QQ 私聊服务：
+对应职责：
 
-```powershell
-python tests/runners/qq_bot_generate_service_ctl.py start
+- `run_product.py`：完整产品链路
+- `run_generate_product.py`：只跑生成层，不经过发布层
+- `run_qq_bot_service.py`：QQ 私聊服务控制入口
+- `run_ops_dashboard.py`：本地运维面板，只看 QQ 服务
+- `run_content_workbench.py`：本地内容测试工作台，不走 QQ
+
+## 入口关系
+
+这套系统分成三类入口：
+
+- 正式入口
+  - `run_product.py`
+  - `run_generate_product.py`
+  - `run_qq_bot_service.py`
+- 本地 sidecar
+  - `run_ops_dashboard.py`
+  - `run_content_workbench.py`
+- 批量测试/回放
+  - `tests/runners/`
+
+原则很简单：
+
+- 根目录 `run_*.py` 只放正式入口和本地控制台入口
+- `tests/runners/` 只放批量回放和链路验证，不承担正式服务职责
+- `tools/qq_bot/` 只放一次性 QQ 协议调试工具
+
+## 当前有效链路
+
+```text
+人物原始资产 + 实时社媒采样
+-> 场景设计稿
+-> 环境设计稿
+-> 造型设计稿
+-> 动作设计稿
+-> 社媒文案
+-> Prompt Builder
+-> Prompt Guard
+-> ComfyUI 执行
+-> 图片产物
+-> 发布层
 ```
 
-如果你只想快速确认项目当前最核心的两条入口，这两条就够：
+## 核心配置入口
 
-- `python run_product.py`
-- `python tests/runners/qq_bot_generate_service_ctl.py start`
+人物资产：
 
-## 当前目录分层
+- [config/character_assets.json](./config/character_assets.json)
+- [character/subject_profile.json](./character/subject_profile.json)
 
-- `src/creative/`
-- `src/social_post/`
-- `src/prompt_builder/`
-- `src/execution/`
-- `prompts/creative/`
-- `prompts/social_post/`
-- `prompts/prompt_builder/`
-- `src/publish/`
-- `config/publish/`
-- `config/execution/`
-- `config/workflows/comfyui/`
+LLM 配置：
 
-## 当前执行基座
+- [config/llm_profiles.json](./config/llm_profiles.json)
+- [config/creative_model.json](./config/creative_model.json)
+- [config/prompt_guard_model.json](./config/prompt_guard_model.json)
 
-- shared checkpoint: `animagine-xl-4.0-opt.safetensors`
-- execution profile: `config/execution/comfyui_local_animagine_xl.json`
-- workflow template: `config/workflows/comfyui/animagine_xl_basic.workflow.json`
+生图基座：
+
+- [config/execution/active_profile.json](./config/execution/active_profile.json)
+- [config/execution/comfyui_local_animagine_xl.json](./config/execution/comfyui_local_animagine_xl.json)
+- [config/workflows/comfyui/animagine_xl_basic.workflow.json](./config/workflows/comfyui/animagine_xl_basic.workflow.json)
+
+## 当前运维/测试控制台的定位
+
+- 运维面板：只对 QQ 服务负责，解决“服务是否在线、当前跑到哪、队列和最近 run 怎样”的问题
+- 内容测试工作台：只对本地内容测试负责，解决“从不同起点跑到不同终点、看中间产物、复跑和筛选”的问题
+
+两者都是 sidecar，不进入正式产品主链。

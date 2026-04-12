@@ -39,6 +39,24 @@ STAGE_CONFIGS = {
 }
 
 
+class CreativeSocialSamplingError(RuntimeError):
+    def __init__(self, detail: str):
+        normalized_detail = normalize_spaces(detail)
+        self.user_summary = "实时社媒采样失败，当前没有拿到新的外部样本。"
+        self.user_details = [
+            "失败位置：社媒采样，不是生图执行。",
+            "建议：检查网络、代理或 VPN 后重试。",
+        ]
+        if normalized_detail:
+            self.user_details.append(f"技术摘要：{normalized_detail[:160]}")
+        super().__init__(
+            "实时社媒采样失败：当前没有拿到新的外部样本；"
+            "失败位置：社媒采样，不是生图执行；"
+            "建议：检查网络、代理或 VPN 后重试。"
+            + (f" 技术摘要：{normalized_detail[:200]}" if normalized_detail else "")
+        )
+
+
 def build_default_run_context(*, now_local: str) -> dict[str, Any]:
     return {
         "runMode": "default",
@@ -201,7 +219,10 @@ def _normalize_world_design(world_design: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_social_signal_filter_stage(project_dir: Path, bundle, model_config_path: Path) -> dict[str, Any]:
-    social_signal_sample = collect_social_trend_sample(project_dir)
+    try:
+        social_signal_sample = collect_social_trend_sample(project_dir)
+    except Exception as exc:
+        raise CreativeSocialSamplingError(str(exc)) from exc
     filter_input = _build_social_signal_filter_input(social_signal_sample)
     if len(filter_input.get("signalCandidates", [])) != 3:
         raise RuntimeError("social signal shortlist must contain exactly 3 candidates")

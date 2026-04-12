@@ -56,6 +56,14 @@ def run_single(args) -> int:
             bundle,
             log=log,
             publish_target_ids=args.publish_target or None,
+            generation_owner={
+                "ownerType": "run_product",
+                "ownerLabel": "run_product.py",
+                "runId": bundle.run_id,
+                "metadata": {
+                    "command": "single",
+                },
+            },
         )
         summary = result["summary"]
         latest_path = update_latest(

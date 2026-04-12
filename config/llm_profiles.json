@@ -1,0 +1,4 @@
+{
+  "creativeModelConfigPath": "config/creative_model.json",
+  "promptGuardModelConfigPath": "config/prompt_guard_model.json"
+}

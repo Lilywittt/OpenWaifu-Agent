@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""从已有 creative 产物直接回放 prompt_builder 与 execution 的测试脚本。"""
+"""从已有 creative 产物回放现行中下游测试链路的批量脚本。"""
 
 import argparse
 import shutil
@@ -16,18 +16,19 @@ for import_path in (TOOLS_DIR, SRC_DIR):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
-from common import (
+from runner_common import (
     build_batch_dir,
     configure_utf8_stdio,
     create_sample_bundle,
     resolve_creative_package_paths,
 )
 
-from character_assets import load_character_assets
-from creative import build_default_run_context
-from execution import run_execution_pipeline
 from io_utils import ensure_dir, read_json, write_json, write_text
-from prompt_builder import run_prompt_builder_pipeline
+from test_pipeline import (
+    END_STAGE_IMAGE,
+    SOURCE_KIND_CREATIVE_PACKAGE_FILE,
+    execute_workbench_task_in_bundle,
+)
 
 
 BATCH_KIND = "prompt_execution_from_creative"
@@ -35,7 +36,7 @@ BATCH_KIND = "prompt_execution_from_creative"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run prompt_builder and execution directly from existing creative outputs."
+        description="Run the current downstream image pipeline from existing creative outputs."
     )
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--label", default="batch")
@@ -43,31 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-batch", default="")
     return parser
 
-def materialize_creative_snapshot(bundle, creative_package: dict[str, Any]) -> None:
-    write_json(bundle.creative_dir / "05_creative_package.json", creative_package)
-
-    social_signal_sample = creative_package.get("socialSignalSample")
-    if isinstance(social_signal_sample, dict) and social_signal_sample:
-        write_json(bundle.creative_dir / "00_social_signal_filter.json", social_signal_sample)
-
-    world_design = creative_package.get("worldDesign", {})
-    if isinstance(world_design, dict):
-        write_json(bundle.creative_dir / "01_world_design.json", world_design)
-
-    for filename, key in (
-        ("02_environment_design.md", "environmentDesign"),
-        ("03_styling_design.md", "stylingDesign"),
-        ("04_action_design.md", "actionDesign"),
-    ):
-        text = str(creative_package.get(key, "")).strip()
-        if text:
-            write_text(bundle.creative_dir / filename, text + "\n")
-
-
 def build_record(sample_dir: Path) -> dict[str, Any]:
-    source_meta = read_json(sample_dir / "input" / "creative_source.json")
+    source_meta_path = sample_dir / "input" / "content_workbench_source.json"
+    if not source_meta_path.exists():
+        source_meta_path = sample_dir / "input" / "creative_source.json"
+    source_meta = read_json(source_meta_path)
     creative_package = read_json(sample_dir / "creative" / "05_creative_package.json")
-    prompt_package = read_json(sample_dir / "prompt_builder" / "01_prompt_package.json")
+    summary = read_json(sample_dir / "output" / "run_summary.json")
     execution_package = read_json(sample_dir / "execution" / "04_execution_package.json")
     return {
         "sampleId": sample_dir.name,
@@ -76,8 +59,8 @@ def build_record(sample_dir: Path) -> dict[str, Any]:
         "environmentDesign": str(creative_package.get("environmentDesign", "")).strip(),
         "stylingDesign": str(creative_package.get("stylingDesign", "")).strip(),
         "actionDesign": str(creative_package.get("actionDesign", "")).strip(),
-        "positivePrompt": str(prompt_package.get("positivePrompt", "")).strip(),
-        "negativePrompt": str(prompt_package.get("negativePrompt", "")).strip(),
+        "positivePrompt": str(summary.get("positivePromptText", "")).strip(),
+        "negativePrompt": str(summary.get("negativePromptText", "")).strip(),
         "generatedImagePath": str(execution_package.get("imagePath", "")).strip(),
     }
 
@@ -104,7 +87,7 @@ def write_summary(batch_dir: Path) -> dict[str, Any]:
     ]
     for record in records:
         lines.append(f"## {record['sampleId']}")
-        lines.append(f"- 来源 creative package: `{record['source']['creativePackagePath']}`")
+        lines.append(f"- 来源 creative package: `{record['source'].get('sourcePath', record['source'].get('creativePackagePath', ''))}`")
         lines.append(f"- 场景命题: {record['sceneDraft'].get('scenePremiseZh', '')}")
         for title, key in (
             ("环境、布景与光影设计", "environmentDesign"),
@@ -139,9 +122,6 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
 
-    character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = PROJECT_DIR / "config" / "creative_model.json"
-    execution_profile_path = PROJECT_DIR / "config" / "execution" / "comfyui_local_animagine_xl.json"
     write_json(
         batch_dir / "batch_meta.json",
         {
@@ -155,33 +135,15 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            creative_package = read_json(creative_package_path)
-            default_run_context = creative_package.get("defaultRunContext") or build_default_run_context(
-                now_local=datetime.now().isoformat(timespec="seconds"),
-            )
-            write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-            write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-            write_json(
-                bundle.input_dir / "creative_source.json",
+            execute_workbench_task_in_bundle(
+                PROJECT_DIR,
+                bundle,
                 {
-                    "creativePackagePath": str(creative_package_path),
+                    "sourceKind": SOURCE_KIND_CREATIVE_PACKAGE_FILE,
+                    "endStage": END_STAGE_IMAGE,
+                    "label": f"{BATCH_KIND}_{index:02d}",
+                    "sourcePath": str(creative_package_path),
                 },
-            )
-            materialize_creative_snapshot(bundle, creative_package)
-            prompt_package = run_prompt_builder_pipeline(
-                PROJECT_DIR,
-                bundle,
-                default_run_context,
-                character_assets,
-                creative_package,
-                model_config_path,
-            )
-            run_execution_pipeline(
-                PROJECT_DIR,
-                bundle,
-                default_run_context,
-                prompt_package,
-                execution_profile_path,
             )
         except Exception:
             shutil.rmtree(sample_root, ignore_errors=True)

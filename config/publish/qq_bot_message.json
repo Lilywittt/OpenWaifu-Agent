@@ -3,6 +3,8 @@
   "apiBaseUrl": "https://api.sgroup.qq.com",
   "appIdEnvName": "QQ_BOT_APP_ID",
   "appSecretEnvName": "QQ_BOT_APP_SECRET",
+  "botDisplayName": "",
+  "botDisplayNameEnvName": "QQ_BOT_DISPLAY_NAME",
   "scene": "user",
   "groupOpenIdEnvName": "QQ_BOT_GROUP_OPENID",
   "userOpenIdEnvName": "QQ_BOT_USER_OPENID",

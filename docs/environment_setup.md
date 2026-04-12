@@ -22,7 +22,56 @@ COMFYUI_CHECKPOINT_NAME=animagine-xl-4.0-opt.safetensors
 COMFYUI_LOG_DIR=./runtime/service_logs/comfyui
 COMFYUI_PID_DIR=./runtime/service_state
 QQ_BOT_GROUP_OPENID=
+QQ_BOT_DISPLAY_NAME=
 ```
+
+## 原始人物资产怎么配置
+
+正式链路使用一份显式配置来指定人物原始资产路径：
+
+- [character_assets.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/character_assets.json)
+
+当前默认内容是：
+
+```json
+{
+  "subjectProfilePath": "character/subject_profile.json"
+}
+```
+
+规则只有两条：
+
+- `subjectProfilePath` 只负责指定路径，不承载人物正文
+- 路径建议写成相对项目根目录的相对路径，便于迁移和版本管理
+
+默认人物资产本体在：
+
+- [subject_profile.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/character/subject_profile.json)
+
+## LLM 模型配置怎么维护
+
+正式链路使用一份显式配置来指定 creative 层和 prompt guard 层各自读取哪份模型配置：
+
+- [llm_profiles.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/llm_profiles.json)
+
+当前默认内容是：
+
+```json
+{
+  "creativeModelConfigPath": "config/creative_model.json",
+  "promptGuardModelConfigPath": "config/prompt_guard_model.json"
+}
+```
+
+默认情况下：
+
+- [creative_model.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/creative_model.json) 供 creative 和 social_post / prompt_builder 复用
+- [prompt_guard_model.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/prompt_guard_model.json) 供 prompt guard 单独使用
+
+规则：
+
+- `llm_profiles.json` 只维护路径选择
+- 具体模型配置文件只维护模型、温度、base_url、token_limit 等正文
 
 ## 生图模型基座怎么配置
 
@@ -54,7 +103,23 @@ COMFYUI_CHECKPOINT_NAME=animagine-xl-4.0-opt.safetensors
 
 执行层配置文件在：
 
+- `config/execution/active_profile.json`
 - `config/execution/comfyui_local_animagine_xl.json`
+- `config/prompt_guard_model.json`
+
+补充说明：
+
+- `config/execution/active_profile.json` 是正式入口，只负责指定当前启用哪一份 execution profile
+- 具体 execution profile 负责维护 checkpoint、workflow、采样参数和节点映射
+- 正式链路先读 `active_profile.json`，再定位到具体 profile
+- `.env` 里的 `COMFYUI_CHECKPOINT_PATH` / `COMFYUI_CHECKPOINT_NAME` 仍然只是本机覆盖层
+
+其中：
+
+- `active_profile.json`
+  只负责指定当前正式链路启用哪一份 execution profile
+- 具体 execution profile
+  负责维护 checkpoint、workflow、采样参数和节点映射
 
 它同时持有两项信息：
 
@@ -74,6 +139,12 @@ COMFYUI_CHECKPOINT_NAME=animagine-xl-4.0-opt.safetensors
 4. `src/execution/workflow.py`
    再把 `checkpointName` 写进 ComfyUI workflow 的 checkpoint loader 节点
 
+Prompt 回调层默认单独使用：
+
+- `config/prompt_guard_model.json`
+
+它和 creative 层一样走 DeepSeek OpenAI-compatible 配置，但职责单独拆开，便于后续独立调温度、模型和限额。
+
 也就是说：
 
 - `checkpointPath` 决定“本机有没有这份模型”
@@ -87,6 +158,12 @@ COMFYUI_CHECKPOINT_NAME=animagine-xl-4.0-opt.safetensors
 
 ```text
 ../../../.local/ComfyUI/models/checkpoints/animagine-xl-4.0-opt.safetensors
+```
+
+而当前默认启用的 execution profile 是：
+
+```text
+config/execution/comfyui_local_animagine_xl.json
 ```
 
 这是当前开发环境的本机默认值，不建议别人直接照搬。

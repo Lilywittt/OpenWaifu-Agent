@@ -10,11 +10,14 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from creative.social_trends import (
+    _BLUESKY_FEED_CACHE,
     SocialPartition,
     _BILIBILI_COMMENT_FALLBACK_LIMIT,
+    _build_registry,
     _collect_bilibili_partition,
     _health_path,
     _load_health,
+    _list_bluesky_feeds,
     _render_bilibili_signal,
     collect_social_trend_sample,
 )
@@ -171,6 +174,42 @@ class SocialTrendsTests(unittest.TestCase):
 
         self.assertEqual(len(seen_aids), _BILIBILI_COMMENT_FALLBACK_LIMIT)
         self.assertEqual(len(signals), _BILIBILI_COMMENT_FALLBACK_LIMIT)
+
+    def test_build_registry_skips_bluesky_when_feed_discovery_fails(self):
+        with patch("creative.social_trends._list_bluesky_feeds", side_effect=RuntimeError("transport error")):
+            registry = _build_registry()
+        provider_keys = {partition.provider_key for partition in registry}
+        self.assertIn("bangumi_anime", provider_keys)
+        self.assertIn("bilibili_anime", provider_keys)
+        self.assertNotIn("bluesky_discover", provider_keys)
+
+    def test_list_bluesky_feeds_returns_stale_cache_when_refresh_fails(self):
+        previous_loaded_at = _BLUESKY_FEED_CACHE.get("loadedAt")
+        previous_feeds = list(_BLUESKY_FEED_CACHE.get("feeds", []))
+        try:
+            _BLUESKY_FEED_CACHE["loadedAt"] = None
+            _BLUESKY_FEED_CACHE["feeds"] = [
+                {
+                    "uri": "at://cached/feed",
+                    "display_name": "Cached Feed",
+                    "description": "cached description",
+                }
+            ]
+            with patch("creative.social_trends._fetch_json", side_effect=RuntimeError("transport error")):
+                feeds = _list_bluesky_feeds()
+            self.assertEqual(
+                feeds,
+                [
+                    {
+                        "uri": "at://cached/feed",
+                        "display_name": "Cached Feed",
+                        "description": "cached description",
+                    }
+                ],
+            )
+        finally:
+            _BLUESKY_FEED_CACHE["loadedAt"] = previous_loaded_at
+            _BLUESKY_FEED_CACHE["feeds"] = previous_feeds
 
 
 if __name__ == "__main__":

@@ -1,133 +1,184 @@
-# 架构说明
+# 产品架构说明
 
-## 当前有效架构
+## 一句话架构
+
+主产品链负责生产内容；QQ 服务负责用户入口；运维面板和内容测试工作台是两个平级 sidecar。
 
 ```text
-人物原始资产 ----------\
-                        -> 场景设计稿 -> 环境、布景与光影设计
-外部发散变量采样层 ----/               -> 服装与造型设计
-                                        -> 动作与姿态、神态设计
-                        -> 社媒文案
+正式产品链
+  人物资产 + 实时采样
+  -> creative
+  -> social_post
+  -> prompt_builder
+  -> prompt_guard
+  -> execution
+  -> publish
 
-人物原始资产 + 三份设计 ---------------------------------> 生图Prompt(JSON: positive / negative)
-
-生图Prompt + 执行配置 + ComfyUI workflow -----------------> 生成图像
+本地 sidecar
+  -> ops dashboard
+  -> content workbench
 ```
 
-入口约定：
+## 谁负责什么
 
-- 完整产品链路入口：`run_product.py`
-- 只跑生成层的测试入口：`tests/runners/run_generate_product.py`
+### 1. 生产主链
 
-## 分层职责
+- `src/creative/`
+  - 实时社媒采样
+  - 场景设计稿
+  - 环境/造型/动作设计稿
+- `src/social_post/`
+  - 根据人物资产和场景设计稿生成社媒文案
+- `src/prompt_builder/`
+  - 生成标准化 prompt package
+- `src/prompt_guard/`
+  - 审核并最小修正最终 Prompt
+- `src/execution/`
+  - 读取 execution profile 和 workflow，调用 ComfyUI 出图
+- `src/publish/`
+  - 包装发布输入、适配发布目标
 
-### 1. Creative
+### 2. QQ 私聊服务
 
-`src/creative/` 负责：
+QQ 服务现在按职责拆分，不再由一个大脚本承载全部逻辑：
 
-- 外部采样 shortlist
-- 采样过滤
-- 场景设计稿
-- 环境、布景与光影设计
-- 服装与造型设计
-- 动作与姿态、神态设计
+- `src/publish/qq_bot_ingress.py`
+  - QQ 网关接入、鉴权、心跳和消息接收
+- `src/publish/qq_bot_router.py`
+  - 命令归一化、模式识别、消息解释
+- `src/publish/qq_bot_task_policy.py`
+  - 入队规则、模式规则、忙碌期反馈
+- `src/publish/qq_bot_executor.py`
+  - 调正式产品链并回传结果
+- `src/publish/qq_bot_runtime_store.py`
+  - 服务状态、事件流、锁、停机请求
+- `src/publish/qq_bot_service.py`
+  - 主编排入口
 
-这里是当前产品里真正的创意层。
+`src/publish/qq_bot_generate_service.py` 只保留兼容 facade，不再是正式入口。
 
-### 2. Social Post
+### 3. 运维面板
 
-`src/social_post/` 负责：
+`src/ops/` 只负责一个 sidecar：本地运维面板。
 
-- 读取原始人物资产
-- 读取场景设计稿
-- 产出主角口吻的社媒文案
+职责边界：
 
-它是独立于生图链路的旁支，不参与 prompt 编译。
+- 只看 QQ 服务
+- 只读结构化状态
+- 首页只做运维概览
+- 详情页才看内容溯源
 
-### 3. Prompt Builder
+它不负责：
 
-`src/prompt_builder/` 负责：
+- 发起本地内容测试
+- 代替 QQ 入口
+- 直接改写主链状态
 
-- 读取原始人物资产
-- 读取三份设计稿
-- 产出给生图模型使用的 prompt JSON
+### 4. 内容测试工作台
 
-它当前输出协议固定为：
+`src/studio/` 只负责一个 sidecar：本地内容测试工作台。
 
-```json
-{
-  "positive": "",
-  "negative": ""
-}
-```
+职责边界：
 
-系统内再统一整理成：
+- 从不同输入起点发起内容测试
+- 指定终点停下
+- 看中间产物和最终图片
+- 复跑最近一次请求
+- 删除指定测试 run 目录
+- 导出索引和清理报告
 
-```json
-{
-  "meta": {
-    "createdAt": "",
-    "runMode": "default"
-  },
-  "defaultRunContext": {},
-  "positivePrompt": "",
-  "negativePrompt": ""
-}
-```
+它不负责：
 
-### 4. Execution
+- 充当 QQ 用户入口
+- 代替运维面板
+- 自己维护另一套测试编排真相
 
-`src/execution/` 负责：
+### 5. 测试编排核心
 
-1. 读取 `positivePrompt / negativePrompt`
-2. 读取 execution profile 和 ComfyUI workflow 模板
-3. 把 prompt、checkpoint、尺寸、采样参数确定性注入 workflow
-4. 提交 ComfyUI 并下载最终图片
+`src/test_pipeline/core.py` 是当前唯一测试编排核心。
 
-这层不负责再做创意。
+这里统一定义：
 
-## 上下游关系
+- 合法起点
+- 合法终点
+- 起点到终点的阶段推进
+- 测试摘要和测试元信息
 
-- `人物原始资产` 和 `外部发散变量采样层` 是并行上游，一起汇入 `场景设计稿`
-- `场景设计稿` 之后是三条同层分支：
-  - `环境、布景与光影设计`
-  - `服装与造型设计`
-  - `动作与姿态、神态设计`
-- `场景设计稿` 同时喂给 `social_post`
-- `prompt_builder` 接收原始人物资产和三份设计稿
-- `execution` 接收 prompt package
+原则是：
 
-## Prompt Builder 输入顺序
+- 工作台调用这层
+- 与工作台能力重合的批量 runner 也调用这层
+- 不允许再出现“工作台一套、runner 一套”的平行编排
 
-传给 LLM 的 `imagePromptInput` 内部顺序固定为：
+## 正式入口和 sidecar 入口
 
-1. `subjectProfile`
-2. `actionDesign`
-3. `stylingDesign`
-4. `environmentDesign`
+根目录只保留正式入口：
 
-也就是：
+- `run_product.py`
+- `run_generate_product.py`
+- `run_qq_bot_service.py`
+- `run_ops_dashboard.py`
+- `run_content_workbench.py`
 
-1. 原始人物资产
-2. 动作与姿态、神态设计稿
-3. 服装与造型设计稿
-4. 环境、布景与光影设计稿
+含义：
 
-## 执行基座
+- 正式产品链入口和本地控制台入口都在根目录
+- `tests/runners/` 不再承担正式服务职责
 
-当前执行层固定使用：
+## 共享执行位
 
-- shared checkpoint: `animagine-xl-4.0-opt.safetensors`
-- execution profile: `config/execution/comfyui_local_animagine_xl.json`
-- workflow template: `config/workflows/comfyui/animagine_xl_basic.workflow.json`
+QQ 服务和内容测试工作台可以同时在线，但不能同时占用本机生成链。
 
-## 当前不再采用的旧架构
+共享执行位在：
 
-以下内容已经退出现行架构，不再作为产品正确结构的一部分：
+- `runtime/service_state/shared/generation_slot.json`
 
-- 旧 `render` 目录
-- 旧 `prompt_compiler`
-- 旧 `render_director`
-- 单独镜头模块
+规则：
 
-镜头与构图已经并入 `环境、布景与光影设计`。
+- QQ 和工作台都先申请这个执行位
+- 同一时刻只允许一边真正进入生成链
+- 另一边收到明确忙碌反馈，而不是静默抢资源
+
+## 运行产物
+
+正式 run 和工作台测试 run 都落在：
+
+- `runtime/runs/<run_id>/`
+
+sidecar 自己的状态和日志不放进 run 目录，而是放在：
+
+- `runtime/service_state/sidecars/`
+- `runtime/service_logs/sidecars/`
+
+这样做的原因很直接：
+
+- 正式内容产物继续统一归档
+- 运维/工作台自己的状态索引不污染产品 run
+
+## 产品体验思路
+
+### QQ 侧
+
+QQ 侧面对最终用户，重点是：
+
+- 模式清晰
+- 触发成本低
+- 忙碌反馈直接
+- 队列和状态反馈不误导
+
+### 运维面板
+
+运维面板面对维护者，重点是：
+
+- 一眼知道服务是否健康
+- 一眼知道当前阶段、队列和最近错误
+- 详情页再看 run 溯源
+
+### 内容测试工作台
+
+工作台面对内容调试者，重点是：
+
+- 不必反复去 QQ 发消息
+- 不必反复敲 runner 命令
+- 左手键盘切换测试，右手只在详情区操作
+- 尽量少点击、少滚动、少来回移动鼠标

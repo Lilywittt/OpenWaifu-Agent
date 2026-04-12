@@ -4,11 +4,11 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / "tests" / "runners"
-if str(TOOLS) not in sys.path:
-    sys.path.insert(0, str(TOOLS))
+RUNNERS = ROOT / "tests" / "runners"
+if str(RUNNERS) not in sys.path:
+    sys.path.insert(0, str(RUNNERS))
 
-from common import resolve_creative_package_paths, resolve_source_path_to_creative_package
+from runner_common import resolve_creative_package_paths, resolve_source_path_to_creative_package
 
 
 class PromptExecutionRunnerTests(unittest.TestCase):

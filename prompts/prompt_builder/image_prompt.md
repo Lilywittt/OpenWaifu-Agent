@@ -11,6 +11,7 @@
 - JSON 对象包含两个字段：
   - "positive": 完整的正向提示词（英文）
   - "negative": 完整的负向提示词（英文）
+  - 注意详略得当，负向提示词内容约为正向提示词的1/2
 
 【正向提示词规范】
 - 必须包含以下内容，重点是体现人物内核，输出中越重要的放在越前：
@@ -21,19 +22,17 @@
   5. 画质与风格修饰词（根据设计稿风格合理选取补充，如未提及默认采用日漫二次元画风，即："masterpiece, best quality, anime, toaru kagaku no railgun style, jcstaff, 2000s anime, soft cel shading, sharp lines" ）
 - 使用英文逗号分隔关键词，避免自然语句的连词（如 "and"），多用短词和标签式描述。
 - 可根据你对语义的理解，权重较高、必须依从的词可通过重复两遍以上的方式强调。
-- 如果服装与造型中明确指定了人物在cosplay某知名动漫角色，需要在输出中重复三次所cos角色的名字。
+- 如果服装与造型中明确指定了人物在cosplay某知名动漫角色，需要在输出中体现。
 
 【负向提示词规范】
 - 包含通用的质量与伪影抑制词，如：
   "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark, error, jpeg artifacts, cropped,duplicate, morbid, mutilated, extra legs, missing legs, extra arms, bad proportions, unnatural pose, contorted body, twisted joints, disproportionate, misshapen"
-- 如设计稿中的语义有明确要求，根据语义要求补充负向词
+- 如设计稿中的语义有明确要求，根据语义要求补充负向词。禁止擅自为安全性审查添加额外的负向词。
 - 负向提示词同样使用英文逗号分隔，全小写或首词大写均可。
 
 【风格适配】
 - 默认输出适用于Animagine XL 4.0 Opt
 
-【冲突处理】
-- 若不同设计稿中存在互相冲突的内容，以更精细的部分为准。将所有设计稿进行语义分析，理解人物的动作和肢体结构有无逻辑上的悖逆也是你的职责，不要输出人物实际上做不到的动作。需要回头审查一遍输出的prompt会不会造成肢体的错位或缺失，并做出修正。
 
 【冲突与美感处理】
 

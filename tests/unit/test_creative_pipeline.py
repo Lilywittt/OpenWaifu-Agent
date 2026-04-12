@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from creative.pipeline import run_creative_pipeline
+from creative.pipeline import CreativeSocialSamplingError, run_creative_pipeline
 from io_utils import read_json, read_text
 from runtime_layout import create_run_bundle
 
@@ -87,6 +87,44 @@ class CreativePipelineTests(unittest.TestCase):
             self.assertEqual(package_snapshot["socialSignalSample"]["sampledSignalsZh"], ["signal two"])
             self.assertEqual(creative_package["environmentDesign"], "environment text")
             self.assertEqual(creative_package["actionDesign"], "action text")
+
+    def test_creative_pipeline_surfaces_clear_social_sampling_error(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            prompts_dir = project_dir / "prompts" / "creative"
+            prompts_dir.mkdir(parents=True)
+            for prompt_name in (
+                "social_signal_filter.md",
+                "world_design.md",
+                "environment_design.md",
+                "styling_design.md",
+                "action_design.md",
+            ):
+                (prompts_dir / prompt_name).write_text("template", encoding="utf-8")
+
+            bundle = create_run_bundle(project_dir, "default", "creative-pipeline-error")
+            character_assets = {
+                "subjectProfile": {
+                    "display_name_zh": "demo",
+                    "forbidden_changes_zh": [],
+                }
+            }
+
+            with patch(
+                "creative.pipeline.collect_social_trend_sample",
+                side_effect=RuntimeError("transport error: <urlopen error timed out>"),
+            ):
+                with self.assertRaises(CreativeSocialSamplingError) as context:
+                    run_creative_pipeline(
+                        project_dir,
+                        bundle,
+                        {"runMode": "default", "nowLocal": "2026-04-06T18:00:00"},
+                        character_assets,
+                        project_dir / "config" / "creative_model.json",
+                    )
+
+            self.assertIn("实时社媒采样失败", str(context.exception))
+            self.assertEqual(context.exception.user_summary, "实时社媒采样失败，当前没有拿到新的外部样本。")
 
 
 if __name__ == "__main__":

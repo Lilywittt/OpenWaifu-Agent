@@ -15,7 +15,7 @@ for import_path in (TOOLS_DIR, SRC_DIR):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
-from common import (
+from runner_common import (
     build_batch_dir,
     configure_utf8_stdio,
     latest_creative_package_paths,
@@ -23,10 +23,12 @@ from common import (
     resolve_creative_package_paths,
 )
 
-from character_assets import load_character_assets
-from creative import build_default_run_context
 from io_utils import ensure_dir, read_json, write_json, write_text
-from social_post import run_social_post_pipeline
+from test_pipeline import (
+    END_STAGE_SOCIAL_POST,
+    SOURCE_KIND_CREATIVE_PACKAGE_FILE,
+    execute_workbench_task_in_bundle,
+)
 
 
 BATCH_KIND = "social_post_from_creative"
@@ -50,8 +52,11 @@ def resolve_input_creative_packages(*, sources: list[str], source_batch: str, co
 
 
 def build_record(sample_dir: Path) -> dict:
-    source_meta = read_json(sample_dir / "input" / "creative_source.json")
-    scene_draft = read_json(sample_dir / "input" / "scene_draft_snapshot.json")
+    source_meta_path = sample_dir / "input" / "content_workbench_source.json"
+    if not source_meta_path.exists():
+        source_meta_path = sample_dir / "input" / "creative_source.json"
+    source_meta = read_json(source_meta_path)
+    scene_draft = read_json(sample_dir / "creative" / "01_world_design.json")
     social_post_package = read_json(sample_dir / "social_post" / "01_social_post_package.json")
     return {
         "sampleId": sample_dir.name,
@@ -84,7 +89,7 @@ def write_summary(batch_dir: Path) -> dict:
     ]
     for record in records:
         lines.append(f"## {record['sampleId']}")
-        lines.append(f"- 来源 creative package: `{record['source']['creativePackagePath']}`")
+        lines.append(f"- 来源 creative package: `{record['source'].get('sourcePath', record['source'].get('creativePackagePath', ''))}`")
         lines.append(f"- 场景命题: {record['sceneDraft'].get('scenePremiseZh', '')}")
         lines.append("### 场景正文")
         lines.append("```text")
@@ -110,8 +115,6 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
     samples_dir = batch_dir / "samples"
     ensure_dir(samples_dir)
 
-    character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = PROJECT_DIR / "config" / "creative_model.json"
     write_json(
         batch_dir / "batch_meta.json",
         {
@@ -125,26 +128,15 @@ def run_batch(*, count: int, label: str, sources: list[str], source_batch: str) 
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            creative_package = read_json(creative_package_path)
-            default_run_context = creative_package.get("defaultRunContext") or build_default_run_context(
-                now_local=datetime.now().isoformat(timespec="seconds"),
-            )
-            write_json(bundle.input_dir / "default_run_context.json", default_run_context)
-            write_json(bundle.input_dir / "character_assets_snapshot.json", character_assets)
-            write_json(
-                bundle.input_dir / "creative_source.json",
-                {
-                    "creativePackagePath": str(creative_package_path),
-                },
-            )
-            write_json(bundle.input_dir / "scene_draft_snapshot.json", creative_package.get("worldDesign", {}))
-            run_social_post_pipeline(
+            execute_workbench_task_in_bundle(
                 PROJECT_DIR,
                 bundle,
-                default_run_context,
-                character_assets,
-                creative_package,
-                model_config_path,
+                {
+                    "sourceKind": SOURCE_KIND_CREATIVE_PACKAGE_FILE,
+                    "endStage": END_STAGE_SOCIAL_POST,
+                    "label": f"{BATCH_KIND}_{index:02d}",
+                    "sourcePath": str(creative_package_path),
+                },
             )
         except Exception:
             shutil.rmtree(sample_root, ignore_errors=True)
