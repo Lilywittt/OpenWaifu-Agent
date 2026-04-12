@@ -2,7 +2,7 @@
 
 ## 必需环境变量
 
-根目录 `.env` 至少需要：
+根目录 `.env` 至少需要这些字段：
 
 ```env
 DEEPSEEK_API_KEY=your_key_here
@@ -25,13 +25,9 @@ QQ_BOT_GROUP_OPENID=
 QQ_BOT_DISPLAY_NAME=
 ```
 
-## 原始人物资产怎么配置
+## 人物资产
 
-正式链路使用一份显式配置来指定人物原始资产路径：
-
-- [character_assets.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/character_assets.json)
-
-当前默认内容是：
+正式链路通过 [config/character_assets.json](../config/character_assets.json) 指定人物资产文件。当前默认内容是：
 
 ```json
 {
@@ -39,22 +35,11 @@ QQ_BOT_DISPLAY_NAME=
 }
 ```
 
-规则只有两条：
+`subjectProfilePath` 保存人物资产文件路径，推荐使用相对项目根目录的路径。正文位于 [character/subject_profile.json](../character/subject_profile.json)。
 
-- `subjectProfilePath` 只负责指定路径，不承载人物正文
-- 路径建议写成相对项目根目录的相对路径，便于迁移和版本管理
+## LLM 配置
 
-默认人物资产本体在：
-
-- [subject_profile.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/character/subject_profile.json)
-
-## LLM 模型配置怎么维护
-
-正式链路使用一份显式配置来指定 creative 层和 prompt guard 层各自读取哪份模型配置：
-
-- [llm_profiles.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/llm_profiles.json)
-
-当前默认内容是：
+正式链路通过 [config/llm_profiles.json](../config/llm_profiles.json) 选择 creative 和 prompt guard 所使用的模型配置。当前默认内容是：
 
 ```json
 {
@@ -63,35 +48,17 @@ QQ_BOT_DISPLAY_NAME=
 }
 ```
 
-默认情况下：
+[config/creative_model.json](../config/creative_model.json) 供 creative、social_post 和 prompt_builder 使用，[config/prompt_guard_model.json](../config/prompt_guard_model.json) 供 prompt guard 使用。
 
-- [creative_model.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/creative_model.json) 供 creative 和 social_post / prompt_builder 复用
-- [prompt_guard_model.json](/F:/openclaw-dev/workspace/projects/ig_roleplay_v3/config/prompt_guard_model.json) 供 prompt guard 单独使用
+## 生图基座
 
-规则：
-
-- `llm_profiles.json` 只维护路径选择
-- 具体模型配置文件只维护模型、温度、base_url、token_limit 等正文
-
-## 生图模型基座怎么配置
-
-当前执行层默认使用的 checkpoint 是：
-
-- `animagine-xl-4.0-opt.safetensors`
-
-推荐你把模型文件放在 **自己的 ComfyUI 安装目录** 下：
-
-```text
-<你的 ComfyUI 根目录>/models/checkpoints/animagine-xl-4.0-opt.safetensors
-```
-
-例如：
+当前默认 checkpoint 是 `animagine-xl-4.0-opt.safetensors`。推荐把模型文件放在自己 ComfyUI 安装目录下的 `models/checkpoints/` 中，例如：
 
 ```text
 F:\ComfyUI\models\checkpoints\animagine-xl-4.0-opt.safetensors
 ```
 
-最推荐的配置方式不是去改仓库里的 JSON，而是在根目录 `.env` 里覆盖：
+对外使用时，最方便的做法是在 `.env` 里写明本机实际路径：
 
 ```env
 COMFYUI_ENDPOINT=http://127.0.0.1:8188
@@ -99,94 +66,16 @@ COMFYUI_CHECKPOINT_PATH=F:\ComfyUI\models\checkpoints\animagine-xl-4.0-opt.safet
 COMFYUI_CHECKPOINT_NAME=animagine-xl-4.0-opt.safetensors
 ```
 
-### 项目里是怎么引用它的
+执行层入口在 [config/execution/active_profile.json](../config/execution/active_profile.json)，当前具体 profile 在 [config/execution/comfyui_local_animagine_xl.json](../config/execution/comfyui_local_animagine_xl.json)。入口文件用于指定当前启用的 execution profile，具体 profile 维护 checkpoint、workflow、采样参数和节点映射。
 
-执行层配置文件在：
+执行层读取顺序是：先读 execution profile，再应用 `.env` 中的 `COMFYUI_CHECKPOINT_PATH` 和 `COMFYUI_CHECKPOINT_NAME` 覆盖，随后在本地校验 checkpoint 文件是否存在，最后把 `checkpointName` 写进 ComfyUI workflow 的 checkpoint loader 节点。
 
-- `config/execution/active_profile.json`
-- `config/execution/comfyui_local_animagine_xl.json`
-- `config/prompt_guard_model.json`
+仓库里的默认 profile 仍指向开发机上的共享路径，所以对外使用时应优先通过 `.env` 改成自己机器上的实际路径。
 
-补充说明：
+## 网络
 
-- `config/execution/active_profile.json` 是正式入口，只负责指定当前启用哪一份 execution profile
-- 具体 execution profile 负责维护 checkpoint、workflow、采样参数和节点映射
-- 正式链路先读 `active_profile.json`，再定位到具体 profile
-- `.env` 里的 `COMFYUI_CHECKPOINT_PATH` / `COMFYUI_CHECKPOINT_NAME` 仍然只是本机覆盖层
+当前系统同时使用外网链路和本地链路。采样、LLM、QQ 网关和 QQ 消息接口都属于外网链路；ComfyUI 走本机地址 `http://127.0.0.1:8188`。代码已经把 `127.0.0.1`、`localhost` 和 `::1` 固定为本地直连，避免系统代理把本地生图流量转到外部代理。
 
-其中：
+## QQ 当前形态
 
-- `active_profile.json`
-  只负责指定当前正式链路启用哪一份 execution profile
-- 具体 execution profile
-  负责维护 checkpoint、workflow、采样参数和节点映射
-
-它同时持有两项信息：
-
-- `checkpointPath`
-  作用：本地校验模型文件是否真的存在
-- `checkpointName`
-  作用：注入到 ComfyUI workflow 的 `ckpt_name`
-
-当前代码引用顺序是：
-
-1. `src/execution/workflow.py`
-   先读取 execution profile
-2. 如果 `.env` 里配置了 `COMFYUI_CHECKPOINT_PATH` / `COMFYUI_CHECKPOINT_NAME`
-   就优先使用环境变量覆盖
-3. `src/execution/pipeline.py`
-   会先检查 `checkpointPath` 指向的文件是否存在
-4. `src/execution/workflow.py`
-   再把 `checkpointName` 写进 ComfyUI workflow 的 checkpoint loader 节点
-
-Prompt 回调层默认单独使用：
-
-- `config/prompt_guard_model.json`
-
-它和 creative 层一样走 DeepSeek OpenAI-compatible 配置，但职责单独拆开，便于后续独立调温度、模型和限额。
-
-也就是说：
-
-- `checkpointPath` 决定“本机有没有这份模型”
-- `checkpointName` 决定“ComfyUI 实际加载哪一个 checkpoint 名字”
-
-这两个值最好保持一致，对应同一个文件名。
-
-### 当前仓库里的默认值说明
-
-仓库里的默认 profile 目前仍然指向一条开发机上的共享路径：
-
-```text
-../../../.local/ComfyUI/models/checkpoints/animagine-xl-4.0-opt.safetensors
-```
-
-而当前默认启用的 execution profile 是：
-
-```text
-config/execution/comfyui_local_animagine_xl.json
-```
-
-这是当前开发环境的本机默认值，不建议别人直接照搬。
-对外使用时，请优先通过 `.env` 覆盖成你自己机器上的实际路径。
-
-## 网络原则
-
-当前系统有两类网络：
-
-1. 外网链路  
-   采样、LLM、QQ bot 网关、QQ 发消息接口都属于这一类。
-
-2. 本地链路  
-   ComfyUI 只应该走 `http://127.0.0.1:8188`。
-
-当前代码已经把 `127.0.0.1 / localhost / ::1` 强制设为本地直连，避免系统代理把本地生图流量错误转发到外部代理。
-
-## QQ 私聊当前形态
-
-当前落地形态只有：
-
-- 私聊文本触发
-- 私聊 markdown 回复
-- 私聊图片回传
-
-当前只需要配置现行文本私聊链路所需的字段。 
+当前落地的是文本私聊链路，支持私聊文本触发、私聊 markdown 回复和私聊图片回传。环境变量只需要覆盖这条现行私聊链路所需的字段。
