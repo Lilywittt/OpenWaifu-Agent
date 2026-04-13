@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,9 +27,50 @@ def _finalize_terminal_payload(project_dir: Path, payload: dict[str, Any]) -> No
     append_run_index_record(project_dir, payload)
 
 
-def run_content_workbench_worker(project_dir: Path, request: dict[str, Any] | None = None) -> int:
+def _load_worker_request_payload(
+    project_dir: Path,
+    *,
+    request: dict[str, Any] | None = None,
+    request_id: str = "",
+    timeout_seconds: float = 2.0,
+    poll_interval_seconds: float = 0.05,
+) -> dict[str, Any]:
+    if isinstance(request, dict) and request:
+        return request
+
+    normalized_request_id = normalize_spaces(request_id)
+    deadline = time.monotonic() + max(float(timeout_seconds), 0.0)
+    last_seen_payload: dict[str, Any] | None = None
+    while True:
+        payload = read_active_request(project_dir) or {}
+        if payload:
+            last_seen_payload = payload
+            if not normalized_request_id:
+                return payload
+            payload_request_id = normalize_spaces(str(payload.get("requestId", "")))
+            if payload_request_id == normalized_request_id:
+                return payload
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(max(float(poll_interval_seconds), 0.01))
+    if normalized_request_id:
+        raise RuntimeError(f"内容测试 worker 未读取到 requestId={normalized_request_id} 的请求。")
+    if last_seen_payload:
+        return last_seen_payload
+    raise RuntimeError("内容测试 worker 未读取到有效请求。")
+
+
+def run_content_workbench_worker(
+    project_dir: Path,
+    request: dict[str, Any] | None = None,
+    *,
+    request_id: str = "",
+) -> int:
     project_dir = Path(project_dir).resolve()
-    normalized_request = validate_workbench_request(project_dir, request or read_active_request(project_dir) or {})
+    normalized_request = validate_workbench_request(
+        project_dir,
+        _load_worker_request_payload(project_dir, request=request, request_id=request_id),
+    )
     started_at = datetime.now().isoformat(timespec="seconds")
     worker_pid = os.getpid()
     worker_ack_at = datetime.now().isoformat(timespec="seconds")

@@ -101,13 +101,15 @@ class ContentWorkbenchManager:
         with self._lock:
             return self._active_worker_locked() is not None
 
-    def _launch_worker_process(self) -> int:
+    def _launch_worker_process(self, *, request_id: str) -> int:
         stdout_path, stderr_path = self._worker_log_paths()
         return spawn_background_process(
             [
                 str(Path(sys.executable).resolve()),
                 str(self.project_dir / "run_content_workbench.py"),
                 "worker",
+                "--request-id",
+                request_id,
             ],
             cwd=self.project_dir,
             stdout_path=stdout_path,
@@ -174,7 +176,7 @@ class ContentWorkbenchManager:
                 },
             )
             try:
-                worker_pid = self._launch_worker_process()
+                worker_pid = self._launch_worker_process(request_id=normalized_request["requestId"])
                 self._wait_for_worker_bootstrap(worker_pid=worker_pid, request_id=normalized_request["requestId"])
             except Exception as exc:
                 clear_active_request(self.project_dir)

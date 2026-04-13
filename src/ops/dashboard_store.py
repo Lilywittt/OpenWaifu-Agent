@@ -2,19 +2,20 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from env import get_env_value
 from io_utils import normalize_spaces
 from run_detail_store import (
     build_run_detail_snapshot as build_generic_run_detail_snapshot,
     resolve_generated_image_artifact as resolve_generic_generated_image_artifact,
 )
 from runtime_layout import runs_root, runtime_root
+from sidecar_identity import read_bot_display_identity
 
 from publish.qq_bot_job_queue import job_db_path
 from publish.qq_bot_private_ui import normalize_stage_label
@@ -32,6 +33,13 @@ DEFAULT_RECENT_JOB_LIMIT = 12
 DEFAULT_EVENT_LIMIT = 40
 DEFAULT_RUN_LIMIT = 8
 DEFAULT_LOG_TAIL_LINES = 30
+
+
+_LOG_TAIL_CACHE_LOCK = threading.Lock()
+_LOG_TAIL_CACHE: dict[tuple[str, int], tuple[tuple[bool, int, int], list[str]]] = {}
+
+_RECENT_QQ_RUN_DIR_CACHE_LOCK = threading.Lock()
+_RECENT_QQ_RUN_DIR_CACHE: dict[tuple[str, int], tuple[int, list[str]]] = {}
 
 
 def _service_logs_root(project_dir: Path) -> Path:
@@ -52,10 +60,6 @@ def _service_events_path(project_dir: Path) -> Path:
 
 def _social_sampling_health_path(project_dir: Path) -> Path:
     return runtime_root(project_dir) / "service_state" / "social_sampling_health.json"
-
-
-def _qq_bot_config_path(project_dir: Path) -> Path:
-    return project_dir / "config" / "publish" / "qq_bot_message.json"
 
 
 def _safe_read_json(path: Path) -> dict[str, Any] | None:
@@ -115,22 +119,38 @@ def is_qq_bot_run_id(run_id: str) -> bool:
 
 
 def _read_dashboard_identity(project_dir: Path) -> dict[str, str]:
-    config_payload = _safe_read_json(_qq_bot_config_path(project_dir)) or {}
-    env_name = normalize_spaces(str(config_payload.get("botDisplayNameEnvName", ""))) or "QQ_BOT_DISPLAY_NAME"
-    env_display_name = normalize_spaces(get_env_value(project_dir, env_name, ""))
-    config_display_name = normalize_spaces(str(config_payload.get("botDisplayName", "")))
-    bot_display_name = env_display_name or config_display_name
-    project_name = project_dir.name
-    dashboard_title = f"{bot_display_name} 运维面板" if bot_display_name else f"{project_name} 运维面板"
+    identity = read_bot_display_identity(project_dir, title_suffix="运维面板")
     return {
-        "projectName": project_name,
-        "botDisplayName": bot_display_name,
-        "dashboardTitle": dashboard_title,
+        "projectName": identity["projectName"],
+        "botDisplayName": identity["botDisplayName"],
+        "dashboardTitle": identity["title"],
     }
 
 
+def _file_signature(path: Path) -> tuple[bool, int, int]:
+    if not path.exists():
+        return (False, 0, 0)
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return (False, 0, 0)
+    return (
+        True,
+        int(stat_result.st_size),
+        int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000))),
+    )
+
+
 def _tail_lines(path: Path, limit: int) -> list[str]:
-    if limit <= 0 or not path.exists():
+    if limit <= 0:
+        return []
+    cache_key = (str(path.resolve()), int(limit))
+    signature = _file_signature(path)
+    with _LOG_TAIL_CACHE_LOCK:
+        cached_entry = _LOG_TAIL_CACHE.get(cache_key)
+        if cached_entry is not None and cached_entry[0] == signature:
+            return list(cached_entry[1])
+    if not signature[0]:
         return []
     lines: deque[str] = deque(maxlen=limit)
     try:
@@ -141,7 +161,10 @@ def _tail_lines(path: Path, limit: int) -> list[str]:
                     lines.append(text)
     except OSError:
         return []
-    return list(lines)
+    resolved_lines = list(lines)
+    with _LOG_TAIL_CACHE_LOCK:
+        _LOG_TAIL_CACHE[cache_key] = (signature, resolved_lines)
+    return resolved_lines
 
 
 def _tail_jsonl(path: Path, limit: int) -> list[dict[str, Any]]:
@@ -451,16 +474,11 @@ def _read_recent_runs(
     candidate_run_ids = _collect_recent_qq_run_ids(service_snapshot, queue_snapshot, events_snapshot)
     seen = set(candidate_run_ids)
     if len(candidate_run_ids) < max(int(run_limit), 1):
-        run_dirs = sorted(
-            [path for path in root.iterdir() if path.is_dir() and is_qq_bot_run_id(path.name)],
-            key=lambda path: path.name,
-            reverse=True,
-        )
-        for run_dir in run_dirs:
-            if run_dir.name in seen:
+        for run_name in _read_recent_qq_run_dir_names(root, max(int(run_limit), 1)):
+            if run_name in seen:
                 continue
-            seen.add(run_dir.name)
-            candidate_run_ids.append(run_dir.name)
+            seen.add(run_name)
+            candidate_run_ids.append(run_name)
             if len(candidate_run_ids) >= max(int(run_limit), 1):
                 break
 
@@ -498,6 +516,34 @@ def _read_recent_runs(
         if len(recent) >= max(int(run_limit), 1):
             break
     return recent
+
+
+def _runs_root_signature(root: Path) -> int:
+    if not root.exists():
+        return 0
+    try:
+        stat_result = root.stat()
+    except OSError:
+        return 0
+    return int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)))
+
+
+def _read_recent_qq_run_dir_names(root: Path, limit: int) -> list[str]:
+    normalized_limit = max(int(limit), 1)
+    cache_key = (str(root.resolve()), normalized_limit)
+    signature = _runs_root_signature(root)
+    with _RECENT_QQ_RUN_DIR_CACHE_LOCK:
+        cached_entry = _RECENT_QQ_RUN_DIR_CACHE.get(cache_key)
+        if cached_entry is not None and cached_entry[0] == signature:
+            return list(cached_entry[1])
+
+    run_names = sorted(
+        [path.name for path in root.iterdir() if path.is_dir() and is_qq_bot_run_id(path.name)],
+        reverse=True,
+    )[:normalized_limit]
+    with _RECENT_QQ_RUN_DIR_CACHE_LOCK:
+        _RECENT_QQ_RUN_DIR_CACHE[cache_key] = (signature, run_names)
+    return run_names
 
 
 def resolve_generated_image_artifact(project_dir: Path, run_id: str) -> Path | None:

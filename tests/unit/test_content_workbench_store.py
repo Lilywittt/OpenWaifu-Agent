@@ -220,6 +220,74 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
         self.assertEqual(snapshot["currentRunItem"]["selectionKey"], "run-active")
         self.assertEqual(snapshot["history"], [])
 
+    def test_reconcile_recovers_from_terminal_status_when_worker_is_alive(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            write_workbench_status(
+                project_dir,
+                {
+                    "status": "completed",
+                    "stage": "测试完成",
+                    "runId": "run-active",
+                    "request": {
+                        "sourceKind": "scene_draft_text",
+                        "endStage": "image",
+                        "label": "active",
+                        "sceneDraftText": "long body should not matter",
+                    },
+                },
+            )
+            write_active_worker(
+                project_dir,
+                {
+                    "pid": 43210,
+                    "startedAt": "2026-04-11T20:20:00",
+                    "request": {
+                        "sourceKind": "scene_draft_text",
+                        "endStage": "image",
+                        "label": "active",
+                    },
+                },
+            )
+            with patch("studio.content_workbench_store.is_process_alive", return_value=True):
+                changed = reconcile_workbench_runtime_state(project_dir)
+                snapshot = build_content_workbench_snapshot(project_dir)
+
+        self.assertTrue(changed)
+        self.assertEqual(snapshot["status"]["status"], "running")
+        self.assertEqual(snapshot["status"]["stage"], "测试运行中")
+        self.assertEqual(snapshot["currentRunItem"]["selectionKey"], "run-active")
+
+    def test_snapshot_status_request_is_summarized(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            write_workbench_status(
+                project_dir,
+                {
+                    "status": "running",
+                    "stage": "准备测试输入",
+                    "request": {
+                        "sourceKind": "scene_draft_text",
+                        "endStage": "image",
+                        "label": "active",
+                        "requestId": "req-1",
+                        "sceneDraftText": "very long body",
+                    },
+                },
+            )
+
+            snapshot = build_content_workbench_snapshot(project_dir)
+
+        self.assertEqual(
+            snapshot["status"]["request"],
+            {
+                "sourceKind": "scene_draft_text",
+                "endStage": "image",
+                "label": "active",
+                "requestId": "req-1",
+            },
+        )
+
     def test_run_index_and_cleanup_report_are_written_to_shared_state_root(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
@@ -308,7 +376,7 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
         self.assertEqual(snapshot["history"][0]["runId"], active_run.name)
         self.assertTrue(snapshot["history"][-1]["deleted"])
 
-    def test_reconcile_does_not_resurrect_completed_status_when_worker_is_alive(self):
+    def test_reconcile_recovers_completed_status_when_worker_is_alive(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             write_workbench_status(
@@ -325,8 +393,9 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
                 changed = reconcile_workbench_runtime_state(project_dir)
                 snapshot = build_content_workbench_snapshot(project_dir)
 
-        self.assertFalse(changed)
-        self.assertEqual(snapshot["status"]["status"], "completed")
+        self.assertTrue(changed)
+        self.assertEqual(snapshot["status"]["status"], "running")
+        self.assertEqual(snapshot["status"]["stage"], "测试运行中")
 
     def test_migrate_legacy_content_workbench_state_removes_legacy_root(self):
         with TemporaryDirectory() as temp_dir:

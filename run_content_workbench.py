@@ -105,6 +105,12 @@ def _build_delete_run_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_worker_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run the content-workbench worker.")
+    parser.add_argument("--request-id", default="")
+    return parser
+
+
 def _background_child_argv(args: argparse.Namespace) -> list[str]:
     return [
         str(Path(sys.executable).resolve()),
@@ -199,9 +205,10 @@ def _run_delete_run(argv: list[str]) -> int:
     return 0
 
 
-def _run_worker() -> int:
+def _run_worker(argv: list[str]) -> int:
+    args = _build_worker_parser().parse_args(argv)
     migrate_legacy_content_workbench_state(PROJECT_DIR)
-    return run_content_workbench_worker(PROJECT_DIR)
+    return run_content_workbench_worker(PROJECT_DIR, request_id=args.request_id)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -222,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
         if command == "delete-run":
             return _run_delete_run(args_list[1:])
         if command == "worker":
-            return _run_worker()
+            return _run_worker(args_list[1:])
 
     args = build_parser().parse_args(args_list)
     if args.foreground:

@@ -8,12 +8,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from env import get_env_value
 from generation_slot import read_generation_slot
 from io_utils import ensure_dir, normalize_spaces, write_json
 from process_utils import is_process_alive
 from run_detail_store import build_run_detail_snapshot
 from runtime_layout import runs_root, runtime_root
+from sidecar_identity import read_bot_display_identity
 from sidecar_control import sidecar_server_process_path, sidecar_state_root
 
 from test_pipeline import (
@@ -102,10 +102,6 @@ def _cleanup_report_json_path(project_dir: Path) -> Path:
 
 def _cleanup_report_csv_path(project_dir: Path) -> Path:
     return content_workbench_state_root(project_dir) / "cleanup_report.csv"
-
-
-def _qq_bot_config_path(project_dir: Path) -> Path:
-    return project_dir / "config" / "publish" / "qq_bot_message.json"
 
 
 def workbench_inventory_paths(project_dir: Path) -> dict[str, str]:
@@ -200,17 +196,11 @@ def migrate_legacy_content_workbench_state(project_dir: Path) -> bool:
 
 
 def _read_identity(project_dir: Path) -> dict[str, str]:
-    config_payload = _safe_read_json(_qq_bot_config_path(project_dir)) or {}
-    env_name = normalize_spaces(str(config_payload.get("botDisplayNameEnvName", ""))) or "QQ_BOT_DISPLAY_NAME"
-    env_display_name = normalize_spaces(get_env_value(project_dir, env_name, ""))
-    config_display_name = normalize_spaces(str(config_payload.get("botDisplayName", "")))
-    project_name = project_dir.name
-    bot_display_name = env_display_name or config_display_name
-    workbench_title = f"{bot_display_name} 内容测试工作台" if bot_display_name else f"{project_name} 内容测试工作台"
+    identity = read_bot_display_identity(project_dir, title_suffix="内容测试工作台")
     return {
-        "projectName": project_name,
-        "botDisplayName": bot_display_name,
-        "workbenchTitle": workbench_title,
+        "projectName": identity["projectName"],
+        "botDisplayName": identity["botDisplayName"],
+        "workbenchTitle": identity["title"],
     }
 
 
@@ -353,15 +343,17 @@ def reconcile_workbench_runtime_state(project_dir: Path) -> bool:
     if active_worker is not None:
         if status in {"running", "stopping"}:
             return False
-        if status in {"completed", "failed", "interrupted", "deleted"}:
-            return False
         request = read_active_request(project_dir) or active_worker.get("request") or {}
         write_workbench_status(
             project_dir,
             {
                 **status_payload,
                 "status": "running",
-                "stage": normalize_spaces(str(status_payload.get("stage", ""))) or "测试运行中",
+                "stage": (
+                    "测试运行中"
+                    if status in {"completed", "failed", "interrupted", "deleted"}
+                    else normalize_spaces(str(status_payload.get("stage", ""))) or "测试运行中"
+                ),
                 "request": request if isinstance(request, dict) else {},
                 "startedAt": normalize_spaces(str(status_payload.get("startedAt", "")))
                 or normalize_spaces(str(active_worker.get("startedAt", ""))),
@@ -431,6 +423,18 @@ def _build_current_history_candidate(status_payload: dict[str, Any]) -> dict[str
         "sceneDraftPremiseZh": normalize_spaces(str(status_payload.get("sceneDraftPremiseZh", ""))),
         "error": normalize_spaces(str(status_payload.get("error", ""))),
     }
+
+
+def _summarize_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    summary: dict[str, Any] = {}
+    for key in ("sourceKind", "endStage", "label", "requestId", "sourcePath", "sceneDraftPremiseZh"):
+        value = payload.get(key)
+        if value in (None, ""):
+            continue
+        summary[key] = value
+    return summary
 
 
 def _build_history_records(project_dir: Path, *, limit: int) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -799,7 +803,9 @@ def build_content_workbench_snapshot(
             "startedAt": normalize_spaces(str(status_payload.get("startedAt", ""))),
             "finishedAt": normalize_spaces(str(status_payload.get("finishedAt", ""))),
             "error": normalize_spaces(str(status_payload.get("error", ""))),
-            "request": status_payload.get("request", {}) if isinstance(status_payload.get("request"), dict) else {},
+            "request": _summarize_request_payload(
+                status_payload.get("request", {}) if isinstance(status_payload.get("request"), dict) else {}
+            ),
             "busy": status in {"running", "stopping"} or active_worker is not None,
             "canStart": status not in {"running", "stopping"} and slot_holder is None and active_worker is None,
             "canStop": status == "running" and active_worker is not None,

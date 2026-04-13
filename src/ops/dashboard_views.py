@@ -809,6 +809,49 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
       font-size: 12px;
       word-break: break-all;
     }}
+    .diff-blocks {{
+      display: grid;
+      gap: 14px;
+    }}
+    .diff-block {{
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.76);
+      overflow: hidden;
+    }}
+    .diff-title {{
+      padding: 10px 14px;
+      font-weight: 700;
+      color: var(--accent);
+      border-bottom: 1px solid var(--line);
+      background: rgba(47, 111, 99, 0.06);
+    }}
+    .diff-content {{
+      padding: 14px;
+      line-height: 1.8;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 6px;
+    }}
+    .diff-token {{
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(31, 41, 51, 0.06);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    .diff-token.changed.before {{
+      background: rgba(184, 76, 56, 0.14);
+      color: var(--danger);
+      border: 1px solid rgba(184, 76, 56, 0.22);
+    }}
+    .diff-token.changed.after {{
+      background: rgba(47, 111, 99, 0.14);
+      color: var(--accent);
+      border: 1px solid rgba(47, 111, 99, 0.22);
+    }}
     @media (max-width: 1100px) {{
       .layout {{
         grid-template-columns: 1fr;
