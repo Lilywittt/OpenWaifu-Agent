@@ -24,7 +24,8 @@ from test_pipeline import (
 )
 
 
-DEFAULT_HISTORY_LIMIT = 10
+DEFAULT_HISTORY_LIMIT = 30
+MAX_HISTORY_LIMIT = 500
 DEFAULT_CLEANUP_OLDER_THAN_DAYS = 14
 INDEX_CSV_COLUMNS = [
     "recordedAt",
@@ -437,16 +438,47 @@ def _summarize_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def _build_history_records(project_dir: Path, *, limit: int) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def _normalize_history_filter(value: str) -> str:
+    normalized = normalize_spaces(value).lower()
+    if normalized in {"all", "deleted"}:
+        return normalized
+    return "active"
+
+
+def _filter_history_records(records: list[dict[str, Any]], history_filter: str) -> list[dict[str, Any]]:
+    normalized_filter = _normalize_history_filter(history_filter)
+    if normalized_filter == "deleted":
+        return [item for item in records if bool(item.get("deleted", False))]
+    if normalized_filter == "all":
+        return list(records)
+    return [item for item in records if not bool(item.get("deleted", False))]
+
+
+def _build_filtered_history_records(
+    project_dir: Path,
+    *,
+    limit: int,
+    history_filter: str,
+) -> tuple[list[dict[str, Any]], dict[str, int], dict[str, Any]]:
     records = [dict(record) for record in _read_run_index_records(project_dir)]
     records.sort(key=_history_sort_rank)
+    normalized_filter = _normalize_history_filter(history_filter)
     stats = {
         "total": len(records),
         "active": sum(1 for item in records if not bool(item.get("deleted", False))),
         "deleted": sum(1 for item in records if bool(item.get("deleted", False))),
     }
-    visible = records[: max(int(limit), 1)]
-    return ([_build_history_view_item(project_dir, item) for item in visible], stats)
+    filtered_records = _filter_history_records(records, normalized_filter)
+    bounded_limit = min(max(int(limit), 1), MAX_HISTORY_LIMIT)
+    visible = filtered_records[:bounded_limit]
+    page = {
+        "filter": normalized_filter,
+        "limit": bounded_limit,
+        "loaded": len(visible),
+        "totalFiltered": len(filtered_records),
+        "hasMore": len(filtered_records) > len(visible),
+    }
+    return ([_build_history_view_item(project_dir, item) for item in visible], stats, page)
 
 
 def _build_current_run_item(project_dir: Path, status_payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -761,13 +793,18 @@ def build_content_workbench_snapshot(
     project_dir: Path,
     *,
     selected_run_id: str = "",
+    history_filter: str = "active",
     history_limit: int = DEFAULT_HISTORY_LIMIT,
 ) -> dict[str, Any]:
     project_dir = Path(project_dir).resolve()
     identity = _read_identity(project_dir)
     status_payload = read_workbench_status(project_dir) or {}
     current_run_item = _build_current_run_item(project_dir, status_payload)
-    history_records, history_stats = _build_history_records(project_dir, limit=history_limit)
+    history_records, history_stats, history_page = _build_filtered_history_records(
+        project_dir,
+        limit=history_limit,
+        history_filter=history_filter,
+    )
     last_request = read_last_request(project_dir) or {}
 
     status = normalize_spaces(str(status_payload.get("status", ""))) or "idle"
@@ -826,13 +863,19 @@ def build_content_workbench_snapshot(
             **history_stats,
             "running": 1 if current_run_item is not None else 0,
         },
+        "historyPage": history_page,
         "selectedRunId": requested_run_id,
         "selectedRunDetail": run_detail,
         "inventory": _build_inventory_payload(project_dir),
         "config": {
             "sourceKinds": _build_source_kind_config(),
             "endStages": [{"id": key, "label": value} for key, value in END_STAGE_LABELS.items()],
-            "historyLimit": max(int(history_limit), 1),
+            "historyLimit": min(max(int(history_limit), 1), MAX_HISTORY_LIMIT),
+            "historyFilters": [
+                {"id": "active", "label": "有效"},
+                {"id": "all", "label": "全部"},
+                {"id": "deleted", "label": "已删除"},
+            ],
         },
         "commands": {
             "workbenchStart": "python run_content_workbench.py",

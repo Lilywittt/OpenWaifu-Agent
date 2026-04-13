@@ -278,10 +278,13 @@ class OpsDashboardStoreTests(unittest.TestCase):
         self.assertIn("正向 Prompt", snapshot["sections"][5]["bodyText"])
         self.assertEqual(snapshot["sections"][5]["metaRows"][0]["value"], "2026-04-11T18:32:00")
         self.assertEqual(snapshot["sections"][5]["metaRows"][2]["value"], "revised")
+        self.assertEqual(snapshot["sections"][5]["metaRows"][-1]["value"], "prompt_guard/02_prompt_package.json")
         self.assertEqual(snapshot["sections"][6]["title"], "Prompt 回调前后对比")
         self.assertEqual(snapshot["sections"][6]["bodyText"], "")
         self.assertEqual(len(snapshot["sections"][6]["compareBlocks"]), 4)
         self.assertEqual(snapshot["sections"][6]["compareBlocks"][0]["title"], "回调前 正向 Prompt")
+        self.assertEqual(snapshot["sections"][6]["metaRows"][0]["value"], "prompt_builder/01_prompt_package.json")
+        self.assertEqual(snapshot["sections"][6]["metaRows"][1]["value"], "prompt_guard/02_prompt_package.json")
         self.assertTrue(
             any(
                 segment["changed"]

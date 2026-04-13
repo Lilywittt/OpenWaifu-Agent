@@ -376,6 +376,47 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
         self.assertEqual(snapshot["history"][0]["runId"], active_run.name)
         self.assertTrue(snapshot["history"][-1]["deleted"])
 
+    def test_snapshot_history_supports_filter_and_limit(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_ids = [
+                "2026-04-11T20-00-00_one",
+                "2026-04-11T20-10-00_two",
+                "2026-04-11T20-20-00_three",
+            ]
+            for run_id in run_ids:
+                run_dir = runs_root(project_dir) / run_id
+                (run_dir / "output").mkdir(parents=True, exist_ok=True)
+                write_json(run_dir / "output" / "run_summary.json", {"runId": run_id})
+                append_run_index_record(
+                    project_dir,
+                    {
+                        "status": "completed",
+                        "runId": run_id,
+                        "runRoot": str(run_dir),
+                        "finishedAt": run_id.replace("_", ":", 1),
+                        "summaryPath": str(run_dir / "output" / "run_summary.json"),
+                        "request": {"label": run_id, "sourceKind": "scene_draft_text", "endStage": "image"},
+                    },
+                )
+
+            records_path = project_dir / "runtime" / "service_state" / "sidecars" / "content_workbench" / "run_index.jsonl"
+            records = [json.loads(line) for line in records_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            records[0]["deleted"] = True
+            records[0]["deletedAt"] = "2026-04-11T21:00:00"
+            records_path.write_text("".join(json.dumps(item, ensure_ascii=False) + "\n" for item in records), encoding="utf-8")
+
+            active_snapshot = build_content_workbench_snapshot(project_dir, history_filter="active", history_limit=1)
+            deleted_snapshot = build_content_workbench_snapshot(project_dir, history_filter="deleted", history_limit=10)
+
+        self.assertEqual(len(active_snapshot["history"]), 1)
+        self.assertFalse(active_snapshot["history"][0]["deleted"])
+        self.assertTrue(active_snapshot["historyPage"]["hasMore"])
+        self.assertEqual(active_snapshot["historyPage"]["totalFiltered"], 2)
+        self.assertEqual(deleted_snapshot["historyPage"]["filter"], "deleted")
+        self.assertEqual(len(deleted_snapshot["history"]), 1)
+        self.assertTrue(deleted_snapshot["history"][0]["deleted"])
+
     def test_reconcile_recovers_completed_status_when_worker_is_alive(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

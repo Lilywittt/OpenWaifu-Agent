@@ -267,9 +267,6 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       margin: 0;
       padding: 0;
       list-style: none;
-      max-height: 840px;
-      overflow: auto;
-      padding-right: 4px;
     }}
     .history-item {{
       border: 1px solid var(--line);
@@ -456,8 +453,10 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
       font-size: 12px;
       line-height: 1.6;
-      overflow: auto;
-      max-height: 320px;
+      overflow-x: auto;
+      overflow-y: visible;
+      white-space: pre-wrap;
+      word-break: break-word;
     }}
     .detail-hero {{
       display: grid;
@@ -633,6 +632,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
               <button type="button" class="filter-chip" id="history-filter-all">全部</button>
               <button type="button" class="filter-chip" id="history-filter-deleted">已删除</button>
             </div>
+            <button type="button" class="filter-chip" id="history-load-more" hidden>加载更多</button>
           </div>
           <div class="history-group" id="current-run-group" hidden>
             <div class="history-group-title">当前测试</div>
@@ -665,6 +665,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     let currentSnapshot = null;
     let selectedRunId = "";
     let historyFilter = "active";
+    let historyLimit = 0;
     let initializedForm = false;
     let expandedRawKeys = new Set();
     let detailSuspendUntil = 0;
@@ -687,6 +688,16 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       if (["stopping", "interrupted"].includes(normalized)) return "status-warn";
       if (["failed"].includes(normalized)) return "status-danger";
       return "";
+    }}
+
+    function configuredHistoryLimit(snapshot) {{
+      const raw = Number(snapshot?.config?.historyLimit || 0);
+      return raw > 0 ? raw : 30;
+    }}
+
+    function ensureHistoryLimit(snapshot) {{
+      if (Number(historyLimit) > 0) return;
+      historyLimit = configuredHistoryLimit(snapshot);
     }}
 
     function applyActionMessage(text, kind = "") {{
@@ -873,22 +884,11 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       document.getElementById("rerun-btn").disabled = !status.canStart;
     }}
 
-    function filteredHistory(snapshot) {{
-      const history = Array.isArray(snapshot?.history) ? snapshot.history : [];
-      if (historyFilter === "deleted") {{
-        return history.filter((item) => item.deleted);
-      }}
-      if (historyFilter === "all") {{
-        return history;
-      }}
-      return history.filter((item) => !item.deleted);
-    }}
-
     function historySelectionList(snapshot) {{
       const items = [];
       const seen = new Set();
       const currentRunItem = snapshot?.currentRunItem;
-      const history = filteredHistory(snapshot);
+      const history = Array.isArray(snapshot?.history) ? snapshot.history : [];
       if (currentRunItem && !currentRunItem.deleted) {{
         const currentKey = normalizeText(currentRunItem.selectionKey || currentRunItem.runId);
         if (currentKey) {{
@@ -966,14 +966,22 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
 
     function renderHistorySummary(snapshot) {{
       const stats = snapshot?.historyStats || {{}};
+      const page = snapshot?.historyPage || {{}};
       const running = Number(stats.running || 0);
       const active = Number(stats.active || 0);
       const deleted = Number(stats.deleted || 0);
       const total = Number(stats.total || 0);
-      document.getElementById("history-summary").textContent = `当前 ${{running}} · 有效 ${{active}} · 已删除 ${{deleted}} · 总计 ${{total}}`;
+      const loaded = Number(page.loaded || 0);
+      const totalFiltered = Number(page.totalFiltered || 0);
+      document.getElementById("history-summary").textContent = `当前 ${{running}} · 有效 ${{active}} · 已删除 ${{deleted}} · 总计 ${{total}} · 已载入 ${{loaded}}/${{totalFiltered}}`;
       document.getElementById("history-filter-active").classList.toggle("active", historyFilter === "active");
       document.getElementById("history-filter-all").classList.toggle("active", historyFilter === "all");
       document.getElementById("history-filter-deleted").classList.toggle("active", historyFilter === "deleted");
+      const loadMoreButton = document.getElementById("history-load-more");
+      const hasMore = Boolean(page.hasMore);
+      loadMoreButton.hidden = !hasMore;
+      loadMoreButton.disabled = !hasMore;
+      loadMoreButton.textContent = hasMore ? `加载更多（${{loaded}}/${{totalFiltered}}）` : "已全部载入";
     }}
 
     function renderHistory(snapshot) {{
@@ -982,7 +990,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const currentRoot = document.getElementById("current-run-list");
       const historyRoot = document.getElementById("history-list");
       const currentRunItem = snapshot?.currentRunItem && !snapshot.currentRunItem.deleted ? snapshot.currentRunItem : null;
-      const history = filteredHistory(snapshot).filter((item) => normalizeText(item.selectionKey || item.runId) !== normalizeText(currentRunItem?.selectionKey || currentRunItem?.runId));
+      const history = (Array.isArray(snapshot?.history) ? snapshot.history : []).filter((item) => normalizeText(item.selectionKey || item.runId) !== normalizeText(currentRunItem?.selectionKey || currentRunItem?.runId));
 
       const renderItems = (items) => items.map((item) => {{
         const selectionKey = item.selectionKey || item.runId || "";
@@ -1243,9 +1251,21 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
 
     async function fetchSnapshot(options = {{}}) {{
       rememberExpandedDetails();
-      const query = selectedRunId ? `?selectedRunId=${{encodeURIComponent(selectedRunId)}}` : "";
+      ensureHistoryLimit(currentSnapshot);
+      const params = new URLSearchParams();
+      if (selectedRunId) {{
+        params.set("selectedRunId", selectedRunId);
+      }}
+      if (historyFilter) {{
+        params.set("historyFilter", historyFilter);
+      }}
+      if (Number(historyLimit) > 0) {{
+        params.set("historyLimit", String(historyLimit));
+      }}
+      const query = params.toString() ? `?${{params.toString()}}` : "";
       const response = await fetch(`/api/snapshot${{query}}`, {{ cache: "no-store" }});
       const snapshot = await response.json();
+      ensureHistoryLimit(snapshot);
       if (!normalizeText(snapshot?.selectedRunId) && snapshot?.status?.busy) {{
         const activeItem = snapshot?.currentRunItem;
         if (activeItem) {{
@@ -1285,20 +1305,28 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       detailSuspendUntil = 0;
       await fetchSnapshot({{ forceDetail: true }});
     }});
-    document.getElementById("history-filter-active").addEventListener("click", () => {{
+    document.getElementById("history-filter-active").addEventListener("click", async () => {{
       historyFilter = "active";
-      renderHistory(currentSnapshot);
-      renderDetail(currentSnapshot);
+      historyLimit = configuredHistoryLimit(currentSnapshot);
+      detailSuspendUntil = 0;
+      await fetchSnapshot({{ forceDetail: true }});
     }});
-    document.getElementById("history-filter-all").addEventListener("click", () => {{
+    document.getElementById("history-filter-all").addEventListener("click", async () => {{
       historyFilter = "all";
-      renderHistory(currentSnapshot);
-      renderDetail(currentSnapshot);
+      historyLimit = configuredHistoryLimit(currentSnapshot);
+      detailSuspendUntil = 0;
+      await fetchSnapshot({{ forceDetail: true }});
     }});
-    document.getElementById("history-filter-deleted").addEventListener("click", () => {{
+    document.getElementById("history-filter-deleted").addEventListener("click", async () => {{
       historyFilter = "deleted";
-      renderHistory(currentSnapshot);
-      renderDetail(currentSnapshot);
+      historyLimit = configuredHistoryLimit(currentSnapshot);
+      detailSuspendUntil = 0;
+      await fetchSnapshot({{ forceDetail: true }});
+    }});
+    document.getElementById("history-load-more").addEventListener("click", async () => {{
+      historyLimit = Number(historyLimit || 0) + configuredHistoryLimit(currentSnapshot);
+      detailSuspendUntil = 0;
+      await fetchSnapshot({{ forceDetail: true }});
     }});
     document.getElementById("fill-last-btn").addEventListener("click", () => {{
       applyRequestToForm(currentSnapshot?.lastRequest || {{}});

@@ -60,8 +60,8 @@ def resolve_checkpoint_name(project_dir: Path, profile: dict[str, Any]) -> str:
     return raw_name
 
 
-def compute_prompt_seed(positive_prompt: str, negative_prompt: str) -> int:
-    material = f"{positive_prompt}\n--\n{negative_prompt}".encode("utf-8")
+def compute_prompt_seed(positive_prompt: str, negative_prompt: str, *, seed_salt: str = "") -> int:
+    material = f"{positive_prompt}\n--\n{negative_prompt}\n--\n{seed_salt}".encode("utf-8")
     digest = hashlib.sha256(material).hexdigest()
     return int(digest[:8], 16)
 
@@ -77,7 +77,12 @@ def build_execution_input(profile: dict[str, Any], prompt_package: dict[str, Any
     aspect_ratio, width, height = select_image_size(profile)
     positive_prompt = str(prompt_package.get("positivePrompt", "")).strip()
     negative_prompt = str(prompt_package.get("negativePrompt", "")).strip()
-    seed = compute_prompt_seed(positive_prompt, negative_prompt)
+    raw_seed = prompt_package.get("seed")
+    seed_salt = str(prompt_package.get("seedSalt", "")).strip()
+    try:
+        seed = int(raw_seed)
+    except (TypeError, ValueError):
+        seed = compute_prompt_seed(positive_prompt, negative_prompt, seed_salt=seed_salt)
     defaults = profile["defaults"]
     return {
         "checkpointName": str(profile["checkpointName"]),
@@ -94,6 +99,7 @@ def build_execution_input(profile: dict[str, Any], prompt_package: dict[str, Any
         "denoise": float(defaults["denoise"]),
         "batchSize": int(defaults["batchSize"]),
         "filenamePrefix": str(defaults["filenamePrefix"]),
+        "seedSalt": seed_salt,
     }
 
 

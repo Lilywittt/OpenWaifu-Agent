@@ -94,6 +94,23 @@ def write_sidecar_server_process(project_dir: Path, sidecar_id: str, payload: di
     return path
 
 
+def _normalized_sidecar_process_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    raw = payload if isinstance(payload, dict) else {}
+    try:
+        pid = int(raw.get("pid", 0) or 0)
+    except Exception:
+        pid = 0
+    try:
+        port = int(raw.get("port", 0) or 0)
+    except Exception:
+        port = 0
+    return {
+        "pid": pid,
+        "browserUrl": str(raw.get("browserUrl", "") or "").strip(),
+        "port": port,
+    }
+
+
 def clear_sidecar_server_process(project_dir: Path, sidecar_id: str) -> None:
     path = sidecar_server_process_path(project_dir, sidecar_id)
     try:
@@ -115,15 +132,22 @@ def resolve_http_sidecar(spec: HttpSidecarSpec) -> tuple[dict[str, Any] | None, 
 def record_http_sidecar(spec: HttpSidecarSpec, pid: int) -> None:
     if int(pid or 0) <= 0:
         return
-    write_sidecar_server_process(
-        spec.project_dir,
-        spec.sidecar_id,
-        {
-            "pid": int(pid),
-            "browserUrl": spec.browser_url,
-            "port": int(spec.port),
-        },
-    )
+    next_payload = {
+        "pid": int(pid),
+        "browserUrl": spec.browser_url,
+        "port": int(spec.port),
+    }
+    current_payload = read_sidecar_server_process(spec.project_dir, spec.sidecar_id)
+    if _normalized_sidecar_process_payload(current_payload) == _normalized_sidecar_process_payload(next_payload):
+        return
+    try:
+        write_sidecar_server_process(
+            spec.project_dir,
+            spec.sidecar_id,
+            next_payload,
+        )
+    except OSError:
+        return
 
 
 def recorded_http_sidecar_pid(spec: HttpSidecarSpec) -> int:

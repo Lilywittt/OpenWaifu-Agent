@@ -58,26 +58,26 @@
   },
   "defaults": {
     "aspectRatio": "4:5",
-    "steps": 28,
-    "cfg": 5.6,
-    "samplerName": "dpmpp_2m",
-    "scheduler": "karras",
+    "steps": 35,
+    "cfg": 6.5,
+    "samplerName": "dpmpp_2m_sde",
+    "scheduler": "sgm_uniform",
     "denoise": 1.0,
     "batchSize": 1,
     "filenamePrefix": "ig_roleplay_v3_animagine"
   },
   "sizeByAspectRatio": {
     "4:5": {
-      "width": 1024,
-      "height": 1280
+      "width": 1152,
+      "height": 1440
     },
     "1:1": {
-      "width": 1024,
-      "height": 1024
+      "width": 1152,
+      "height": 1152
     },
     "9:16": {
-      "width": 832,
-      "height": 1472
+      "width": 960,
+      "height": 1728
     }
   },
   "negativePromptFallback": "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark"

@@ -233,7 +233,7 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
             ), patch(
                 "test_pipeline.core.run_execution_pipeline",
                 return_value={"imagePath": str(bundle.output_dir / "image.png")},
-            ), patch(
+            ) as execution_mock, patch(
                 "test_pipeline.core.resolve_creative_model_config_path",
                 return_value=project_dir / "creative_model.json",
             ), patch(
@@ -250,11 +250,14 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
                         "sourceKind": SOURCE_KIND_SCENE_DRAFT_TEXT,
                         "endStage": END_STAGE_IMAGE,
                         "label": "existing_bundle",
+                        "requestId": "rerun-request-001",
                         "sceneDraftText": "夜里便利店里，她抬头看着货架边缘。",
                     },
                 )
                 self.assertEqual(result["bundle"].root, run_root)
                 self.assertEqual(result["summary"]["positivePromptText"], "guarded positive")
+                self.assertEqual(result["summary"]["promptSeedSalt"], "rerun-request-001")
+                self.assertEqual(execution_mock.call_args.args[3]["seedSalt"], "rerun-request-001")
                 self.assertTrue((bundle.output_dir / "run_summary.json").is_file())
 
 

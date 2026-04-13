@@ -292,6 +292,22 @@ def materialize_prompt_package(bundle, prompt_package: dict[str, Any]) -> dict[s
     return normalized_package
 
 
+def _build_execution_prompt_package(
+    request: dict[str, Any],
+    prompt_package: dict[str, Any],
+) -> dict[str, Any]:
+    normalized_package = {
+        **dict(prompt_package or {}),
+        "meta": dict(prompt_package.get("meta", {}) or {}),
+        "defaultRunContext": dict(prompt_package.get("defaultRunContext", {}) or {}),
+        "reviewIssues": list(prompt_package.get("reviewIssues", []) or []),
+    }
+    request_id = _normalize_text(request.get("requestId"))
+    if request_id:
+        normalized_package["seedSalt"] = request_id
+    return normalized_package
+
+
 def _build_generation_context(project_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     character_assets = load_character_assets(project_dir)
     default_run_context = build_default_run_context(
@@ -424,6 +440,7 @@ def _write_summary(
             if str(item).strip()
         ],
         "promptChangeSummary": str(prompt_payload.get("changeSummary", "")).strip(),
+        "promptSeedSalt": str(prompt_payload.get("seedSalt", "")).strip(),
         "generatedImagePath": str(execution_payload.get("imagePath", "")).strip(),
     }
     write_json(bundle.output_dir / "run_summary.json", summary)
@@ -564,11 +581,12 @@ def _run_from_scene_draft(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: final prompt -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
     summary = _write_summary(
@@ -578,7 +596,7 @@ def _run_from_scene_draft(
         creative_package=creative_package,
         social_post_package=social_post_package,
         prompt_builder_package=prompt_builder_package,
-        prompt_package=prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}
@@ -737,11 +755,12 @@ def _run_from_live_sampling(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: image prompt -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
 
@@ -752,7 +771,7 @@ def _run_from_live_sampling(
         creative_package=creative_package,
         social_post_package=social_post_package,
         prompt_builder_package=prompt_builder_package,
-        prompt_package=prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}
@@ -836,11 +855,12 @@ def _run_from_creative_package_file(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: final prompt -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
     summary = _write_summary(
@@ -850,7 +870,7 @@ def _run_from_creative_package_file(
         creative_package=creative_package,
         social_post_package=social_post_package,
         prompt_builder_package=prompt_builder_package,
-        prompt_package=prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}
@@ -886,18 +906,19 @@ def _run_from_prompt_package_file(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: imported prompt package -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
     summary = _write_summary(
         bundle,
         request=request,
         source_meta={"sourcePath": str(source_path), "sourceKind": request["sourceKind"]},
-        prompt_package=prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}
@@ -974,11 +995,12 @@ def _run_from_creative_package_data(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: final prompt -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
     summary = _write_summary(
@@ -988,7 +1010,7 @@ def _run_from_creative_package_data(
         creative_package=creative_package,
         social_post_package=social_post_package,
         prompt_builder_package=prompt_builder_package,
-        prompt_package=prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}
@@ -1018,18 +1040,19 @@ def _run_from_prompt_package_data(
     _maybe_abort(should_abort)
     if log is not None:
         log("execution layer: imported prompt package -> ComfyUI workflow -> generated image")
+    execution_prompt_package = _build_execution_prompt_package(request, normalized_prompt_package)
     execution_package = run_execution_pipeline(
         project_dir,
         bundle,
         default_run_context,
-        normalized_prompt_package,
+        execution_prompt_package,
         should_abort=should_abort,
     )
     summary = _write_summary(
         bundle,
         request=request,
         source_meta=source_meta,
-        prompt_package=normalized_prompt_package,
+        prompt_package=execution_prompt_package,
         execution_package=execution_package,
     )
     return {"summary": summary, "runId": bundle.run_id}

@@ -26,9 +26,10 @@
 
 【负向提示词规范】
 - 包含通用的质量与伪影抑制词，如：
-  "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark, error, jpeg artifacts, cropped,duplicate, morbid, mutilated, extra legs, missing legs, extra arms, bad proportions, unnatural pose, contorted body, twisted joints, disproportionate, misshapen"
-- 如设计稿中的语义有明确要求，根据语义要求补充负向词。禁止擅自为安全性审查添加额外的负向词。
-- 负向提示词同样使用英文逗号分隔，全小写或首词大写均可。
+  "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark, error, jpeg artifacts, cropped,duplicate, morbid, mutilated, extra legs, extra limbs, forked limb, missing legs, extra arms, bad proportions, unnatural pose, contorted body, twisted joints, disproportionate, misshapen, fused arms, fused legs, conjoined, siamese twins, messy anatomy, unclear edge, blurry edge, smudge, melted skin"
+- 如设计稿中的语义有明确要求，根据语义要求补充负向词。
+- 禁止擅自为安全性审查添加额外的负向词。例如，负向词中禁止出现child, loli, underage appearance, illegal等多余内容。
+- 负向提示词的长度一般为正向的1/2，长度比例可以有偏差，但不能太离谱。
 
 【风格适配】
 - 默认输出适用于Animagine XL 4.0 Opt

@@ -221,6 +221,13 @@ def _build_text_section(section_id: str, title: str, path: Path) -> dict[str, An
     )
 
 
+def _relative_run_path(run_dir: Path, path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(run_dir.resolve())).replace("\\", "/")
+    except ValueError:
+        return str(path)
+
+
 def _build_final_prompt_section(run_dir: Path) -> dict[str, Any]:
     prompt_guard_package_path = run_dir / "prompt_guard" / "02_prompt_package.json"
     prompt_package_path = run_dir / "prompt_builder" / "01_prompt_package.json"
@@ -254,7 +261,7 @@ def _build_final_prompt_section(run_dir: Path) -> dict[str, Any]:
     if negative_prompt:
         meta_rows.append({"label": "负向长度", "value": str(len(negative_prompt))})
     if source_path.exists():
-        meta_rows.append({"label": "来源", "value": source_path.name})
+        meta_rows.append({"label": "保存路径", "value": _relative_run_path(run_dir, source_path)})
     body_parts: list[str] = []
     if positive_prompt:
         body_parts.append(f"正向 Prompt\n{positive_prompt}")
@@ -291,9 +298,9 @@ def _build_prompt_comparison_section(run_dir: Path) -> dict[str, Any]:
 
     meta_rows: list[dict[str, str]] = []
     if builder_document["exists"]:
-        meta_rows.append({"label": "回调前来源", "value": builder_path.name})
+        meta_rows.append({"label": "回调前路径", "value": _relative_run_path(run_dir, builder_path)})
     if guarded_document["exists"]:
-        meta_rows.append({"label": "回调后来源", "value": guarded_path.name})
+        meta_rows.append({"label": "回调后路径", "value": _relative_run_path(run_dir, guarded_path)})
     if "promptChanged" in guarded_payload:
         meta_rows.append({"label": "是否修改", "value": "是" if bool(guarded_payload.get("promptChanged")) else "否"})
     if before_positive:
@@ -352,7 +359,7 @@ def _build_prompt_comparison_section(run_dir: Path) -> dict[str, Any]:
         section_id="prompt-guard-compare",
         title="Prompt 回调前后对比",
         path=(
-            f"{builder_path.name} -> {guarded_path.name}"
+            f"{_relative_run_path(run_dir, builder_path)} -> {_relative_run_path(run_dir, guarded_path)}"
             if builder_document["exists"] or guarded_document["exists"]
             else str(guarded_path)
         ),

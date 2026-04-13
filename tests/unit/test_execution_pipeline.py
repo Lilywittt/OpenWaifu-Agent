@@ -10,11 +10,48 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from execution.pipeline import run_execution_pipeline
+from execution.workflow import build_execution_input
 from io_utils import read_json
 from runtime_layout import create_run_bundle
 
 
 class ExecutionPipelineTests(unittest.TestCase):
+    def test_build_execution_input_changes_seed_when_seed_salt_changes(self):
+        profile = {
+            "checkpointName": "animagine-xl-4.0-opt.safetensors",
+            "defaults": {
+                "aspectRatio": "4:5",
+                "steps": 28,
+                "cfg": 5.6,
+                "samplerName": "dpmpp_2m",
+                "scheduler": "karras",
+                "denoise": 1.0,
+                "batchSize": 1,
+                "filenamePrefix": "ig_roleplay_v3_animagine",
+            },
+            "sizeByAspectRatio": {
+                "4:5": {"width": 1024, "height": 1280},
+            },
+            "negativePromptFallback": "fallback negative",
+        }
+        prompt_package_a = {
+            "positivePrompt": "balanced pose, bookstore, solo girl",
+            "negativePrompt": "bad hands, nsfw",
+            "seedSalt": "request-a",
+        }
+        prompt_package_b = {
+            "positivePrompt": "balanced pose, bookstore, solo girl",
+            "negativePrompt": "bad hands, nsfw",
+            "seedSalt": "request-b",
+        }
+
+        execution_input_a = build_execution_input(profile, prompt_package_a)
+        execution_input_b = build_execution_input(profile, prompt_package_b)
+
+        self.assertNotEqual(execution_input_a["seed"], execution_input_b["seed"])
+        self.assertEqual(execution_input_a["seedSalt"], "request-a")
+        self.assertEqual(execution_input_b["seedSalt"], "request-b")
+
     def test_execution_pipeline_raises_clear_error_when_active_profile_config_is_missing(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

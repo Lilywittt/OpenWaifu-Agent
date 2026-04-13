@@ -285,10 +285,17 @@ def _make_handler(
                 reconcile_workbench_runtime_state(project_dir)
                 query = parse_qs(parsed.query)
                 selected_run_id = str((query.get("selectedRunId") or [""])[0])
+                history_filter = str((query.get("historyFilter") or ["active"])[0])
+                history_limit_raw = str((query.get("historyLimit") or [str(history_limit)])[0])
+                try:
+                    history_limit_value = int(history_limit_raw)
+                except (TypeError, ValueError):
+                    history_limit_value = history_limit
                 snapshot = build_content_workbench_snapshot(
                     project_dir,
                     selected_run_id=selected_run_id,
-                    history_limit=history_limit,
+                    history_filter=history_filter,
+                    history_limit=history_limit_value,
                 )
                 self._send_json(snapshot)
                 return
