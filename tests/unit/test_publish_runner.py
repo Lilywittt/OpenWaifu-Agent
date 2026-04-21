@@ -38,7 +38,7 @@ class PublishRunnerTests(unittest.TestCase):
             image_path.write_bytes(b"fake-image")
 
             (run_dir / "input" / "character_assets_snapshot.json").write_text(
-                '{"subjectProfile": {"subject_id": "tsukimi_rion", "display_name_zh": "月见璃音"}}',
+                '{"subjectProfile": {"subject_id": "tsukimi_rion", "display_name_zh": "demo", "identity_zh": ["junior high school girl"], "appearance_zh": ["short black hair", "slim build"], "psychology_zh": ["sensitive", "curious"], "allowed_changes_zh": ["hair accessories may change"], "forbidden_drift_zh": ["do not mature the face or body ratio"], "notes_zh": []}}',
                 encoding="utf-8",
             )
             (run_dir / "input" / "default_run_context.json").write_text(

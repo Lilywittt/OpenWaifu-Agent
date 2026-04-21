@@ -160,9 +160,7 @@ def _normalize_summary(payload: dict[str, Any], key: str) -> None:
 
 
 def _build_subject_stage_input(subject_profile: dict[str, Any]) -> dict[str, Any]:
-    subject_input = copy.deepcopy(subject_profile)
-    subject_input.pop("forbidden_changes_zh", None)
-    return subject_input
+    return copy.deepcopy(subject_profile)
 
 
 def _build_social_signal_filter_input(social_signal_sample: dict[str, Any]) -> dict[str, Any]:

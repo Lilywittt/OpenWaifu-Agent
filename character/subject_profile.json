@@ -1,35 +1,38 @@
 {
   "subject_id": "shan_xiaoyi",
   "display_name_zh": "单小伊",
-  "identity_truth": {
-    "life_stage_zh": "初中女生",
-    "gender_read_zh": "少女",
-    "age_read_zh": "13岁，on the cusp of puberty，不允许成熟化"
-  },
-  "face_truth": {
-    "shape_zh": "清稚的少女脸",
-    "age_signal_zh": "脸部必须读成未成年少女，不允许画成成人脸"
-  },
-  "hair_truth": {
-    "color_family_zh": "黑色",
-    "length_zh": "齐肩",
-    "style_zh": "披肩细发",
-    "signature_markers_zh": [
-      "小红发夹"
-    ]
-  },
-  "body_truth": {
-    "build_zh": "清瘦",
-    "maturity_zh": "含苞待放，on the cusp of puberty",
-    "proportion_zh": "初中女生比例，贫乳，苗条"
-  },
+  "identity_zh": [
+    "初中女生",
+    "13岁",
+    "on the cusp of puberty"
+  ],
+  "appearance_zh": [
+    "清稚的少女脸",
+    "黑色齐肩披肩细发",
+    "青春期初期，含苞待放身材",
+    "清瘦",
+    "初中女生比例",
+    "贫乳",
+    "苗条"
+  ],
+  "psychology_zh": [
+    "外柔内刚，内核稳定，内心坚强",
+    "善于思考，智慧过人",
+    "敢于承认内心的感情和少女情欲",
+    "自信"
+  ],
   "allowed_changes_zh": [
-    "允许临时改变发型的组织方式",
+    "允许临时改变发型组织方式",
     "允许增减饰品",
-    "允许增加临时脸部状态，比如汗、水滴、创可贴、红晕等"
+    "允许增加汗、水滴、创可贴、红晕等临时状态"
   ],
   "forbidden_drift_zh": [
     "不允许成熟面孔",
     "不允许成熟化身体比例"
+  ],
+  "notes_zh": [
+    "衣着风格开放清凉",
+    "素颜",
+    "幼态美"
   ]
 }

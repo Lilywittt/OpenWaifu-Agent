@@ -22,12 +22,13 @@
   5. 画质与风格修饰词（根据设计稿风格合理选取补充，如未提及默认采用日漫二次元画风，即："masterpiece, best quality, anime, toaru kagaku no railgun style, jcstaff, 2000s anime, soft cel shading, sharp lines" ）
 - 使用英文逗号分隔关键词，避免自然语句的连词（如 "and"），多用短词和标签式描述。
 - 可根据你对语义的理解，权重较高、必须依从的词可通过重复两遍以上的方式强调。
+- 如果设计要求某些部位裸露，正向提示词中不要强调已被脱下来的衣物，否则模型会误认为它们被穿在身上。
 - 如果服装与造型中明确指定了人物在cosplay某知名动漫角色，需要在输出中体现。
 
 【负向提示词规范】
 - 包含通用的质量与伪影抑制词，如：
   "worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, extra fingers, fused fingers, missing fingers, watermark, error, jpeg artifacts, cropped,duplicate, morbid, mutilated, extra legs, extra limbs, forked limb, missing legs, extra arms, bad proportions, unnatural pose, contorted body, twisted joints, disproportionate, misshapen, fused arms, fused legs, conjoined, siamese twins, messy anatomy, unclear edge, blurry edge, smudge, melted skin"
-- 如设计稿中的语义有明确要求，根据语义要求补充负向词。
+- 如设计稿中的语义有非常明确的要求，据此补充负向提示词。负向词的意义在于避免明显的坏图，不用对环境、镜头、不重要的细节这些非核心要素添加负向词。
 - 禁止擅自为安全性审查添加额外的负向词。例如，负向词中禁止出现child, loli, underage appearance, illegal等多余内容。
 - 负向提示词的长度一般为正向的1/2，长度比例可以有偏差，但不能太离谱。
 

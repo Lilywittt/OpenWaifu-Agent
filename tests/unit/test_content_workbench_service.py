@@ -113,6 +113,49 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(content_type, "image/png")
         self.assertEqual(image_bytes, b"\x89PNG\r\n\x1a\n")
 
+    def test_handler_review_path_returns_detail_for_run_directory(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_dir = runs_root(project_dir) / "2026-04-11T21-00-00_content_workbench"
+            creative_dir = run_dir / "creative"
+            output_dir = run_dir / "output"
+            creative_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_json(
+                creative_dir / "01_world_design.json",
+                {"scenePremiseZh": "深夜便利店", "worldSceneZh": "她在玻璃窗边写字。"},
+            )
+            write_json(output_dir / "run_summary.json", {"runId": run_dir.name, "sceneDraftPremiseZh": "深夜便利店"})
+            manager = _FakeManager()
+            handler = _make_handler(
+                project_dir=project_dir,
+                refresh_seconds=5,
+                history_limit=10,
+                manager=manager,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            server.daemon_threads = True
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                request = Request(
+                    base_url + "/api/review-path",
+                    data=json.dumps({"path": str(creative_dir)}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(request, timeout=2) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["detail"]["runRoot"], str(run_dir))
+        self.assertEqual(payload["detail"]["detailTitle"], "深夜便利店")
+
     def test_snapshot_reconciles_stale_running_status(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

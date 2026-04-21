@@ -14,6 +14,19 @@ from runtime_layout import create_run_bundle
 from social_post.pipeline import run_social_post_pipeline
 
 
+def _subject_profile() -> dict:
+    return {
+        "subject_id": "demo_subject",
+        "display_name_zh": "demo",
+        "identity_zh": ["junior high school girl"],
+        "appearance_zh": ["short black hair", "slim build"],
+        "psychology_zh": ["sensitive", "curious"],
+        "allowed_changes_zh": ["hair accessories may change"],
+        "forbidden_drift_zh": ["do not mature the face or body ratio"],
+        "notes_zh": [],
+    }
+
+
 class SocialPostPipelineTests(unittest.TestCase):
     def test_social_post_pipeline_uses_subject_profile_plus_scene_draft_and_writes_output(self):
         with TemporaryDirectory() as temp_dir:
@@ -22,11 +35,7 @@ class SocialPostPipelineTests(unittest.TestCase):
             prompts_dir.mkdir(parents=True)
 
             bundle = create_run_bundle(project_dir, "default", "social-post-pipeline")
-            character_assets = {
-                "subjectProfile": {
-                    "display_name_zh": "demo",
-                }
-            }
+            character_assets = {"subjectProfile": _subject_profile()}
             creative_package = {
                 "worldDesign": {
                     "scenePremiseZh": "demo premise",
@@ -35,7 +44,7 @@ class SocialPostPipelineTests(unittest.TestCase):
             }
 
             (prompts_dir / "social_post.md").write_text(
-                "【人物资产】\n{{character_asset}}\n\n【场景设计稿】\n{{scene_design}}",
+                "[character]\\n{{character_asset}}\\n\\n[scene]\\n{{scene_design}}",
                 encoding="utf-8",
             )
 
@@ -57,12 +66,13 @@ class SocialPostPipelineTests(unittest.TestCase):
 
             self.assertEqual(list(social_post_input.keys()), ["subjectProfile", "sceneDraft"])
             self.assertEqual(social_post_input["subjectProfile"]["display_name_zh"], "demo")
+            self.assertEqual(social_post_input["subjectProfile"]["identity_zh"], ["junior high school girl"])
             self.assertEqual(social_post_input["sceneDraft"]["scenePremiseZh"], "demo premise")
             self.assertEqual(social_post_output, "social post text")
             self.assertEqual(final_output, "social post text")
             self.assertEqual(social_post_package_snapshot["socialPostText"], "social post text")
             self.assertEqual(social_post_package["sceneDraftPremiseZh"], "demo premise")
-            self.assertIn("人物显示名", call_kwargs["system_prompt"])
+            self.assertIn("demo", call_kwargs["system_prompt"])
             self.assertIn("demo premise", call_kwargs["system_prompt"])
             self.assertNotIn("{{character_asset}}", call_kwargs["system_prompt"])
             self.assertNotIn("{{scene_design}}", call_kwargs["system_prompt"])

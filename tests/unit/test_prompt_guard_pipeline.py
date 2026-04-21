@@ -25,8 +25,14 @@ class PromptGuardPipelineTests(unittest.TestCase):
             "worldSceneZh": "她站在高书架前，准备抽出一本旧书。",
         }
         subject_profile = {
+            "subject_id": "shan_xiaoyi",
             "display_name_zh": "单小伊",
+            "identity_zh": ["初中女生", "13岁", "少女感明确", "不允许成熟化"],
+            "appearance_zh": ["黑色齐肩披肩细发", "小红发夹", "清瘦", "初中女生比例"],
+            "psychology_zh": ["敏感细腻", "轻微内向"],
             "allowed_changes_zh": ["发饰可变"],
+            "forbidden_drift_zh": ["不允许成熟化身体比例"],
+            "notes_zh": [],
         }
 
         payload = build_prompt_guard_input(prompt_package, world_design, subject_profile)
@@ -47,7 +53,18 @@ class PromptGuardPipelineTests(unittest.TestCase):
             (prompt_dir / "review_and_patch_prompt.md").write_text("template", encoding="utf-8")
 
             bundle = create_run_bundle(project_dir, "default", "prompt-guard")
-            character_assets = {"subjectProfile": {"display_name_zh": "单小伊"}}
+            character_assets = {
+                "subjectProfile": {
+                    "subject_id": "shan_xiaoyi",
+                    "display_name_zh": "单小伊",
+                    "identity_zh": ["初中女生", "13岁", "少女感明确", "不允许成熟化"],
+                    "appearance_zh": ["黑色齐肩披肩细发", "小红发夹", "清瘦", "初中女生比例"],
+                    "psychology_zh": ["敏感细腻", "轻微内向"],
+                    "allowed_changes_zh": ["发饰可变"],
+                    "forbidden_drift_zh": ["不允许成熟化身体比例"],
+                    "notes_zh": [],
+                }
+            }
             creative_package = {
                 "worldDesign": {
                     "scenePremiseZh": "旧书店午后",
@@ -101,4 +118,3 @@ class PromptGuardPipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

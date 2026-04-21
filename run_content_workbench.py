@@ -28,6 +28,7 @@ from studio.content_workbench_service import (
 )
 from studio.content_workbench_store import (
     DEFAULT_CLEANUP_OLDER_THAN_DAYS,
+    DEFAULT_HISTORY_LIMIT,
     delete_workbench_run,
     generate_cleanup_report,
     migrate_legacy_content_workbench_state,
@@ -80,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--refresh-seconds", type=int, default=5)
-    parser.add_argument("--history-limit", type=int, default=10)
+    parser.add_argument("--history-limit", type=int, default=DEFAULT_HISTORY_LIMIT)
     parser.add_argument("--open-browser", dest="open_browser", action="store_true")
     parser.add_argument("--no-open-browser", dest="open_browser", action="store_false")
     parser.set_defaults(open_browser=True)

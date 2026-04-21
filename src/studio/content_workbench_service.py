@@ -19,7 +19,11 @@ from uuid import uuid4
 from generation_slot import GenerationSlotBusyError, read_generation_slot
 from io_utils import normalize_spaces
 from process_utils import is_process_alive, spawn_background_process
-from run_detail_store import build_run_detail_snapshot, resolve_generated_image_artifact
+from run_detail_store import (
+    build_run_detail_snapshot,
+    build_run_detail_snapshot_from_path,
+    resolve_generated_image_artifact,
+)
 from sidecar_control import sidecar_logs_root
 
 from test_pipeline import validate_workbench_request
@@ -393,6 +397,25 @@ def _make_handler(
                     self._send_json({"ok": False, "error": message}, status=status)
                     return
                 self._send_json({"ok": True, **deleted})
+                return
+            if parsed.path == "/api/review-path":
+                try:
+                    payload = self._read_json_body()
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "??????"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                review_path = normalize_spaces(str(payload.get("path", "")))
+                if not review_path:
+                    self._send_json({"ok": False, "error": "???????????????"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                detail = build_run_detail_snapshot_from_path(project_dir, review_path)
+                if detail is None:
+                    self._send_json({"ok": False, "error": "??????????? run ???"}, status=HTTPStatus.NOT_FOUND)
+                    return
+                self._send_json({"ok": True, "detail": detail, "path": review_path})
                 return
             if parsed.path == "/api/shutdown":
                 self._send_json({"ok": True})

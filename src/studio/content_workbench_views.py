@@ -340,6 +340,18 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       gap: 8px;
       flex-wrap: wrap;
     }}
+    .review-toolbar {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 12px;
+      margin-bottom: 6px;
+    }}
+    .review-toolbar input {{
+      flex: 1 1 320px;
+      min-width: 240px;
+    }}
     .detail-actions button {{
       background: #f7f2ea;
       color: var(--accent-strong);
@@ -666,12 +678,23 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     let selectedRunId = "";
     let historyFilter = "active";
     let historyLimit = 0;
+    let reviewedPath = "";
+    let reviewedPathDetail = null;
     let initializedForm = false;
     let expandedRawKeys = new Set();
     let detailSuspendUntil = 0;
 
     function normalizeText(value) {{
       return String(value || "").trim();
+    }}
+
+    function clearReviewedPathDetail() {{
+      reviewedPath = "";
+      reviewedPathDetail = null;
+      const input = document.getElementById("review-path-input");
+      if (input) {{
+        input.value = "";
+      }}
     }}
 
     function rememberExpandedDetails() {{
@@ -950,6 +973,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       }} else if (step < 0) {{
         nextIndex = history.length - 1;
       }}
+      reviewedPath = "";
+      reviewedPathDetail = null;
       selectedRunId = normalizeText(history[nextIndex]?.selectionKey || history[nextIndex]?.runId);
       detailSuspendUntil = 0;
       await fetchSnapshot({{ forceDetail: true }});
@@ -959,6 +984,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const history = historySelectionList(currentSnapshot);
       if (!history.length) return;
       const index = target === "end" ? history.length - 1 : 0;
+      reviewedPath = "";
+      reviewedPathDetail = null;
       selectedRunId = normalizeText(history[index]?.selectionKey || history[index]?.runId);
       detailSuspendUntil = 0;
       await fetchSnapshot({{ forceDetail: true }});
@@ -1043,6 +1070,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           if (!key) return;
           event.preventDefault();
           event.stopPropagation();
+          reviewedPath = "";
+          reviewedPathDetail = null;
           selectedRunId = key;
           detailSuspendUntil = 0;
           fetchSnapshot({{ forceDetail: true }});
@@ -1052,6 +1081,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           const key = normalizeText(element.getAttribute("data-history-select"));
           if (!key) return;
           event.preventDefault();
+          reviewedPath = "";
+          reviewedPathDetail = null;
           selectedRunId = key;
           detailSuspendUntil = 0;
           fetchSnapshot({{ forceDetail: true }});
@@ -1145,8 +1176,34 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       await fetchSnapshot({{ forceDetail: true }});
     }}
 
+    async function reviewPathDetail() {{
+      const input = document.getElementById("review-path-input");
+      const path = normalizeText(input?.value);
+      if (!path) {{
+        applyActionMessage("请输入要审阅的目录或文件路径。", "error");
+        return;
+      }}
+      applyActionMessage("正在载入目录审阅…");
+      const data = await submitJson("/api/review-path", {{ path }});
+      reviewedPath = normalizeText(data.path || path);
+      reviewedPathDetail = data.detail || null;
+      selectedRunId = "";
+      detailSuspendUntil = 0;
+      renderDetail(currentSnapshot || {{}});
+      applyActionMessage("目录内容已载入。", "success");
+    }}
+
     function renderDetailActions(snapshot, detail, selectedItem) {{
       const root = document.getElementById("detail-actions");
+      if (reviewedPathDetail) {{
+        root.innerHTML = '<button type="button" data-detail-exit-review="1">返回历史</button>';
+        root.querySelector("[data-detail-exit-review='1']").addEventListener("click", async () => {{
+          clearReviewedPathDetail();
+          detailSuspendUntil = 0;
+          await fetchSnapshot({{ forceDetail: true }});
+        }});
+        return;
+      }}
       const history = historySelectionList(snapshot);
       const currentKey = normalizeText(snapshot?.selectedRunId);
       const index = history.findIndex((item) => normalizeText(item.selectionKey || item.runId) === currentKey);
@@ -1164,6 +1221,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           const target = direction === "prev" ? previousItem : nextItem;
           const key = normalizeText(target?.selectionKey || target?.runId);
           if (!key) return;
+          clearReviewedPathDetail();
           selectedRunId = key;
           detailSuspendUntil = 0;
           await fetchSnapshot({{ forceDetail: true }});
@@ -1178,10 +1236,10 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     }}
 
     function renderDetail(snapshot) {{
-      const detail = snapshot?.selectedRunDetail;
+      const detail = reviewedPathDetail || snapshot?.selectedRunDetail;
       const root = document.getElementById("detail-root");
       const badge = document.getElementById("detail-badge");
-      const selectedItem = selectedHistoryItem(snapshot);
+      const selectedItem = reviewedPathDetail ? null : selectedHistoryItem(snapshot);
       renderDetailActions(snapshot, detail, selectedItem);
       if (!detail) {{
         const status = snapshot?.status || {{}};
@@ -1211,7 +1269,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         root.textContent = "开始一轮测试后，这里会实时展开它的中间产物和最终产物。";
         return;
       }}
-      badge.textContent = detail.detailTitle || detail.runId || "当前测试";
+      badge.textContent = reviewedPathDetail ? "目录审阅" : (detail.detailTitle || detail.runId || "当前测试");
       const imagePanel = detail.imageRoute
         ? `
           <a class="preview-link" href="${{detail.imageRoute}}" target="_blank" rel="noreferrer">
@@ -1265,6 +1323,14 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const query = params.toString() ? `?${{params.toString()}}` : "";
       const response = await fetch(`/api/snapshot${{query}}`, {{ cache: "no-store" }});
       const snapshot = await response.json();
+      if (reviewedPath && options.forceDetail) {{
+        try {{
+          const reviewData = await submitJson("/api/review-path", {{ path: reviewedPath }});
+          reviewedPathDetail = reviewData.detail || null;
+        }} catch (_error) {{
+          reviewedPathDetail = null;
+        }}
+      }}
       ensureHistoryLimit(snapshot);
       if (!normalizeText(snapshot?.selectedRunId) && snapshot?.status?.busy) {{
         const activeItem = snapshot?.currentRunItem;
@@ -1296,10 +1362,25 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       updateEndStageOptions(currentSnapshot);
     }});
     const detailRoot = document.getElementById("detail-root");
+    const reviewToolbar = document.createElement("div");
+    reviewToolbar.className = "review-toolbar";
+    reviewToolbar.innerHTML = `
+      <input id="review-path-input" type="text" placeholder="输入 run 目录、creative 目录或包文件路径，直接调出审阅">
+      <button type="button" id="review-path-btn">审阅目录</button>
+    `;
+    detailRoot.parentNode.insertBefore(reviewToolbar, detailRoot);
     ["wheel", "pointerdown", "focusin"].forEach((eventName) => {{
       detailRoot.addEventListener(eventName, () => {{
         suspendDetailRefresh();
       }});
+    }});
+    document.getElementById("review-path-btn").addEventListener("click", async () => {{
+      await reviewPathDetail();
+    }});
+    document.getElementById("review-path-input").addEventListener("keydown", async (event) => {{
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      await reviewPathDetail();
     }});
     document.getElementById("refresh-btn").addEventListener("click", async () => {{
       detailSuspendUntil = 0;
@@ -1340,6 +1421,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       try {{
         applyActionMessage("正在启动测试…");
         await submitJson("/api/start", collectRequestPayload());
+        clearReviewedPathDetail();
         selectedRunId = "__active__";
         applyActionMessage("测试已启动。", "success");
         detailSuspendUntil = 0;
@@ -1363,6 +1445,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       try {{
         applyActionMessage("正在复跑上一轮请求…");
         await submitJson("/api/rerun-last");
+        clearReviewedPathDetail();
         selectedRunId = "__active__";
         applyActionMessage("已开始复跑上一轮测试。", "success");
         detailSuspendUntil = 0;

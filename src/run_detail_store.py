@@ -405,8 +405,7 @@ def _build_prompt_guard_review_section(run_dir: Path) -> dict[str, Any]:
         truncated=bool(document["truncated"]),
     )
 
-
-def resolve_generated_image_artifact(project_dir: Path, run_id: str) -> Path | None:
+def _resolve_run_dir_from_run_id(project_dir: Path, run_id: str) -> Path | None:
     normalized_run_id = normalize_spaces(run_id)
     if not normalized_run_id:
         return None
@@ -416,6 +415,45 @@ def resolve_generated_image_artifact(project_dir: Path, run_id: str) -> Path | N
     except ValueError:
         return None
     if not run_dir.exists() or not run_dir.is_dir():
+        return None
+    return run_dir
+
+
+def _looks_like_run_dir(path: Path) -> bool:
+    return bool(
+        path.exists()
+        and path.is_dir()
+        and (
+            (path / "creative").is_dir()
+            or (path / "prompt_builder").is_dir()
+            or (path / "prompt_guard").is_dir()
+            or (path / "output" / "run_summary.json").is_file()
+        )
+    )
+
+
+def _resolve_run_dir_from_review_path(project_dir: Path, raw_path: str) -> Path | None:
+    normalized_path = normalize_spaces(raw_path)
+    if not normalized_path:
+        return None
+    candidate = Path(normalized_path)
+    candidate = (project_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+    if not candidate.exists():
+        return None
+    current = candidate if candidate.is_dir() else candidate.parent
+    for path in (current, *current.parents):
+        if path.name == "creative" and _looks_like_run_dir(path.parent):
+            return path.parent
+        if path.name in {"prompt_builder", "prompt_guard", "output", "execution", "social_post", "publish"} and _looks_like_run_dir(path.parent):
+            return path.parent
+        if _looks_like_run_dir(path):
+            return path
+    return None
+
+
+def resolve_generated_image_artifact(project_dir: Path, run_id: str) -> Path | None:
+    run_dir = _resolve_run_dir_from_run_id(project_dir, run_id)
+    if run_dir is None:
         return None
     summary_payload = _safe_read_json(run_dir / "output" / "run_summary.json")
     if summary_payload is None:
@@ -423,19 +461,14 @@ def resolve_generated_image_artifact(project_dir: Path, run_id: str) -> Path | N
     return _resolve_generated_image_from_summary(run_dir, summary_payload)
 
 
-def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] | None:
+def _build_run_detail_snapshot_from_run_dir(
+    project_dir: Path,
+    run_dir: Path,
+    *,
+    run_id_hint: str = "",
+) -> dict[str, Any]:
     project_dir = Path(project_dir).resolve()
-    normalized_run_id = normalize_spaces(run_id)
-    if not normalized_run_id:
-        return None
-    run_dir = (runs_root(project_dir) / normalized_run_id).resolve()
-    try:
-        run_dir.relative_to(runs_root(project_dir).resolve())
-    except ValueError:
-        return None
-    if not run_dir.exists() or not run_dir.is_dir():
-        return None
-
+    run_dir = Path(run_dir).resolve()
     creative_dir = run_dir / "creative"
     summary_document = _read_json_document(run_dir / "output" / "run_summary.json")
     summary_payload = summary_document["payload"] if isinstance(summary_document.get("payload"), dict) else {}
@@ -455,10 +488,11 @@ def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] 
         _build_prompt_guard_review_section(run_dir),
     ]
     available_count = sum(1 for item in sections if item["exists"])
+    effective_run_id = normalize_spaces(str(summary_payload.get("runId", ""))) or normalize_spaces(run_id_hint) or run_dir.name
     detail_title = (
         normalize_spaces(str(summary_payload.get("sceneDraftPremiseZh", "")))
         or next((row["value"] for row in sections[1]["metaRows"] if row.get("label") == "场景标题"), "")
-        or normalized_run_id
+        or effective_run_id
     )
     social_post_text = normalize_spaces(str(summary_payload.get("socialPostText", "")))
     publish_receipts = (
@@ -467,10 +501,16 @@ def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] 
         else []
     )
     first_receipt = publish_receipts[0] if publish_receipts and isinstance(publish_receipts[0], dict) else {}
+    route_run_id = ""
+    try:
+        run_dir.relative_to(runs_root(project_dir).resolve())
+        route_run_id = run_dir.name
+    except ValueError:
+        route_run_id = ""
     return {
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
         "projectDir": str(project_dir),
-        "runId": normalized_run_id,
+        "runId": effective_run_id,
         "runRoot": str(run_dir),
         "detailTitle": detail_title,
         "summaryPath": str(run_dir / "output" / "run_summary.json"),
@@ -478,8 +518,8 @@ def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] 
         "socialPostPreview": normalize_spaces(social_post_text),
         "generatedImagePath": str(resolved_image_path) if resolved_image_path else "",
         "imageRoute": (
-            f"/artifacts/generated-image?runId={quote(normalized_run_id, safe='')}"
-            if resolved_image_path
+            f"/artifacts/generated-image?runId={quote(route_run_id, safe='')}"
+            if resolved_image_path and route_run_id
             else ""
         ),
         "publishStatus": normalize_spaces(str(first_receipt.get("status", ""))),
@@ -494,3 +534,17 @@ def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] 
         "summaryError": str(summary_document["error"]),
         "summaryTruncated": bool(summary_document["truncated"]),
     }
+
+
+def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] | None:
+    run_dir = _resolve_run_dir_from_run_id(project_dir, run_id)
+    if run_dir is None:
+        return None
+    return _build_run_detail_snapshot_from_run_dir(project_dir, run_dir, run_id_hint=normalize_spaces(run_id))
+
+
+def build_run_detail_snapshot_from_path(project_dir: Path, path_text: str) -> dict[str, Any] | None:
+    run_dir = _resolve_run_dir_from_review_path(project_dir, path_text)
+    if run_dir is None:
+        return None
+    return _build_run_detail_snapshot_from_run_dir(project_dir, run_dir, run_id_hint=run_dir.name)

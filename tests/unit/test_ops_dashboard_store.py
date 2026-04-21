@@ -16,6 +16,7 @@ from ops.dashboard_store import (
     resolve_dashboard_generated_image_artifact,
     resolve_generated_image_artifact,
 )
+from run_detail_store import build_run_detail_snapshot_from_path
 from publish.qq_bot_job_queue import QQBotJobQueue
 from publish.qq_bot_runtime_store import qq_bot_generate_service_state_root, write_stage_status
 from runtime_layout import runs_root, runtime_root
@@ -297,6 +298,31 @@ class OpsDashboardStoreTests(unittest.TestCase):
         self.assertEqual(snapshot["sections"][7]["metaRows"][0]["value"], "revised")
         self.assertEqual(snapshot["imageRoute"], f"/artifacts/generated-image?runId={run_dir.name}")
         self.assertEqual(snapshot["publishStatus"], "published")
+
+    def test_build_run_detail_snapshot_from_path_accepts_run_and_creative_dirs(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_dir = runs_root(project_dir) / "2026-04-11T18-30-00_qqbot_generate_demo"
+            creative_dir = run_dir / "creative"
+            output_dir = run_dir / "output"
+            creative_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_json(
+                creative_dir / "01_world_design.json",
+                {
+                    "scenePremiseZh": "深夜便利店",
+                    "worldSceneZh": "她在窗边画草稿。",
+                },
+            )
+            write_json(output_dir / "run_summary.json", {"runId": run_dir.name, "sceneDraftPremiseZh": "深夜便利店"})
+
+            run_detail = build_run_detail_snapshot_from_path(project_dir, str(run_dir))
+            creative_detail = build_run_detail_snapshot_from_path(project_dir, str(creative_dir))
+
+        self.assertIsNotNone(run_detail)
+        self.assertIsNotNone(creative_detail)
+        self.assertEqual(run_detail["runRoot"], str(run_dir))
+        self.assertEqual(creative_detail["runRoot"], str(run_dir))
 
     def test_dashboard_detail_helpers_reject_non_qq_runs(self):
         with TemporaryDirectory() as temp_dir:

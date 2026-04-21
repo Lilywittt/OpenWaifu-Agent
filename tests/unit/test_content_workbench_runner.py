@@ -26,6 +26,19 @@ from io_utils import write_json
 from runtime_layout import RunBundle
 
 
+def _subject_profile() -> dict:
+    return {
+        "subject_id": "demo_subject",
+        "display_name_zh": "demo",
+        "identity_zh": ["junior high school girl"],
+        "appearance_zh": ["short black hair", "slim build"],
+        "psychology_zh": ["sensitive", "curious"],
+        "allowed_changes_zh": ["hair accessories may change"],
+        "forbidden_drift_zh": ["do not mature the face or body ratio"],
+        "notes_zh": [],
+    }
+
+
 class ContentWorkbenchRunnerTests(unittest.TestCase):
     def test_validate_prompt_package_request_rejects_non_image_end_stage(self):
         with TemporaryDirectory() as temp_dir:
@@ -64,7 +77,7 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
                 write_json(bundle.prompt_guard_dir / "02_prompt_package.json", payload)
                 return payload
 
-            with patch("test_pipeline.core.load_character_assets", return_value={"subjectProfile": {"name": "单小伊"}}), patch(
+            with patch("test_pipeline.core.load_character_assets", return_value={"subjectProfile": _subject_profile()}), patch(
                 "test_pipeline.core.build_default_run_context",
                 return_value={"createdAt": "2026-04-11T22:00:00"},
             ), patch(
@@ -204,7 +217,7 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
             ):
                 path.mkdir(parents=True, exist_ok=True)
 
-            with patch("test_pipeline.core.load_character_assets", return_value={"subjectProfile": {"name": "单小伊"}}), patch(
+            with patch("test_pipeline.core.load_character_assets", return_value={"subjectProfile": _subject_profile()}), patch(
                 "test_pipeline.core.build_default_run_context",
                 return_value={"createdAt": "2026-04-12T10:00:00"},
             ), patch(

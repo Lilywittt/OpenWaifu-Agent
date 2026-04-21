@@ -371,7 +371,7 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
             records[0]["deletedAt"] = "2026-04-11T20:20:00"
             records_path.write_text("".join(json.dumps(item, ensure_ascii=False) + "\n" for item in records), encoding="utf-8")
 
-            snapshot = build_content_workbench_snapshot(project_dir, history_limit=10)
+            snapshot = build_content_workbench_snapshot(project_dir, history_filter="all", history_limit=10)
 
         self.assertEqual(snapshot["history"][0]["runId"], active_run.name)
         self.assertTrue(snapshot["history"][-1]["deleted"])

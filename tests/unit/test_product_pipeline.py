@@ -15,23 +15,36 @@ from product_pipeline import run_generation_product_pipeline
 from runtime_layout import create_run_bundle
 
 
+def _subject_profile() -> dict:
+    return {
+        "subject_id": "demo_subject",
+        "display_name_zh": "demo",
+        "identity_zh": ["junior high school girl"],
+        "appearance_zh": ["short black hair", "slim build"],
+        "psychology_zh": ["sensitive", "curious"],
+        "allowed_changes_zh": ["hair accessories may change"],
+        "forbidden_drift_zh": ["do not mature the face or body ratio"],
+        "notes_zh": [],
+    }
+
+
 class ProductPipelineTests(unittest.TestCase):
     def test_generation_pipeline_uses_guarded_prompt_for_execution(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             bundle = create_run_bundle(project_dir, "default", "guarded-generation")
-            character_assets = {"subjectProfile": {"display_name_zh": "单小伊"}}
+            character_assets = {"subjectProfile": _subject_profile()}
             default_run_context = {"runMode": "default", "nowLocal": "2026-04-11T18:00:00"}
             creative_package = {
                 "worldDesign": {
-                    "scenePremiseZh": "旧书店午后",
-                    "worldSceneZh": "她在旧书店里取下一本高处的书。",
+                    "scenePremiseZh": "old bookstore afternoon",
+                    "worldSceneZh": "she reaches for a book on a high shelf",
                 },
                 "environmentDesign": "env",
                 "stylingDesign": "style",
                 "actionDesign": "action",
             }
-            social_post_package = {"socialPostText": "今天像是翻开了一本积灰的旧书。"}
+            social_post_package = {"socialPostText": "a quiet old bookstore afternoon"}
             prompt_builder_package = {
                 "positivePrompt": "builder positive",
                 "negativePrompt": "builder negative",

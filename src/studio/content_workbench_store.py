@@ -25,7 +25,6 @@ from test_pipeline import (
 
 
 DEFAULT_HISTORY_LIMIT = 30
-MAX_HISTORY_LIMIT = 500
 DEFAULT_CLEANUP_OLDER_THAN_DAYS = 14
 INDEX_CSV_COLUMNS = [
     "recordedAt",
@@ -469,7 +468,7 @@ def _build_filtered_history_records(
         "deleted": sum(1 for item in records if bool(item.get("deleted", False))),
     }
     filtered_records = _filter_history_records(records, normalized_filter)
-    bounded_limit = min(max(int(limit), 1), MAX_HISTORY_LIMIT)
+    bounded_limit = max(int(limit), 1)
     visible = filtered_records[:bounded_limit]
     page = {
         "filter": normalized_filter,
@@ -870,7 +869,7 @@ def build_content_workbench_snapshot(
         "config": {
             "sourceKinds": _build_source_kind_config(),
             "endStages": [{"id": key, "label": value} for key, value in END_STAGE_LABELS.items()],
-            "historyLimit": min(max(int(history_limit), 1), MAX_HISTORY_LIMIT),
+            "historyLimit": max(int(history_limit), 1),
             "historyFilters": [
                 {"id": "active", "label": "有效"},
                 {"id": "all", "label": "全部"},

@@ -25,8 +25,14 @@ class PromptBuilderPipelineTests(unittest.TestCase):
             bundle = create_run_bundle(project_dir, "default", "prompt-builder-pipeline")
             character_assets = {
                 "subjectProfile": {
+                    "subject_id": "demo_subject",
                     "display_name_zh": "demo",
+                    "identity_zh": ["初中女生", "少女感明确"],
+                    "appearance_zh": ["黑色齐肩发", "小红发夹", "清瘦"],
+                    "psychology_zh": ["敏感", "好奇心强"],
                     "allowed_changes_zh": ["clip"],
+                    "forbidden_drift_zh": ["不允许成熟化"],
+                    "notes_zh": [],
                 }
             }
             creative_package = {

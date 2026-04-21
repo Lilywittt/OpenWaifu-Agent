@@ -13,6 +13,19 @@ from publish.pipeline import run_publish_pipeline
 from runtime_layout import create_run_bundle
 
 
+def _subject_profile() -> dict:
+    return {
+        "subject_id": "tsukimi_rion",
+        "display_name_zh": "demo",
+        "identity_zh": ["junior high school girl"],
+        "appearance_zh": ["short black hair", "slim build"],
+        "psychology_zh": ["sensitive", "curious"],
+        "allowed_changes_zh": ["hair accessories may change"],
+        "forbidden_drift_zh": ["do not mature the face or body ratio"],
+        "notes_zh": [],
+    }
+
+
 class PublishPipelineTests(unittest.TestCase):
     def test_publish_pipeline_builds_publish_input_and_writes_receipts(self):
         with TemporaryDirectory() as temp_dir:
@@ -39,12 +52,7 @@ class PublishPipelineTests(unittest.TestCase):
             image_path = bundle.output_dir / "demo.png"
             image_path.write_bytes(b"fake-image")
 
-            character_assets = {
-                "subjectProfile": {
-                    "subject_id": "tsukimi_rion",
-                    "display_name_zh": "月见璃音",
-                }
-            }
+            character_assets = {"subjectProfile": _subject_profile()}
             creative_package = {
                 "worldDesign": {
                     "scenePremiseZh": "demo premise",
@@ -96,12 +104,7 @@ class PublishPipelineTests(unittest.TestCase):
             image_path = bundle.output_dir / "demo.png"
             image_path.write_bytes(b"fake-image")
 
-            character_assets = {
-                "subjectProfile": {
-                    "subject_id": "tsukimi_rion",
-                    "display_name_zh": "月见璃音",
-                }
-            }
+            character_assets = {"subjectProfile": _subject_profile()}
             creative_package = {
                 "worldDesign": {
                     "scenePremiseZh": "demo premise",
