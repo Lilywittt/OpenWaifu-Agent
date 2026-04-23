@@ -10,6 +10,12 @@ from typing import Any
 from urllib.parse import quote
 
 from io_utils import normalize_spaces
+from review_favorites import (
+    FAVORITE_KIND_RUN,
+    favorite_selection_key,
+    find_review_favorite,
+    toggle_review_favorite,
+)
 from run_detail_store import (
     build_run_detail_snapshot as build_generic_run_detail_snapshot,
     resolve_generated_image_artifact as resolve_generic_generated_image_artifact,
@@ -470,6 +476,7 @@ def _read_recent_runs(
     root = runs_root(project_dir)
     if not root.exists():
         return []
+    project_dir = Path(project_dir).resolve()
 
     candidate_run_ids = _collect_recent_qq_run_ids(service_snapshot, queue_snapshot, events_snapshot)
     seen = set(candidate_run_ids)
@@ -511,6 +518,11 @@ def _read_recent_runs(
                 "publishedAt": normalize_spaces(str(first_receipt.get("publishedAt", ""))),
                 "targetOpenIdMasked": mask_user_openid(str(first_receipt.get("targetOpenId", ""))),
                 "publishStatus": normalize_spaces(str(first_receipt.get("status", ""))),
+                "favorite": find_review_favorite(
+                    project_dir,
+                    selection_key=favorite_selection_key(FAVORITE_KIND_RUN, run_dir.name),
+                )
+                is not None,
             }
         )
         if len(recent) >= max(int(run_limit), 1):
@@ -563,13 +575,22 @@ def build_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] 
 def build_dashboard_run_detail_snapshot(project_dir: Path, run_id: str) -> dict[str, Any] | None:
     if not is_qq_bot_run_id(run_id):
         return None
+    project_dir = Path(project_dir).resolve()
     detail = build_run_detail_snapshot(project_dir, run_id)
     if detail is None:
         return None
+    favorite_selection = favorite_selection_key(FAVORITE_KIND_RUN, run_id)
     return {
         **detail,
-        "identity": _read_dashboard_identity(Path(project_dir).resolve()),
+        "identity": _read_dashboard_identity(project_dir),
+        "favorite": find_review_favorite(project_dir, selection_key=favorite_selection) is not None,
+        "favoriteKind": FAVORITE_KIND_RUN,
+        "favoriteSelectionKey": favorite_selection,
     }
+
+
+def toggle_dashboard_favorite(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    return toggle_review_favorite(Path(project_dir).resolve(), payload)
 
 
 def build_dashboard_snapshot(

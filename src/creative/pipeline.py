@@ -9,6 +9,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json, write_text
 from llm import call_json_task, call_text_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
+from model_profiles import resolve_stage_model_profile
 from prompt_loader import load_prompt_text
 
 from .contracts import scene_draft_contract, social_signal_filter_contract
@@ -99,7 +100,6 @@ def _text_system_prompt(project_dir: Path, prompt_path: str) -> str:
 def _run_json_stage(
     *,
     project_dir: Path,
-    model_config_path: Path,
     bundle,
     stage_name: str,
     stage_key: str,
@@ -110,7 +110,7 @@ def _run_json_stage(
     stage_config = STAGE_CONFIGS[stage_key]
     result = call_json_task(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=resolve_stage_model_profile(project_dir, f"creative.{stage_key}"),
         system_prompt=_json_system_prompt(project_dir, stage_config["prompt_path"], output_contract),
         user_payload=to_deepseek_payload(user_payload),
         trace_request_path=trace_dir / f"{stage_name}.request.json",
@@ -132,7 +132,6 @@ def _normalize_text_output(raw_text: str, *, stage_name: str) -> str:
 def _run_text_stage(
     *,
     project_dir: Path,
-    model_config_path: Path,
     bundle,
     stage_name: str,
     stage_key: str,
@@ -143,7 +142,7 @@ def _run_text_stage(
     stage_config = STAGE_CONFIGS[stage_key]
     result = call_text_task(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=resolve_stage_model_profile(project_dir, f"creative.{stage_key}"),
         system_prompt=_text_system_prompt(project_dir, stage_config["prompt_path"]),
         user_payload=to_deepseek_payload(user_payload),
         trace_request_path=trace_dir / f"{stage_name}.request.json",
@@ -216,7 +215,7 @@ def _normalize_world_design(world_design: dict[str, Any]) -> dict[str, Any]:
     return world_design
 
 
-def run_social_signal_filter_stage(project_dir: Path, bundle, model_config_path: Path) -> dict[str, Any]:
+def run_social_signal_filter_stage(project_dir: Path, bundle) -> dict[str, Any]:
     try:
         social_signal_sample = collect_social_trend_sample(project_dir)
     except Exception as exc:
@@ -228,7 +227,6 @@ def run_social_signal_filter_stage(project_dir: Path, bundle, model_config_path:
     filter_result = _normalize_social_signal_filter_result(
         _run_json_stage(
             project_dir=project_dir,
-            model_config_path=model_config_path,
             bundle=bundle,
             stage_name="00_social_signal_filter",
             stage_key="social_signal_filter",
@@ -244,14 +242,12 @@ def run_world_design_stage(
     bundle,
     subject_profile: dict[str, Any],
     social_signal_sample: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, Any]:
     world_design_input = build_world_design_input(subject_profile, social_signal_sample)
     write_json(bundle.creative_dir / "01_world_design_input.json", world_design_input)
     world_design = _normalize_world_design(
         _run_json_stage(
             project_dir=project_dir,
-            model_config_path=model_config_path,
             bundle=bundle,
             stage_name="01_world_design",
             stage_key="world_design",
@@ -268,7 +264,6 @@ def _run_world_derivative_stage(
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
-    model_config_path: Path,
     stage_name: str,
     stage_key: str,
     input_filename: str,
@@ -279,7 +274,6 @@ def _run_world_derivative_stage(
     write_json(bundle.creative_dir / input_filename, stage_input)
     return _run_text_stage(
         project_dir=project_dir,
-        model_config_path=model_config_path,
         bundle=bundle,
         stage_name=stage_name,
         stage_key=stage_key,
@@ -293,14 +287,12 @@ def run_environment_design_stage(
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
-    model_config_path: Path,
 ) -> str:
     return _run_world_derivative_stage(
         project_dir=project_dir,
         bundle=bundle,
         subject_profile=subject_profile,
         world_design=world_design,
-        model_config_path=model_config_path,
         stage_name="02_environment_design",
         stage_key="environment_design",
         input_filename="02_environment_design_input.json",
@@ -314,14 +306,12 @@ def run_styling_design_stage(
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
-    model_config_path: Path,
 ) -> str:
     return _run_world_derivative_stage(
         project_dir=project_dir,
         bundle=bundle,
         subject_profile=subject_profile,
         world_design=world_design,
-        model_config_path=model_config_path,
         stage_name="03_styling_design",
         stage_key="styling_design",
         input_filename="03_styling_design_input.json",
@@ -335,14 +325,12 @@ def run_action_design_stage(
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
-    model_config_path: Path,
 ) -> str:
     return _run_world_derivative_stage(
         project_dir=project_dir,
         bundle=bundle,
         subject_profile=subject_profile,
         world_design=world_design,
-        model_config_path=model_config_path,
         stage_name="04_action_design",
         stage_key="action_design",
         input_filename="04_action_design_input.json",
@@ -356,12 +344,11 @@ def run_parallel_design_stages(
     bundle,
     subject_profile: dict[str, Any],
     world_design: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, str]:
     return {
-        "environmentDesign": run_environment_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
-        "stylingDesign": run_styling_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
-        "actionDesign": run_action_design_stage(project_dir, bundle, subject_profile, world_design, model_config_path),
+        "environmentDesign": run_environment_design_stage(project_dir, bundle, subject_profile, world_design),
+        "stylingDesign": run_styling_design_stage(project_dir, bundle, subject_profile, world_design),
+        "actionDesign": run_action_design_stage(project_dir, bundle, subject_profile, world_design),
     }
 
 
@@ -370,12 +357,11 @@ def run_creative_pipeline(
     bundle,
     default_run_context: dict[str, Any],
     character_assets: dict,
-    model_config_path: Path,
 ) -> dict[str, Any]:
     subject_profile = character_assets["subjectProfile"]
-    social_signal_sample = run_social_signal_filter_stage(project_dir, bundle, model_config_path)
-    world_design = run_world_design_stage(project_dir, bundle, subject_profile, social_signal_sample, model_config_path)
-    design_branches = run_parallel_design_stages(project_dir, bundle, subject_profile, world_design, model_config_path)
+    social_signal_sample = run_social_signal_filter_stage(project_dir, bundle)
+    world_design = run_world_design_stage(project_dir, bundle, subject_profile, social_signal_sample)
+    design_branches = run_parallel_design_stages(project_dir, bundle, subject_profile, world_design)
 
     creative_package = {
         "meta": {

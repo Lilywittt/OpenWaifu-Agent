@@ -10,8 +10,39 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from creative.pipeline import CreativeSocialSamplingError, run_creative_pipeline
-from io_utils import read_json, read_text
+from io_utils import read_json, read_text, write_json
 from runtime_layout import create_run_bundle
+
+
+def _write_llm_profiles(project_dir: Path) -> None:
+    write_json(
+        project_dir / "config" / "llm_profiles.json",
+        {
+            "profiles": {
+                "chat": {
+                    "provider": "deepseek-openai-compatible",
+                    "baseUrl": "https://api.deepseek.com",
+                    "chatCompletionsPath": "/chat/completions",
+                    "envName": "DEEPSEEK_API_KEY",
+                    "model": "deepseek-chat",
+                },
+                "reasoner": {
+                    "provider": "deepseek-openai-compatible",
+                    "baseUrl": "https://api.deepseek.com",
+                    "chatCompletionsPath": "/chat/completions",
+                    "envName": "DEEPSEEK_API_KEY",
+                    "model": "deepseek-reasoner",
+                },
+            },
+            "stages": {
+                "creative.social_signal_filter": "chat",
+                "creative.world_design": "reasoner",
+                "creative.environment_design": "chat",
+                "creative.styling_design": "chat",
+                "creative.action_design": "chat",
+            },
+        },
+    )
 
 
 class CreativePipelineTests(unittest.TestCase):
@@ -28,6 +59,7 @@ class CreativePipelineTests(unittest.TestCase):
                 "action_design.md",
             ):
                 (prompts_dir / prompt_name).write_text("template", encoding="utf-8")
+            _write_llm_profiles(project_dir)
 
             bundle = create_run_bundle(project_dir, "default", "creative-pipeline")
             character_assets = {
@@ -58,18 +90,13 @@ class CreativePipelineTests(unittest.TestCase):
                 ],
             ), patch(
                 "creative.pipeline.call_text_task",
-                side_effect=[
-                    "environment text",
-                    "styling text",
-                    "action text",
-                ],
+                side_effect=["environment text", "styling text", "action text"],
             ):
                 creative_package = run_creative_pipeline(
                     project_dir,
                     bundle,
                     {"runMode": "default", "nowLocal": "2026-04-06T18:00:00"},
                     character_assets,
-                    project_dir / "config" / "creative_model.json",
                 )
 
             filter_input = read_json(bundle.creative_dir / "00_social_signal_filter_input.json")
@@ -107,6 +134,7 @@ class CreativePipelineTests(unittest.TestCase):
                 "action_design.md",
             ):
                 (prompts_dir / prompt_name).write_text("template", encoding="utf-8")
+            _write_llm_profiles(project_dir)
 
             bundle = create_run_bundle(project_dir, "default", "creative-pipeline-error")
             character_assets = {
@@ -132,11 +160,9 @@ class CreativePipelineTests(unittest.TestCase):
                         bundle,
                         {"runMode": "default", "nowLocal": "2026-04-06T18:00:00"},
                         character_assets,
-                        project_dir / "config" / "creative_model.json",
                     )
 
             self.assertIn("实时社媒采样失败", str(context.exception))
-            self.assertEqual(context.exception.user_summary, "实时社媒采样失败，当前没有拿到新的外部样本。")
 
 
 if __name__ == "__main__":

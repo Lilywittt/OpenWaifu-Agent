@@ -9,7 +9,6 @@ from creative import build_default_run_context, run_creative_pipeline, run_paral
 from execution import run_execution_pipeline
 from generation_slot import occupy_generation_slot
 from io_utils import write_json
-from model_profiles import resolve_creative_model_config_path, resolve_prompt_guard_model_config_path
 from prompt_builder import run_prompt_builder_pipeline
 from prompt_guard import run_prompt_guard_pipeline
 from publish import run_publish_pipeline
@@ -143,7 +142,6 @@ def _run_prompt_pipeline(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
     if log:
         log("prompt guard layer: final prompt review -> minimal patch")
@@ -154,7 +152,6 @@ def _run_prompt_pipeline(
         character_assets,
         creative_package,
         prompt_builder_package,
-        resolve_prompt_guard_model_config_path(project_dir),
     )
     return prompt_builder_package, prompt_package
 
@@ -178,7 +175,6 @@ def _run_generation_product_pipeline_unlocked(
         bundle,
         default_run_context,
         character_assets,
-        resolve_creative_model_config_path(project_dir),
     )
 
     _maybe_abort(should_abort)
@@ -190,7 +186,6 @@ def _run_generation_product_pipeline_unlocked(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
 
     _maybe_abort(should_abort)
@@ -291,7 +286,6 @@ def _run_scene_draft_generation_pipeline_unlocked(
         bundle,
         character_assets["subjectProfile"],
         scene_draft,
-        resolve_creative_model_config_path(project_dir),
     )
     creative_package = {
         "meta": {
@@ -313,7 +307,6 @@ def _run_scene_draft_generation_pipeline_unlocked(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
 
     _maybe_abort(should_abort)

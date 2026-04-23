@@ -43,12 +43,18 @@ QQ_BOT_DISPLAY_NAME=
 
 ```json
 {
-  "creativeModelConfigPath": "config/creative_model.json",
-  "promptGuardModelConfigPath": "config/prompt_guard_model.json"
+  "profiles": {
+    "deepseek_chat": { "model": "deepseek-chat" },
+    "deepseek_reasoner": { "model": "deepseek-reasoner" }
+  },
+  "stages": {
+    "creative.world_design": "deepseek_reasoner",
+    "prompt_guard.default": "deepseek_reasoner"
+  }
 }
 ```
 
-[config/creative_model.json](../config/creative_model.json) 供 creative、social_post 和 prompt_builder 使用，[config/prompt_guard_model.json](../config/prompt_guard_model.json) 供 prompt guard 使用。
+[config/llm_profiles.json](../config/llm_profiles.json) 现在同时维护两类信息：`profiles` 定义有哪些模型可用，`stages` 指定每个阶段用哪个模型。
 
 ## 生图基座
 

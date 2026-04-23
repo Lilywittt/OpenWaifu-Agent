@@ -22,7 +22,6 @@ for import_path in (TOOLS_DIR, SRC_DIR):
 from character_assets import load_character_assets
 from creative.pipeline import run_social_signal_filter_stage, run_world_design_stage
 from io_utils import ensure_dir, read_json, write_json, write_text
-from model_profiles import resolve_creative_model_config_path
 from runner_common import build_batch_dir, configure_utf8_stdio, create_sample_bundle
 
 
@@ -172,8 +171,6 @@ def run_batch(*, count: int, label: str, source_key: str, provider_key: str) -> 
     ensure_dir(samples_dir)
 
     character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = resolve_creative_model_config_path(PROJECT_DIR)
-
     meta = {
         "createdAt": datetime.now().isoformat(timespec="seconds"),
         "count": count,
@@ -187,8 +184,8 @@ def run_batch(*, count: int, label: str, source_key: str, provider_key: str) -> 
         sample_root = samples_dir / f"{index:02d}"
         bundle = create_sample_bundle(sample_root, index)
         try:
-            social_signal_sample = run_social_signal_filter_stage(PROJECT_DIR, bundle, model_config_path)
-            run_world_design_stage(PROJECT_DIR, bundle, character_assets["subjectProfile"], social_signal_sample, model_config_path)
+            social_signal_sample = run_social_signal_filter_stage(PROJECT_DIR, bundle)
+            run_world_design_stage(PROJECT_DIR, bundle, character_assets["subjectProfile"], social_signal_sample)
             patch_world_input(sample_root, source_key=source_key, provider_key=provider_key)
             completed += 1
         except Exception:

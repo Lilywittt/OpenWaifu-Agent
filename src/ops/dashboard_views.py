@@ -371,6 +371,24 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
       container.innerHTML = `<table><thead><tr>${{headHtml}}</tr></thead><tbody>${{rowHtml}}</tbody></table>`;
     }}
 
+    async function submitJson(path, payload) {{
+      const response = await fetch(path, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(payload || {{}}),
+      }});
+      const data = await response.json().catch(() => ({{ ok: false, error: `HTTP ${{response.status}}` }}));
+      if (!response.ok || data.ok === false) {{
+        throw new Error(text(data.error, `HTTP ${{response.status}}`));
+      }}
+      return data;
+    }}
+
+    async function toggleFavorite(payload) {{
+      await submitJson("/api/toggle-favorite", payload);
+      await loadSnapshot();
+    }}
+
     function serviceTone(service) {{
       if (!service) return "status-warn";
       if (service.running && ["listening", "running", "starting"].includes(service.status)) return "status-ok";
@@ -482,11 +500,36 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
             <div class="mono">${{escapeHtml(text(item.runId))}}</div>
             <div>${{escapeHtml(text(item.socialPostPreview, "无社媒文案预览"))}}</div>
             <div class="muted">发布时间：${{escapeHtml(text(item.publishedAt, "未记录"))}}</div>
+            <div>${{item.favorite ? '<span class="badge">收藏</span>' : ""}}</div>
+            <button
+              type="button"
+              data-toggle-favorite-run="${{escapeHtml(text(item.runId))}}"
+              data-run-root="${{escapeHtml(text(item.runRoot))}}"
+              data-scene-title="${{escapeHtml(text(item.sceneDraftPremiseZh))}}">
+              ${{item.favorite ? "取消收藏" : "加入收藏"}}
+            </button>
             <a class="action-link" href="${{escapeHtml(text(item.detailRoute, '#'))}}">查看内容详情</a>
           </li>
         `,
         "最近没有成功产物。",
       );
+      document.querySelectorAll("[data-toggle-favorite-run]").forEach((button) => {{
+        button.addEventListener("click", async () => {{
+          button.disabled = true;
+          try {{
+            await toggleFavorite({{
+              kind: "run",
+              runId: text(button.getAttribute("data-toggle-favorite-run"), ""),
+              runRoot: text(button.getAttribute("data-run-root"), ""),
+              label: text(button.getAttribute("data-scene-title"), ""),
+              sceneDraftPremiseZh: text(button.getAttribute("data-scene-title"), ""),
+            }});
+          }} catch (error) {{
+            button.disabled = false;
+            throw error;
+          }}
+        }});
+      }});
 
       renderSimpleList(
         "events",
@@ -785,6 +828,14 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
       border: 1px solid var(--line);
       background: linear-gradient(180deg, #f7f4ee 0%, #efe8dd 100%);
     }}
+    .preview-path {{
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+      word-break: break-all;
+    }}
     .action-link {{
       color: var(--accent);
       font-weight: 700;
@@ -875,6 +926,7 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
         </div>
         <div class="toolbar">
           <a class="pill" href="/">返回首页</a>
+          <button type="button" id="favorite-btn">加入收藏</button>
           <button type="button" id="refresh-btn">立即刷新</button>
         </div>
       </div>
@@ -919,6 +971,7 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
   <script>
     const RUN_ID = {json.dumps(run_id, ensure_ascii=False)};
     const REFRESH_MS = {refresh_ms};
+    let currentDetailSnapshot = null;
 
     function escapeHtml(value) {{
       return String(value ?? "")
@@ -988,12 +1041,29 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
       `;
     }}
 
+    async function submitJson(path, payload) {{
+      const response = await fetch(path, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(payload || {{}}),
+      }});
+      const data = await response.json().catch(() => ({{ ok: false, error: `HTTP ${{response.status}}` }}));
+      if (!response.ok || data.ok === false) {{
+        throw new Error(text(data.error, `HTTP ${{response.status}}`));
+      }}
+      return data;
+    }}
+
     function renderSnapshot(data) {{
+      currentDetailSnapshot = data;
       document.title = `${{text(data.identity?.dashboardTitle, {json.dumps(project_name, ensure_ascii=False)})}} / ${{text(data.runId, RUN_ID)}}`;
       document.getElementById("detail-title").textContent = text(data.detailTitle, data.runId);
       document.getElementById("meta-run-id").textContent = `runId：${{text(data.runId, RUN_ID)}}`;
       document.getElementById("meta-run-root").textContent = `运行目录：${{text(data.runRoot)}}`;
       document.getElementById("meta-generated").textContent = `最后刷新：${{text(data.generatedAt)}}`;
+      const favoriteButton = document.getElementById("favorite-btn");
+      favoriteButton.textContent = data.favorite ? "取消收藏" : "加入收藏";
+      favoriteButton.disabled = false;
 
       document.getElementById("summary-premise").textContent = text(data.sceneDraftPremiseZh, data.detailTitle);
       document.getElementById("summary-publish").textContent =
@@ -1009,6 +1079,7 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
             <a class="action-link" href="${{escapeHtml(text(data.imageRoute))}}" target="_blank" rel="noreferrer">
               <img class="preview-image" src="${{escapeHtml(text(data.imageRoute))}}" alt="${{escapeHtml(text(data.detailTitle, data.runId))}}" loading="lazy">
             </a>
+            <span class="preview-path">${{escapeHtml(text(data.generatedImagePath))}}</span>
           `
         : '<div class="muted">当前没有可预览的生成图。</div>';
 
@@ -1041,6 +1112,24 @@ def render_run_detail_html(*, project_name: str, run_id: str, refresh_seconds: i
       }}
     }}
 
+    document.getElementById("favorite-btn").addEventListener("click", async (event) => {{
+      const button = event.currentTarget;
+      if (!currentDetailSnapshot) return;
+      button.disabled = true;
+      try {{
+        await submitJson("/api/toggle-favorite", {{
+          kind: "run",
+          runId: text(currentDetailSnapshot.runId, RUN_ID),
+          runRoot: text(currentDetailSnapshot.runRoot, ""),
+          label: text(currentDetailSnapshot.detailTitle, ""),
+          sceneDraftPremiseZh: text(currentDetailSnapshot.sceneDraftPremiseZh, currentDetailSnapshot.detailTitle),
+        }});
+        await loadSnapshot();
+      }} catch (error) {{
+        button.disabled = false;
+        throw error;
+      }}
+    }});
     document.getElementById("refresh-btn").addEventListener("click", loadSnapshot);
     loadSnapshot();
     window.setInterval(loadSnapshot, REFRESH_MS);

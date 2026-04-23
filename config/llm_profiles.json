@@ -1,4 +1,42 @@
 {
-  "creativeModelConfigPath": "config/creative_model.json",
-  "promptGuardModelConfigPath": "config/prompt_guard_model.json"
+  "profiles": {
+    "deepseek_chat": {
+      "provider": "deepseek-openai-compatible",
+      "baseUrl": "https://api.deepseek.com",
+      "chatCompletionsPath": "/chat/completions",
+      "envName": "DEEPSEEK_API_KEY",
+      "model": "deepseek-chat",
+      "temperature": 0.8,
+      "maxTokens": 1800,
+      "timeoutMs": 180000,
+      "retryAttempts": 4,
+      "retryBaseDelayMs": 2000,
+      "parseRetryAttempts": 4,
+      "parseRetryDelayMs": 1200
+    },
+    "deepseek_reasoner": {
+      "provider": "deepseek-openai-compatible",
+      "baseUrl": "https://api.deepseek.com",
+      "chatCompletionsPath": "/chat/completions",
+      "envName": "DEEPSEEK_API_KEY",
+      "model": "deepseek-reasoner",
+      "temperature": 0.8,
+      "maxTokens": 4096,
+      "timeoutMs": 180000,
+      "retryAttempts": 4,
+      "retryBaseDelayMs": 2000,
+      "parseRetryAttempts": 4,
+      "parseRetryDelayMs": 1200
+    }
+  },
+  "stages": {
+    "creative.social_signal_filter": "deepseek_chat",
+    "creative.world_design": "deepseek_chat",
+    "creative.environment_design": "deepseek_chat",
+    "creative.styling_design": "deepseek_chat",
+    "creative.action_design": "deepseek_chat",
+    "social_post.default": "deepseek_chat",
+    "prompt_builder.default": "deepseek_chat",
+    "prompt_guard.default": "deepseek_chat"
+  }
 }

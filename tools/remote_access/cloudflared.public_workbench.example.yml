@@ -1,0 +1,8 @@
+tunnel: 00000000-0000-0000-0000-000000000000
+credentials-file: C:\Users\YOUR_USER\.cloudflared\00000000-0000-0000-0000-000000000000.json
+protocol: quic
+
+ingress:
+  - hostname: workbench.example.com
+    service: http://127.0.0.1:8767
+  - service: http_status:404

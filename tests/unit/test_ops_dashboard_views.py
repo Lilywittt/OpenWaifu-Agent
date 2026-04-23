@@ -17,9 +17,10 @@ class OpsDashboardViewsTests(unittest.TestCase):
         self.assertIn("单小伊 Agent 运维面板", html)
         self.assertIn('id="hero-title"', html)
         self.assertIn("/api/snapshot", html)
+        self.assertIn("/api/toggle-favorite", html)
         self.assertIn("preview-image", html)
-        self.assertIn("待处理队列", html)
-        self.assertIn("事件流", html)
+        self.assertIn("recent-runs", html)
+        self.assertIn("events", html)
 
     def test_render_run_detail_html_contains_detail_panel_elements(self):
         html = render_run_detail_html(
@@ -28,11 +29,12 @@ class OpsDashboardViewsTests(unittest.TestCase):
             refresh_seconds=5,
         )
 
-        self.assertIn("最终送给生图基座的 Prompt", html)
         self.assertIn("/api/run-detail?runId=", html)
-        self.assertIn("快速定位", html)
+        self.assertIn('id="favorite-btn"', html)
+        self.assertIn("/api/toggle-favorite", html)
+        self.assertIn(".preview-path", html)
+        self.assertIn("data.generatedImagePath", html)
         self.assertIn("section-nav-links", html)
-        self.assertIn("内容链概览", html)
         self.assertIn("details[data-raw-key]", html)
         self.assertIn("expandedRawKeys", html)
 

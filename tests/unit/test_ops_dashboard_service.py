@@ -1,10 +1,11 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import json
 import sys
 import threading
 import unittest
 from unittest.mock import patch
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -110,6 +111,63 @@ class OpsDashboardServiceTests(unittest.TestCase):
         self.assertIn("最终生图 Prompt", detail_payload)
         self.assertEqual(content_type, "image/png")
         self.assertEqual(image_bytes, b"\x89PNG\r\n\x1a\n")
+
+
+    def test_dashboard_handler_can_toggle_shared_favorite(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            (project_dir / ".env").write_text("QQ_BOT_DISPLAY_NAME=鍗曞皬浼?Agent\n", encoding="utf-8")
+            run_dir = runs_root(project_dir) / "2026-04-11T18-30-00_qqbot_generate_demo"
+            (run_dir / "output").mkdir(parents=True, exist_ok=True)
+            write_json(
+                run_dir / "output" / "run_summary.json",
+                {
+                    "runId": run_dir.name,
+                    "sceneDraftPremiseZh": "收藏接口测试",
+                },
+            )
+            handler = _make_handler(
+                project_dir=project_dir,
+                dashboard_title="鍗曞皬浼?Agent 杩愮淮闈㈡澘",
+                refresh_seconds=5,
+                queue_limit=20,
+                recent_job_limit=12,
+                event_limit=20,
+                run_limit=8,
+                log_tail_lines=20,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            server.daemon_threads = True
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                request = Request(
+                    base_url + "/api/toggle-favorite",
+                    data=json.dumps(
+                        {
+                            "kind": "run",
+                            "runId": run_dir.name,
+                            "runRoot": str(run_dir),
+                        }
+                    ).encode("utf-8"),
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urlopen(request, timeout=2) as response:
+                    payload = response.read().decode("utf-8")
+                with urlopen(
+                    base_url + f"/api/run-detail?runId={run_dir.name}",
+                    timeout=2,
+                ) as response:
+                    detail_payload = response.read().decode("utf-8")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertIn('"favorited": true', payload)
+        self.assertIn('"favorite": true', detail_payload)
 
 
 if __name__ == "__main__":

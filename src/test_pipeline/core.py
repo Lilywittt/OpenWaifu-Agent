@@ -8,13 +8,13 @@ from typing import Any, Callable
 from character_assets import load_character_assets
 from creative import (
     build_default_run_context,
+    run_creative_pipeline,
     run_parallel_design_stages,
     run_world_design_stage,
 )
 from execution import run_execution_pipeline
 from generation_slot import occupy_generation_slot
 from io_utils import normalize_spaces, read_json, write_json, write_text
-from model_profiles import resolve_creative_model_config_path, resolve_prompt_guard_model_config_path
 from prompt_builder import run_prompt_builder_pipeline
 from prompt_guard import run_prompt_guard_pipeline
 from publish.qq_bot_scene_draft import parse_scene_draft_message
@@ -39,9 +39,9 @@ END_STAGE_PROMPT = "prompt"
 END_STAGE_IMAGE = "image"
 
 SOURCE_KIND_LABELS = {
+    SOURCE_KIND_LIVE_SAMPLING: "实时采样全链路",
     SOURCE_KIND_SCENE_DRAFT_TEXT: "场景稿文本或 JSON",
     SOURCE_KIND_SCENE_DRAFT_FILE: "已有场景稿文件",
-    SOURCE_KIND_LIVE_SAMPLING: "实时采样全链路",
     SOURCE_KIND_SAMPLE_TEXT: "采样内容正文",
     SOURCE_KIND_SAMPLE_FILE: "已有采样输入文件",
     SOURCE_KIND_CREATIVE_PACKAGE_TEXT: "creative package 正文",
@@ -199,6 +199,12 @@ def validate_workbench_request(project_dir: Path, payload: dict[str, Any]) -> di
     request_id = _normalize_text(payload.get("requestId"))
     if request_id:
         normalized["requestId"] = request_id
+    owner_id = _normalize_text(payload.get("ownerId"))
+    if owner_id:
+        normalized["ownerId"] = owner_id
+    owner_display = _normalize_text(payload.get("ownerDisplay"))
+    if owner_display:
+        normalized["ownerDisplay"] = owner_display
     if source_kind == SOURCE_KIND_SCENE_DRAFT_TEXT:
         scene_draft_text = str(payload.get("sceneDraftText", "")).strip()
         if not scene_draft_text:
@@ -464,7 +470,6 @@ def _run_prompt_pipeline(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
     if log is not None:
         log("prompt guard layer: final prompt review -> minimal patch")
@@ -475,7 +480,6 @@ def _run_prompt_pipeline(
         character_assets,
         creative_package,
         prompt_builder_package,
-        resolve_prompt_guard_model_config_path(project_dir),
     )
     return prompt_builder_package, prompt_package
 
@@ -525,7 +529,6 @@ def _run_from_scene_draft(
         bundle,
         character_assets["subjectProfile"],
         scene_draft,
-        resolve_creative_model_config_path(project_dir),
     )
     creative_package.update(design_branches)
     materialize_creative_snapshot(bundle, creative_package)
@@ -543,7 +546,6 @@ def _run_from_scene_draft(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
 
     if request["endStage"] == END_STAGE_SOCIAL_POST:
@@ -639,7 +641,6 @@ def _run_from_sample_file(
         bundle,
         character_assets["subjectProfile"],
         social_signal_sample,
-        resolve_creative_model_config_path(project_dir),
     )
 
     return _run_from_scene_draft(
@@ -689,7 +690,6 @@ def _run_from_sample_text(
         bundle,
         character_assets["subjectProfile"],
         social_signal_sample,
-        resolve_creative_model_config_path(project_dir),
     )
     return _run_from_scene_draft(
         project_dir,
@@ -727,7 +727,6 @@ def _run_from_live_sampling(
         bundle,
         default_run_context,
         character_assets,
-        resolve_creative_model_config_path(project_dir),
     )
 
     _maybe_abort(should_abort)
@@ -739,7 +738,6 @@ def _run_from_live_sampling(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
 
     _maybe_abort(should_abort)
@@ -818,7 +816,6 @@ def _run_from_creative_package_file(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
 
     if request["endStage"] == END_STAGE_SOCIAL_POST:
@@ -959,7 +956,6 @@ def _run_from_creative_package_data(
         default_run_context,
         character_assets,
         creative_package,
-        resolve_creative_model_config_path(project_dir),
     )
     if request["endStage"] == END_STAGE_SOCIAL_POST:
         summary = _write_summary(

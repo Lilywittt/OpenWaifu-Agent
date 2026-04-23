@@ -21,7 +21,6 @@ from runner_common import build_batch_dir, configure_utf8_stdio, create_sample_b
 from character_assets import load_character_assets
 from creative import build_default_run_context, run_creative_pipeline
 from io_utils import ensure_dir, read_json, write_json, write_text
-from model_profiles import resolve_creative_model_config_path
 
 
 BATCH_KIND = "creative_full_pipeline"
@@ -100,7 +99,6 @@ def run_batch(*, count: int, label: str) -> Path:
     ensure_dir(samples_dir)
 
     character_assets = load_character_assets(PROJECT_DIR)
-    model_config_path = resolve_creative_model_config_path(PROJECT_DIR)
     meta = {
         "createdAt": datetime.now().isoformat(timespec="seconds"),
         "count": count,
@@ -121,7 +119,6 @@ def run_batch(*, count: int, label: str) -> Path:
                 bundle,
                 default_run_context,
                 character_assets,
-                model_config_path,
             )
         except Exception:
             shutil.rmtree(sample_root, ignore_errors=True)

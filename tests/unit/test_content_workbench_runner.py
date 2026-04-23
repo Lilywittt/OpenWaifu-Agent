@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
 from test_pipeline import (
     END_STAGE_IMAGE,
     END_STAGE_PROMPT,
+    SOURCE_KIND_LIVE_SAMPLING,
     SOURCE_KIND_SAMPLE_TEXT,
     SOURCE_KIND_CREATIVE_PACKAGE_TEXT,
     SOURCE_KIND_PROMPT_PACKAGE_TEXT,
@@ -96,12 +97,6 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
             ), patch(
                 "test_pipeline.core.run_prompt_guard_pipeline",
                 side_effect=fake_prompt_guard_pipeline,
-            ), patch(
-                "test_pipeline.core.resolve_creative_model_config_path",
-                return_value=project_dir / "creative_model.json",
-            ), patch(
-                "test_pipeline.core.resolve_prompt_guard_model_config_path",
-                return_value=project_dir / "prompt_guard_model.json",
             ), patch(
                 "test_pipeline.core.occupy_generation_slot",
                 return_value=nullcontext(),
@@ -247,12 +242,6 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
                 "test_pipeline.core.run_execution_pipeline",
                 return_value={"imagePath": str(bundle.output_dir / "image.png")},
             ) as execution_mock, patch(
-                "test_pipeline.core.resolve_creative_model_config_path",
-                return_value=project_dir / "creative_model.json",
-            ), patch(
-                "test_pipeline.core.resolve_prompt_guard_model_config_path",
-                return_value=project_dir / "prompt_guard_model.json",
-            ), patch(
                 "test_pipeline.core.occupy_generation_slot",
                 return_value=nullcontext(),
             ):
@@ -272,6 +261,59 @@ class ContentWorkbenchRunnerTests(unittest.TestCase):
                 self.assertEqual(result["summary"]["promptSeedSalt"], "rerun-request-001")
                 self.assertEqual(execution_mock.call_args.args[3]["seedSalt"], "rerun-request-001")
                 self.assertTrue((bundle.output_dir / "run_summary.json").is_file())
+
+    def test_execute_live_sampling_to_image_uses_creative_pipeline(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+
+            with patch("test_pipeline.core.load_character_assets", return_value={"subjectProfile": _subject_profile()}), patch(
+                "test_pipeline.core.build_default_run_context",
+                return_value={"createdAt": "2026-04-21T14:20:00"},
+            ), patch(
+                "test_pipeline.core.run_creative_pipeline",
+                return_value={
+                    "scenePremiseZh": "测试前提",
+                    "worldSceneZh": "测试场景",
+                    "environmentDesign": "环境设计",
+                    "stylingDesign": "造型设计",
+                    "actionDesign": "动作设计",
+                },
+            ) as creative_mock, patch(
+                "test_pipeline.core.run_social_post_pipeline",
+                return_value={"socialPostText": "社媒文案"},
+            ), patch(
+                "test_pipeline.core.run_prompt_builder_pipeline",
+                return_value={"positivePrompt": "builder positive", "negativePrompt": "builder negative"},
+            ), patch(
+                "test_pipeline.core.run_prompt_guard_pipeline",
+                return_value={
+                    "positivePrompt": "guarded positive",
+                    "negativePrompt": "guarded negative",
+                    "reviewStatus": "approved",
+                    "promptChanged": False,
+                    "reviewIssues": [],
+                    "changeSummary": "",
+                },
+            ), patch(
+                "test_pipeline.core.run_execution_pipeline",
+                return_value={"imagePath": str(project_dir / "runtime" / "runs" / "image.png")},
+            ) as execution_mock, patch(
+                "test_pipeline.core.occupy_generation_slot",
+                return_value=nullcontext(),
+            ):
+                result = execute_workbench_task(
+                    project_dir,
+                    {
+                        "sourceKind": SOURCE_KIND_LIVE_SAMPLING,
+                        "endStage": END_STAGE_IMAGE,
+                        "label": "live_sampling_smoke",
+                    },
+                )
+
+                self.assertTrue(creative_mock.called)
+                self.assertTrue(execution_mock.called)
+                self.assertEqual(result["request"]["sourceKind"], SOURCE_KIND_LIVE_SAMPLING)
+                self.assertTrue((result["bundle"].output_dir / "run_summary.json").is_file())
 
 
 if __name__ == "__main__":

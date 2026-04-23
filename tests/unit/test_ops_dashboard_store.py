@@ -15,6 +15,7 @@ from ops.dashboard_store import (
     build_run_detail_snapshot,
     resolve_dashboard_generated_image_artifact,
     resolve_generated_image_artifact,
+    toggle_dashboard_favorite,
 )
 from run_detail_store import build_run_detail_snapshot_from_path
 from publish.qq_bot_job_queue import QQBotJobQueue
@@ -151,6 +152,7 @@ class OpsDashboardStoreTests(unittest.TestCase):
             snapshot["recentRuns"][0]["detailRoute"],
             "/runs/detail?runId=2026-04-11T12-03-00_qqbot_generate_demo",
         )
+        self.assertFalse(snapshot["recentRuns"][0]["favorite"])
 
     def test_build_dashboard_snapshot_handles_missing_and_invalid_files(self):
         with TemporaryDirectory() as temp_dir:
@@ -341,6 +343,40 @@ class OpsDashboardStoreTests(unittest.TestCase):
 
         self.assertIsNone(snapshot)
         self.assertIsNone(image)
+
+    def test_dashboard_snapshot_and_detail_reflect_shared_favorites(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_dir = runs_root(project_dir) / "2026-04-11T12-03-00_qqbot_generate_demo"
+            (run_dir / "output").mkdir(parents=True, exist_ok=True)
+            image_path = run_dir / "output" / "demo.png"
+            image_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+            write_json(
+                run_dir / "output" / "run_summary.json",
+                {
+                    "runId": run_dir.name,
+                    "generatedImagePath": str(image_path),
+                    "sceneDraftPremiseZh": "收藏测试",
+                },
+            )
+
+            toggle_dashboard_favorite(
+                project_dir,
+                {
+                    "kind": "run",
+                    "runId": run_dir.name,
+                    "runRoot": str(run_dir),
+                    "label": "收藏测试",
+                },
+            )
+
+            snapshot = build_dashboard_snapshot(project_dir)
+            detail = build_dashboard_run_detail_snapshot(project_dir, run_dir.name)
+
+        self.assertTrue(snapshot["recentRuns"][0]["favorite"])
+        assert detail is not None
+        self.assertTrue(detail["favorite"])
+        self.assertEqual(detail["favoriteKind"], "run")
 
 
 if __name__ == "__main__":

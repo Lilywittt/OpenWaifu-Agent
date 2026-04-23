@@ -35,6 +35,7 @@ from studio.content_workbench_store import (
     workbench_inventory_paths,
 )
 from studio.content_workbench_worker import run_content_workbench_worker
+from workbench.profile import PRIVATE_PROFILE, load_workbench_runtime_settings
 
 
 def _configure_utf8_stdio() -> None:
@@ -42,6 +43,9 @@ def _configure_utf8_stdio() -> None:
         stream = getattr(sys, stream_name, None)
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+DEFAULT_SETTINGS = load_workbench_runtime_settings(PROJECT_DIR, PRIVATE_PROFILE)
 
 
 def _workbench_log_paths(project_dir: Path) -> tuple[Path, Path]:
@@ -78,13 +82,13 @@ def _build_cli() -> HttpSidecarCli:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the local content workbench.")
     parser.add_argument("--foreground", action="store_true", help="Run in the current process for debugging.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8766)
-    parser.add_argument("--refresh-seconds", type=int, default=5)
-    parser.add_argument("--history-limit", type=int, default=DEFAULT_HISTORY_LIMIT)
+    parser.add_argument("--host", default=DEFAULT_SETTINGS.host)
+    parser.add_argument("--port", type=int, default=DEFAULT_SETTINGS.port)
+    parser.add_argument("--refresh-seconds", type=int, default=DEFAULT_SETTINGS.refresh_seconds)
+    parser.add_argument("--history-limit", type=int, default=DEFAULT_SETTINGS.history_limit or DEFAULT_HISTORY_LIMIT)
     parser.add_argument("--open-browser", dest="open_browser", action="store_true")
     parser.add_argument("--no-open-browser", dest="open_browser", action="store_false")
-    parser.set_defaults(open_browser=True)
+    parser.set_defaults(open_browser=DEFAULT_SETTINGS.open_browser)
     return parser
 
 

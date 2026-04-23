@@ -1,0 +1,18 @@
+{
+  "private": {
+    "title": "内容测试工作台",
+    "host": "127.0.0.1",
+    "port": 8766,
+    "refreshSeconds": 5,
+    "historyLimit": 30,
+    "openBrowser": true
+  },
+  "public": {
+    "title": "内容体验工作台",
+    "host": "127.0.0.1",
+    "port": 8767,
+    "refreshSeconds": 15,
+    "historyLimit": 30,
+    "openBrowser": false
+  }
+}

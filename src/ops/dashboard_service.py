@@ -22,6 +22,7 @@ from .dashboard_store import (
     build_dashboard_run_detail_snapshot,
     build_dashboard_snapshot,
     resolve_dashboard_generated_image_artifact,
+    toggle_dashboard_favorite,
 )
 from .dashboard_views import render_dashboard_html, render_run_detail_html
 
@@ -99,6 +100,22 @@ def _make_handler(
             body = path.read_bytes()
             self._send_response(body=body, content_type=content_type)
 
+        def _read_json_body(self) -> dict[str, Any]:
+            try:
+                content_length = int(self.headers.get("Content-Length", "0") or 0)
+            except ValueError as exc:
+                raise RuntimeError("请求体长度无效。") from exc
+            raw = self.rfile.read(max(content_length, 0)) if content_length > 0 else b"{}"
+            if not raw:
+                return {}
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except Exception as exc:
+                raise RuntimeError("请求体不是合法 JSON。") from exc
+            if not isinstance(payload, dict):
+                raise RuntimeError("请求体顶层必须是 JSON 对象。")
+            return payload
+
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
             if parsed.path in ("/", "/index.html"):
@@ -167,6 +184,18 @@ def _make_handler(
 
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
+            if parsed.path == "/api/toggle-favorite":
+                try:
+                    payload = self._read_json_body()
+                    result = toggle_dashboard_favorite(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": str(exc).strip() or "无法更新收藏状态。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, **result})
+                return
             if parsed.path == "/api/shutdown":
                 self._send_json({"ok": True})
                 threading.Thread(target=self.server.shutdown, daemon=True).start()

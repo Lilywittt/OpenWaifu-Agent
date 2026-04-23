@@ -9,9 +9,29 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from io_utils import read_json
+from io_utils import read_json, write_json
 from prompt_guard.pipeline import build_prompt_guard_input, run_prompt_guard_pipeline
 from runtime_layout import create_run_bundle
+
+
+def _write_llm_profiles(project_dir: Path) -> None:
+    write_json(
+        project_dir / "config" / "llm_profiles.json",
+        {
+            "profiles": {
+                "reasoner": {
+                    "provider": "deepseek-openai-compatible",
+                    "baseUrl": "https://api.deepseek.com",
+                    "chatCompletionsPath": "/chat/completions",
+                    "envName": "DEEPSEEK_API_KEY",
+                    "model": "deepseek-reasoner",
+                }
+            },
+            "stages": {
+                "prompt_guard.default": "reasoner",
+            },
+        },
+    )
 
 
 class PromptGuardPipelineTests(unittest.TestCase):
@@ -37,10 +57,7 @@ class PromptGuardPipelineTests(unittest.TestCase):
 
         payload = build_prompt_guard_input(prompt_package, world_design, subject_profile)
 
-        self.assertEqual(
-            list(payload.keys()),
-            ["promptPackage", "sceneDraft", "subjectProfile"],
-        )
+        self.assertEqual(list(payload.keys()), ["promptPackage", "sceneDraft", "subjectProfile"])
         self.assertEqual(payload["promptPackage"]["positivePrompt"], prompt_package["positivePrompt"])
         self.assertEqual(payload["sceneDraft"]["scenePremiseZh"], "旧书店午后")
         self.assertEqual(payload["subjectProfile"]["display_name_zh"], "单小伊")
@@ -51,6 +68,7 @@ class PromptGuardPipelineTests(unittest.TestCase):
             prompt_dir = project_dir / "prompts" / "prompt_guard"
             prompt_dir.mkdir(parents=True)
             (prompt_dir / "review_and_patch_prompt.md").write_text("template", encoding="utf-8")
+            _write_llm_profiles(project_dir)
 
             bundle = create_run_bundle(project_dir, "default", "prompt-guard")
             character_assets = {
@@ -93,7 +111,6 @@ class PromptGuardPipelineTests(unittest.TestCase):
                     character_assets,
                     creative_package,
                     prompt_package,
-                    project_dir / "config" / "prompt_guard_model.json",
                 )
 
             input_snapshot = read_json(bundle.prompt_guard_dir / "00_prompt_guard_input.json")
@@ -106,10 +123,7 @@ class PromptGuardPipelineTests(unittest.TestCase):
         self.assertEqual(review_snapshot["issues"], ["原 prompt 的肢体占用有冲突"])
         self.assertEqual(package_snapshot["reviewStatus"], "revised")
         self.assertTrue(package_snapshot["promptChanged"])
-        self.assertEqual(
-            package_snapshot["sourcePromptPackagePath"],
-            str(bundle.prompt_builder_dir / "01_prompt_package.json"),
-        )
+        self.assertEqual(package_snapshot["sourcePromptPackagePath"], str(bundle.prompt_builder_dir / "01_prompt_package.json"))
         self.assertEqual(
             final_prompt_package["positivePrompt"],
             "solo girl, bookstore, one hand reaching to shelf, balanced standing pose",

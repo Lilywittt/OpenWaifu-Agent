@@ -65,8 +65,6 @@ class ProductPipelineTests(unittest.TestCase):
             with (
                 patch("product_pipeline.load_character_assets", return_value=character_assets),
                 patch("product_pipeline.build_default_run_context", return_value=default_run_context),
-                patch("product_pipeline.resolve_creative_model_config_path", return_value=project_dir / "config" / "creative_model.json"),
-                patch("product_pipeline.resolve_prompt_guard_model_config_path", return_value=project_dir / "config" / "prompt_guard_model.json"),
                 patch("product_pipeline.run_creative_pipeline", return_value=creative_package),
                 patch("product_pipeline.run_social_post_pipeline", return_value=social_post_package),
                 patch("product_pipeline.run_prompt_builder_pipeline", return_value=prompt_builder_package),

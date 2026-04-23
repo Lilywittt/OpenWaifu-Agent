@@ -9,6 +9,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json
 from llm import call_json_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
+from model_profiles import resolve_stage_model_profile
 from prompt_loader import load_prompt_text
 
 from .contracts import prompt_guard_contract
@@ -94,7 +95,6 @@ def run_prompt_guard_pipeline(
     character_assets: dict[str, Any],
     creative_package: dict[str, Any],
     prompt_package: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, Any]:
     prompt_guard_input = build_prompt_guard_input(
         prompt_package,
@@ -104,7 +104,7 @@ def run_prompt_guard_pipeline(
     write_json(bundle.prompt_guard_dir / INPUT_FILENAME, prompt_guard_input)
     result = call_json_task(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=resolve_stage_model_profile(project_dir, "prompt_guard.default"),
         system_prompt=_system_prompt(project_dir),
         user_payload=to_deepseek_payload({"promptGuardInput": prompt_guard_input}),
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",

@@ -9,6 +9,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json
 from llm import call_json_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
+from model_profiles import resolve_stage_model_profile
 from prompt_loader import load_prompt_text
 
 from .contracts import image_prompt_contract
@@ -65,13 +66,12 @@ def run_image_prompt_stage(
     bundle,
     subject_profile: dict[str, Any],
     creative_package: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, str]:
     image_prompt_input = build_image_prompt_input(subject_profile, creative_package)
     write_json(bundle.prompt_builder_dir / INPUT_FILENAME, image_prompt_input)
     result = call_json_task(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=resolve_stage_model_profile(project_dir, "prompt_builder.default"),
         system_prompt=_system_prompt(project_dir),
         user_payload=to_deepseek_payload({"imagePromptInput": image_prompt_input}),
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
@@ -89,14 +89,12 @@ def run_prompt_builder_pipeline(
     default_run_context: dict[str, Any],
     character_assets: dict[str, Any],
     creative_package: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, Any]:
     image_prompt = run_image_prompt_stage(
         project_dir,
         bundle,
         character_assets["subjectProfile"],
         creative_package,
-        model_config_path,
     )
     prompt_package = {
         "meta": {

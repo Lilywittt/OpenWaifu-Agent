@@ -19,7 +19,7 @@ class ContentWorkbenchWorkerTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             with patch(
-                "studio.content_workbench_worker.read_active_request",
+                "workbench.worker.read_active_request",
                 side_effect=[
                     None,
                     {"requestId": "other", "sourceKind": "scene_draft_text"},
@@ -47,10 +47,10 @@ class ContentWorkbenchWorkerTests(unittest.TestCase):
                 "sceneDraftText": "夜里便利店",
             }
             with patch(
-                "studio.content_workbench_worker.read_active_request",
+                "workbench.worker.read_active_request",
                 side_effect=[None, request_payload],
             ), patch(
-                "studio.content_workbench_worker.execute_workbench_task",
+                "workbench.worker.execute_workbench_task",
                 return_value={"summary": {"sceneDraftPremiseZh": "夜里便利店"}, "bundle": None},
             ):
                 exit_code = run_content_workbench_worker(project_dir, request_id="req-1")

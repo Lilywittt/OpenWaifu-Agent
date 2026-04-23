@@ -21,7 +21,12 @@ from studio.content_workbench_service import (
     content_workbench_browser_url,
     probe_existing_content_workbench,
 )
-from studio.content_workbench_store import is_workbench_stop_requested, read_active_worker, read_workbench_status
+from studio.content_workbench_store import (
+    content_workbench_state_root,
+    is_workbench_stop_requested,
+    read_active_worker,
+    read_workbench_status,
+)
 
 
 class _FakeManager:
@@ -156,11 +161,63 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(payload["detail"]["runRoot"], str(run_dir))
         self.assertEqual(payload["detail"]["detailTitle"], "深夜便利店")
 
+    def test_handler_toggle_favorite_and_review_path_reflect_state(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_dir = runs_root(project_dir) / "2026-04-11T21-00-00_favorite_path"
+            creative_dir = run_dir / "creative"
+            output_dir = run_dir / "output"
+            creative_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_json(
+                creative_dir / "01_world_design.json",
+                {"scenePremiseZh": "收藏目录", "worldSceneZh": "这里测试目录收藏"},
+            )
+            write_json(output_dir / "run_summary.json", {"runId": run_dir.name, "sceneDraftPremiseZh": "收藏目录"})
+            manager = _FakeManager()
+            handler = _make_handler(
+                project_dir=project_dir,
+                refresh_seconds=5,
+                history_limit=10,
+                manager=manager,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            server.daemon_threads = True
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                toggle_request = Request(
+                    base_url + "/api/toggle-favorite",
+                    data=json.dumps({"kind": "path", "path": str(creative_dir), "label": "creative_dir"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(toggle_request, timeout=2) as response:
+                    toggle_payload = json.loads(response.read().decode("utf-8"))
+                review_request = Request(
+                    base_url + "/api/review-path",
+                    data=json.dumps({"path": str(creative_dir)}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(review_request, timeout=2) as response:
+                    review_payload = json.loads(response.read().decode("utf-8"))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertTrue(toggle_payload["ok"])
+        self.assertTrue(toggle_payload["favorited"])
+        self.assertTrue(review_payload["favorite"])
+        self.assertTrue(review_payload["detail"]["favorite"])
+
     def test_snapshot_reconciles_stale_running_status(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             write_json(
-                project_dir / "runtime" / "service_state" / "sidecars" / "content_workbench" / "latest_status.json",
+                content_workbench_state_root(project_dir) / "latest_status.json",
                 {"status": "running", "stage": "准备测试输入", "runId": "", "runRoot": "", "request": {}},
             )
             manager = _FakeManager()
@@ -190,7 +247,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
             project_dir = Path(temp_dir)
             manager = ContentWorkbenchManager(project_dir)
             with patch(
-                "studio.content_workbench_service.read_generation_slot",
+                "workbench.service.read_generation_slot",
                 return_value={
                     "ownerType": "qq_bot_service",
                     "ownerLabel": "QQ 私聊服务",
@@ -215,7 +272,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
             manager = ContentWorkbenchManager(project_dir)
 
             with patch(
-                "studio.content_workbench_service.read_generation_slot",
+                "workbench.service.read_generation_slot",
                 return_value=None,
             ), patch.object(
                 ContentWorkbenchManager,
@@ -246,7 +303,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
             project_dir = Path(temp_dir)
             manager = ContentWorkbenchManager(project_dir)
             with patch(
-                "studio.content_workbench_service.read_generation_slot",
+                "workbench.service.read_generation_slot",
                 return_value=None,
             ), patch.object(
                 ContentWorkbenchManager,
@@ -276,7 +333,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
             project_dir = Path(temp_dir)
             manager = ContentWorkbenchManager(project_dir)
             with patch(
-                "studio.content_workbench_service.read_generation_slot",
+                "workbench.service.read_generation_slot",
                 return_value=None,
             ), patch.object(
                 ContentWorkbenchManager,
@@ -293,14 +350,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
                         }
                     )
             status_payload = json.loads(
-                (
-                    project_dir
-                    / "runtime"
-                    / "service_state"
-                    / "sidecars"
-                    / "content_workbench"
-                    / "latest_status.json"
-                ).read_text(encoding="utf-8")
+                (content_workbench_state_root(project_dir) / "latest_status.json").read_text(encoding="utf-8")
             )
 
         self.assertEqual(status_payload["status"], "failed")
@@ -311,16 +361,52 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
             project_dir = Path(temp_dir)
             manager = ContentWorkbenchManager(project_dir)
             write_json(
-                project_dir / "runtime" / "service_state" / "sidecars" / "content_workbench" / "latest_status.json",
+                content_workbench_state_root(project_dir) / "latest_status.json",
                 {"status": "running", "stage": "execution layer", "runId": "run-001"},
             )
-            with patch("studio.content_workbench_service.read_active_worker", return_value={"pid": 24680}):
+            with patch("workbench.service.read_active_worker", return_value={"pid": 24680}):
                 result = manager.stop_task()
 
             self.assertTrue(is_workbench_stop_requested(project_dir))
 
         self.assertTrue(result["accepted"])
         self.assertFalse(result["alreadyStopping"])
+        self.assertFalse(result["forced"])
+
+    def test_manager_second_stop_forces_worker_termination(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            manager = ContentWorkbenchManager(project_dir)
+            run_dir = runs_root(project_dir) / "run-001"
+            (run_dir / "output").mkdir(parents=True, exist_ok=True)
+            write_json(run_dir / "output" / "run_summary.json", {"runId": "run-001"})
+            write_json(
+                content_workbench_state_root(project_dir) / "latest_status.json",
+                {
+                    "status": "stopping",
+                    "stage": "creative layer",
+                    "runId": "run-001",
+                    "runRoot": str(run_dir),
+                    "request": {
+                        "sourceKind": "live_sampling",
+                        "endStage": "image",
+                        "label": "实时采样全链路",
+                    },
+                    "startedAt": "2026-04-22T22:05:27",
+                },
+            )
+            with patch("workbench.service.read_active_worker", return_value={"pid": 24680}), patch(
+                "workbench.service.terminate_process_tree",
+                return_value=True,
+            ), patch("workbench.service.is_process_alive", return_value=False):
+                result = manager.stop_task()
+            status_payload = read_workbench_status(project_dir) or {}
+
+        self.assertTrue(result["accepted"])
+        self.assertTrue(result["alreadyStopping"])
+        self.assertTrue(result["forced"])
+        self.assertEqual(status_payload["status"], "interrupted")
+        self.assertEqual(status_payload["error"], "当前内容生成已被强制停止。")
 
 
 if __name__ == "__main__":

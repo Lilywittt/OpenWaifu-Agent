@@ -1,43 +1,13 @@
 # 目录管理说明
 
-## 顶层结构
+目录现在按“核心能力、公共入口、私有工具、外层接入”分。
 
-```text
-character/
-config/
-docs/
-prompts/
-runtime/
-src/
-tests/
-tools/
-run_product.py
-run_generate_product.py
-run_qq_bot_service.py
-run_ops_dashboard.py
-run_content_workbench.py
-```
+`src/workbench/` 是共享 workbench 内核，里面放 service、store、worker、views、profile、identity。`src/studio/` 是私有工作台适配层，`src/public_web/` 是公共 workbench 适配层，`src/ops/` 是运维面板，`src/publish/` 是 QQ 产品入口。`src/test_pipeline/` 继续负责 richer 的内容生成编排，`src/run_detail_store.py` 继续负责 run 详情读取。
 
-根目录的 `run_*.py` 分成两类：正式产品入口是 `run_product.py`、`run_generate_product.py` 和 `run_qq_bot_service.py`，开发工具入口是 `run_ops_dashboard.py` 和 `run_content_workbench.py`。
+根目录入口现在有四个常用脚本：`run_ops_dashboard.py`、`run_content_workbench.py`、`run_public_workbench.py`、`run_qq_bot_service.py`。其中 `run_public_workbench.py` 是公共网页入口，`run_content_workbench.py` 是私有测试入口。
 
-## 正式产品相关目录
+配置层也按职责分开：`config/character_assets.json` 管人物资产入口，`config/llm_profiles.json` 管文本模型，`config/workbench_profiles.json` 管 private/public workbench 的端口和标题，`config/execution/` 管生图基座。
 
-`character/` 放人物资产正文，当前主文件是 `character/subject_profile.json`。`config/` 放人物资产入口、LLM 入口、execution profile 入口和发布配置。`prompts/` 放 creative、social_post、prompt_builder 和 prompt_guard 的提示词模板。`src/creative/`、`src/social_post/`、`src/prompt_builder/`、`src/prompt_guard/`、`src/execution/` 和 `src/publish/` 组成正式产品代码。
+运行态目录重点看这三处：`runtime/runs/` 放所有任务产物，`runtime/service_state/shared/workbench/` 放共享 workbench 状态，`runtime/service_state/shared/review_favorites.jsonl` 放共享收藏索引。`runtime/service_logs/sidecars/` 继续放私有和运维入口自己的日志；公网接入壳自己的日志单独放在 `runtime/service_logs/remote_access/`。
 
-## 开发工具相关目录
-
-`src/ops/` 是运维面板，`src/studio/` 是内容测试工作台，`src/test_pipeline/` 是测试编排核心。`tests/unit/` 放单元测试，`tests/runners/` 放批量回放和链路验证脚本。与工作台能力重合的批量脚本统一复用 `src/test_pipeline/core.py`。
-
-`tools/qq_bot/` 保留一次性 QQ 调试工具，例如 token、发消息、网关监听和回调接收。
-
-## 运行产物与状态
-
-正式产品链和内容测试工作台都把内容产物放到 `runtime/runs/<run_id>/`。`tests/runners/` 的批量回放仍然保留 `runtime/test_batches/` 作为独立批次区，便于与正式 run 分开看。
-
-QQ 服务状态放在 `runtime/service_state/publish/`。运维面板和工作台自己的状态与日志放在 `runtime/service_state/sidecars/` 和 `runtime/service_logs/sidecars/`。跨入口共享的生成执行位放在 `runtime/service_state/shared/generation_slot.json`。
-
-工作台的运行索引与清理报告统一放在 `runtime/service_state/sidecars/content_workbench/`，其中 `run_index.csv` 用于人工筛选和训练选片，`cleanup_report.*` 用于清理候选审阅。
-
-## 本地临时区
-
-项目根目录可以保留 `.temp/` 作为本机 scratch 区。它不进入正式链路，也不进入正式文档索引。
+`tools/remote_access/` 只放公网接入模板和脚本，不放真实凭据。真实 `cloudflared` 凭据继续留在仓库外的本机目录。这样目录层级始终清楚：业务代码在 `src/`，运行配置在 `config/`，公网壳在 `tools/remote_access/`，运行态数据在 `runtime/`。

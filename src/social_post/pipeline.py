@@ -9,6 +9,7 @@ from typing import Any
 from io_utils import write_json, write_text
 from llm import call_text_task
 from llm_schema import to_deepseek_payload
+from model_profiles import resolve_stage_model_profile
 from prompt_loader import render_prompt_text
 
 
@@ -67,13 +68,12 @@ def run_social_post_stage(
     bundle,
     subject_profile: dict[str, Any],
     scene_draft: dict[str, Any],
-    model_config_path: Path,
 ) -> str:
     social_post_input = build_social_post_input(subject_profile, scene_draft)
     write_json(bundle.social_post_dir / INPUT_FILENAME, social_post_input)
     result = call_text_task(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=resolve_stage_model_profile(project_dir, "social_post.default"),
         system_prompt=_system_prompt(project_dir, social_post_input["subjectProfile"], social_post_input["sceneDraft"]),
         user_payload=None,
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
@@ -91,7 +91,6 @@ def run_social_post_pipeline(
     default_run_context: dict[str, Any],
     character_assets: dict[str, Any],
     creative_package: dict[str, Any],
-    model_config_path: Path,
 ) -> dict[str, Any]:
     scene_draft = copy.deepcopy(creative_package.get("worldDesign", {}))
     social_post_text = run_social_post_stage(
@@ -99,7 +98,6 @@ def run_social_post_pipeline(
         bundle,
         character_assets["subjectProfile"],
         scene_draft,
-        model_config_path,
     )
     social_post_package = {
         "meta": {

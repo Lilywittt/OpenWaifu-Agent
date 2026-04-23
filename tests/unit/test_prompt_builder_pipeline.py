@@ -9,9 +9,29 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from io_utils import read_json
+from io_utils import read_json, write_json
 from prompt_builder.pipeline import run_prompt_builder_pipeline
 from runtime_layout import create_run_bundle
+
+
+def _write_llm_profiles(project_dir: Path) -> None:
+    write_json(
+        project_dir / "config" / "llm_profiles.json",
+        {
+            "profiles": {
+                "chat": {
+                    "provider": "deepseek-openai-compatible",
+                    "baseUrl": "https://api.deepseek.com",
+                    "chatCompletionsPath": "/chat/completions",
+                    "envName": "DEEPSEEK_API_KEY",
+                    "model": "deepseek-chat",
+                }
+            },
+            "stages": {
+                "prompt_builder.default": "chat",
+            },
+        },
+    )
 
 
 class PromptBuilderPipelineTests(unittest.TestCase):
@@ -21,6 +41,7 @@ class PromptBuilderPipelineTests(unittest.TestCase):
             prompts_dir = project_dir / "prompts" / "prompt_builder"
             prompts_dir.mkdir(parents=True)
             (prompts_dir / "image_prompt.md").write_text("template", encoding="utf-8")
+            _write_llm_profiles(project_dir)
 
             bundle = create_run_bundle(project_dir, "default", "prompt-builder-pipeline")
             character_assets = {
@@ -51,7 +72,6 @@ class PromptBuilderPipelineTests(unittest.TestCase):
                     {"runMode": "default", "nowLocal": "2026-04-07T11:00:00"},
                     character_assets,
                     creative_package,
-                    project_dir / "config" / "creative_model.json",
                 )
 
             image_prompt_input = read_json(bundle.prompt_builder_dir / "00_image_prompt_input.json")

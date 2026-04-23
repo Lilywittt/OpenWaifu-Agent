@@ -9,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from env import require_env_value
-from io_utils import read_json
 
 
 def extract_json_block(raw: str) -> str:
@@ -146,7 +145,7 @@ def _call_model_once(
 def _call_model(
     *,
     project_dir: Path,
-    model_config_path: Path,
+    model_config: dict[str, Any],
     system_prompt: str,
     user_payload: dict[str, Any] | None,
     trace_request_path: Path,
@@ -154,7 +153,6 @@ def _call_model(
     temperature: float | None = None,
     max_tokens: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    model_config = read_json(model_config_path)
     api_key = require_env_value(project_dir, model_config["envName"])
     retry_attempts = max(int(model_config.get("retryAttempts", 1)), 1)
     retry_base_delay_ms = max(int(model_config.get("retryBaseDelayMs", 0)), 0)
@@ -184,7 +182,7 @@ def _call_model(
 def call_json_task(
     *,
     project_dir: Path,
-    model_config_path: Path,
+    model_config: dict[str, Any],
     system_prompt: str,
     user_payload: dict[str, Any] | None,
     trace_request_path: Path,
@@ -192,7 +190,6 @@ def call_json_task(
     temperature: float | None = None,
     max_tokens: int | None = None,
 ) -> Any:
-    model_config = read_json(model_config_path)
     parse_retry_attempts = max(int(model_config.get("parseRetryAttempts", 1)), 1)
     parse_retry_delay_ms = max(int(model_config.get("parseRetryDelayMs", 0)), 0)
     last_error: Exception | None = None
@@ -200,7 +197,7 @@ def call_json_task(
         try:
             _, payload = _call_model(
                 project_dir=project_dir,
-                model_config_path=model_config_path,
+                model_config=model_config,
                 system_prompt=system_prompt,
                 user_payload=user_payload,
                 trace_request_path=trace_request_path,
@@ -221,7 +218,7 @@ def call_json_task(
 def call_text_task(
     *,
     project_dir: Path,
-    model_config_path: Path,
+    model_config: dict[str, Any],
     system_prompt: str,
     user_payload: dict[str, Any] | None,
     trace_request_path: Path,
@@ -231,7 +228,7 @@ def call_text_task(
 ) -> str:
     _, payload = _call_model(
         project_dir=project_dir,
-        model_config_path=model_config_path,
+        model_config=model_config,
         system_prompt=system_prompt,
         user_payload=user_payload,
         trace_request_path=trace_request_path,

@@ -9,35 +9,54 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from io_utils import write_json
-from model_profiles import resolve_creative_model_config_path, resolve_prompt_guard_model_config_path
+from model_profiles import list_model_profiles, list_stage_profile_map, resolve_stage_model_profile
+
+
+def _write_llm_profiles(project_dir: Path) -> None:
+    write_json(
+        project_dir / "config" / "llm_profiles.json",
+        {
+            "profiles": {
+                "chat": {"model": "deepseek-chat", "envName": "DEEPSEEK_API_KEY"},
+                "reasoner": {"model": "deepseek-reasoner", "envName": "DEEPSEEK_API_KEY"},
+            },
+            "stages": {
+                "creative.world_design": "reasoner",
+                "prompt_guard.default": "reasoner",
+                "social_post.default": "chat",
+            },
+        },
+    )
 
 
 class ModelProfilesTests(unittest.TestCase):
-    def test_resolve_model_profile_paths_reads_configured_files(self):
+    def test_resolve_stage_model_profile_reads_unified_config(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
-            write_json(
-                project_dir / "config" / "llm_profiles.json",
-                {
-                    "creativeModelConfigPath": "config/creative_model.json",
-                    "promptGuardModelConfigPath": "config/prompt_guard_model.json",
-                },
-            )
-            write_json(project_dir / "config" / "creative_model.json", {"model": "creative"})
-            write_json(project_dir / "config" / "prompt_guard_model.json", {"model": "guard"})
+            _write_llm_profiles(project_dir)
 
-            creative_path = resolve_creative_model_config_path(project_dir)
-            prompt_guard_path = resolve_prompt_guard_model_config_path(project_dir)
+            profile = resolve_stage_model_profile(project_dir, "creative.world_design")
 
-        self.assertTrue(str(creative_path).endswith("config\\creative_model.json"))
-        self.assertTrue(str(prompt_guard_path).endswith("config\\prompt_guard_model.json"))
+        self.assertEqual(profile["model"], "deepseek-reasoner")
 
-    def test_resolve_model_profile_paths_raise_clear_error_when_missing(self):
+    def test_list_helpers_return_unified_sections(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
+            _write_llm_profiles(project_dir)
 
-            with self.assertRaisesRegex(RuntimeError, "llm profiles config does not exist"):
-                resolve_creative_model_config_path(project_dir)
+            profiles = list_model_profiles(project_dir)
+            stages = list_stage_profile_map(project_dir)
+
+        self.assertEqual(set(profiles.keys()), {"chat", "reasoner"})
+        self.assertEqual(stages["social_post.default"], "chat")
+
+    def test_resolve_stage_model_profile_raises_clear_error_when_stage_missing(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_llm_profiles(project_dir)
+
+            with self.assertRaisesRegex(RuntimeError, "llm stage is not configured"):
+                resolve_stage_model_profile(project_dir, "creative.action_design")
 
 
 if __name__ == "__main__":
