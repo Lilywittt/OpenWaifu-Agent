@@ -7,10 +7,9 @@
 
 根目录的 [`ai_must_read.txt`](./ai_must_read.txt) 是整个仓库都必须遵守的协作约束。
 
-根目录文档负责仓库入口和子项目定位。子项目内部细节分别写在各自的 README 和 docs 索引里。
+根目录 README 负责仓库入口和子项目定位。
 
-文档入口按这一层级读：
+阅读顺序：
 
-1. [`docs/README.md`](./docs/README.md)
-2. [`domain-manage/README.md`](./domain-manage/README.md)
-3. [`openwaifu-agent/README.md`](./openwaifu-agent/README.md)
+1. [`domain-manage/README.md`](./domain-manage/README.md)
+2. [`openwaifu-agent/README.md`](./openwaifu-agent/README.md)

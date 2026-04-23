@@ -2,7 +2,7 @@
 
 这是当前产品模块。它来自原 `ig_roleplay_v3`，但现在已经作为总仓库下的独立模块存在。
 
-文档统一从 [`docs/README.md`](./docs/README.md) 进入。
+文档入口就在这个 README。
 
 常用入口：
 
@@ -37,4 +37,14 @@ python run_public_workbench.py
 - `src/publish/`：QQ 产品入口
 - `tools/remote_access/`：当前模块自己的公网接入脚本
 
-公网接入说明只看 [`docs/public_workbench.md`](./docs/public_workbench.md)。
+文档定位：
+
+- 启动方式、端口、入口：[docs/usage.md](./docs/usage.md)
+- 环境、`.env`、ComfyUI、本地依赖：[docs/environment_setup.md](./docs/environment_setup.md)
+- 目录、路径和运行态管理：[docs/directory_management.md](./docs/directory_management.md)
+- 产品结构和入口关系：[docs/product_architecture.md](./docs/product_architecture.md)
+- 私有测试工作台：[docs/content_workbench.md](./docs/content_workbench.md)
+- 体验工作台和公网接入：[docs/public_workbench.md](./docs/public_workbench.md)
+- 运维面板：[docs/ops_dashboard.md](./docs/ops_dashboard.md)
+- QQ 私聊链路：[docs/qq_bot_private_service.md](./docs/qq_bot_private_service.md)
+- 历史技术策略：[docs/technical_strategy.md](./docs/technical_strategy.md)
