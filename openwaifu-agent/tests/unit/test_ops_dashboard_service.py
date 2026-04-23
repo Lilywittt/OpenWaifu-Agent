@@ -116,7 +116,7 @@ class OpsDashboardServiceTests(unittest.TestCase):
     def test_dashboard_handler_can_toggle_shared_favorite(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
-            (project_dir / ".env").write_text("QQ_BOT_DISPLAY_NAME=鍗曞皬浼?Agent\n", encoding="utf-8")
+            (project_dir / ".env").write_text("QQ_BOT_DISPLAY_NAME=单小伊 Agent\n", encoding="utf-8")
             run_dir = runs_root(project_dir) / "2026-04-11T18-30-00_qqbot_generate_demo"
             (run_dir / "output").mkdir(parents=True, exist_ok=True)
             write_json(
@@ -128,7 +128,7 @@ class OpsDashboardServiceTests(unittest.TestCase):
             )
             handler = _make_handler(
                 project_dir=project_dir,
-                dashboard_title="鍗曞皬浼?Agent 杩愮淮闈㈡澘",
+                dashboard_title="单小伊 Agent 运维面板",
                 refresh_seconds=5,
                 queue_limit=20,
                 recent_job_limit=12,

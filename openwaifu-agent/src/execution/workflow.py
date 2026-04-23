@@ -7,6 +7,7 @@ from typing import Any
 
 from env import get_env_value
 from io_utils import read_json
+from path_policy import resolve_project_path, resolve_workspace_path
 
 
 ACTIVE_PROFILE_CONFIG_PATH = Path("config") / "execution" / "active_profile.json"
@@ -49,7 +50,9 @@ def resolve_checkpoint_path(project_dir: Path, profile: dict[str, Any]) -> Path:
     checkpoint_path = Path(raw_path)
     if checkpoint_path.is_absolute():
         return checkpoint_path
-    return (project_dir / checkpoint_path).resolve()
+    if checkpoint_path.parts and checkpoint_path.parts[0] == ".local":
+        return resolve_workspace_path(project_dir, raw_path)
+    return resolve_project_path(project_dir, raw_path)
 
 
 def resolve_checkpoint_name(project_dir: Path, profile: dict[str, Any]) -> str:

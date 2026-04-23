@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from path_policy import (
+    resolve_project_path,
+    resolve_workspace_path as _resolve_workspace_path,
+    resolve_workspace_root as _resolve_workspace_root,
+)
+
+def resolve_workspace_root(project_dir: Path) -> Path:
+    return _resolve_workspace_root(project_dir)
+
 
 def parse_project_env(path: Path) -> dict[str, str]:
     if not path.exists():
@@ -38,7 +47,8 @@ def resolve_env_path(project_dir: Path, env_name: str, default: str = "") -> Pat
     raw = get_env_value(project_dir, env_name, default).strip()
     if not raw:
         return Path()
-    path = Path(raw)
-    if path.is_absolute():
-        return path
-    return (project_dir / path).resolve()
+    return resolve_project_path(project_dir, raw)
+
+
+def resolve_workspace_path(project_dir: Path, raw_path: str) -> Path:
+    return _resolve_workspace_path(project_dir, raw_path)

@@ -314,6 +314,120 @@ class ExecutionPipelineTests(unittest.TestCase):
             self.assertEqual(workflow_request["prompt"]["3"]["inputs"]["ckpt_name"], "custom-model.safetensors")
             self.assertEqual(execution_package["checkpointName"], "custom-model.safetensors")
 
+    def test_execution_pipeline_resolves_local_checkpoint_from_workspace_root(self):
+        with TemporaryDirectory() as temp_dir:
+            workspace_root = Path(temp_dir)
+            (workspace_root / "ai_must_read.txt").write_text("rules", encoding="utf-8")
+            project_dir = workspace_root / "openwaifu-agent"
+            checkpoint_path = workspace_root / ".local" / "ComfyUI" / "models" / "checkpoints" / "animagine-xl-4.0-opt.safetensors"
+            checkpoint_path.parent.mkdir(parents=True)
+            checkpoint_path.write_bytes(b"fake-checkpoint")
+
+            workflow_dir = project_dir / "config" / "workflows" / "comfyui"
+            workflow_dir.mkdir(parents=True)
+            (workflow_dir / "animagine_xl_basic.workflow.json").write_text(
+                """
+{
+  "3": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "base.safetensors"}},
+  "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["3", 1]}},
+  "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["3", 1]}},
+  "10": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 512, "batch_size": 1}},
+  "13": {"class_type": "KSampler", "inputs": {"seed": 1, "steps": 20, "cfg": 5.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0, "model": ["3", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["10", 0]}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["13", 0], "vae": ["3", 2]}},
+  "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "demo", "images": ["8", 0]}}
+}
+                """.strip(),
+                encoding="utf-8",
+            )
+
+            execution_dir = project_dir / "config" / "execution"
+            execution_dir.mkdir(parents=True)
+            (execution_dir / "active_profile.json").write_text(
+                """
+{
+  "profilePath": "config/execution/comfyui_local_animagine_xl.json"
+}
+                """.strip(),
+                encoding="utf-8",
+            )
+            (execution_dir / "comfyui_local_animagine_xl.json").write_text(
+                """
+{
+  "version": "1.0.0",
+  "profileId": "test_profile_workspace_local",
+  "templatePath": "../workflows/comfyui/animagine_xl_basic.workflow.json",
+  "endpointEnvName": "COMFYUI_ENDPOINT",
+  "checkpointPath": ".local/ComfyUI/models/checkpoints/animagine-xl-4.0-opt.safetensors",
+  "checkpointName": "animagine-xl-4.0-opt.safetensors",
+  "request": {
+    "healthPath": "/system_stats",
+    "submitPath": "/prompt",
+    "historyPath": "/history/{prompt_id}",
+    "viewPath": "/view",
+    "submitTimeoutMs": 120000,
+    "pollIntervalMs": 5000,
+    "pollTimeoutMs": 900000,
+    "downloadTimeoutMs": 120000,
+    "startTimeoutMs": 180000
+  },
+  "nodes": {
+    "checkpoint": {"id": "3", "input": "ckpt_name"},
+    "positivePrompt": {"id": "6", "input": "text"},
+    "negativePrompt": {"id": "7", "input": "text"},
+    "latentImage": {"id": "10", "widthInput": "width", "heightInput": "height", "batchInput": "batch_size"},
+    "sampler": {"id": "13", "seedInput": "seed", "stepsInput": "steps", "cfgInput": "cfg", "samplerInput": "sampler_name", "schedulerInput": "scheduler", "denoiseInput": "denoise"},
+    "saveImage": {"id": "9", "input": "filename_prefix"},
+    "output": {"preferredNodeIds": ["9"]}
+  },
+  "defaults": {
+    "aspectRatio": "4:5",
+    "steps": 28,
+    "cfg": 5.6,
+    "samplerName": "dpmpp_2m",
+    "scheduler": "karras",
+    "denoise": 1.0,
+    "batchSize": 1,
+    "filenamePrefix": "ig_roleplay_v3_animagine"
+  },
+  "sizeByAspectRatio": {
+    "4:5": {"width": 1024, "height": 1280}
+  },
+  "negativePromptFallback": "fallback negative"
+}
+                """.strip(),
+                encoding="utf-8",
+            )
+
+            bundle = create_run_bundle(project_dir, "default", "execution-pipeline-workspace-local")
+            prompt_package = {
+                "positivePrompt": "positive text",
+                "negativePrompt": "negative text",
+            }
+
+            def _fake_download_image(endpoint, view_path, image_payload, destination_path, timeout_ms):
+                destination_path.write_bytes(b"fake-png")
+
+            with patch("execution.pipeline.ensure_comfyui_ready"), patch(
+                "execution.pipeline.submit_workflow",
+                return_value={"prompt_id": "prompt-workspace-local"},
+            ), patch(
+                "execution.pipeline.wait_for_prompt_completion",
+                return_value={"outputs": {"9": {"images": [{"filename": "server.png", "subfolder": "", "type": "output"}]}}},
+            ), patch(
+                "execution.pipeline.download_image",
+                side_effect=_fake_download_image,
+            ):
+                execution_package = run_execution_pipeline(
+                    project_dir,
+                    bundle,
+                    {"runMode": "default", "nowLocal": "2026-04-23T18:00:00"},
+                    prompt_package,
+                )
+
+            execution_input = read_json(bundle.execution_dir / "00_execution_input.json")
+            self.assertEqual(execution_input["checkpointPath"], str(checkpoint_path))
+            self.assertEqual(execution_package["checkpointPath"], str(checkpoint_path))
+
 
 if __name__ == "__main__":
     unittest.main()

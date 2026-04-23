@@ -11,19 +11,20 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 from env import get_env_value, resolve_env_path
 from io_utils import ensure_dir, write_json
+from path_policy import resolve_workspace_local_root
 from process_utils import build_windows_background_popen_kwargs, resolve_background_python_executable
 
 
 def _workspace_root(project_dir: Path) -> Path:
-    return project_dir.resolve().parents[2]
+    return resolve_workspace_local_root(project_dir).parent
 
 
 def _default_comfyui_install_root(project_dir: Path) -> Path:
-    return _workspace_root(project_dir) / ".local" / "ComfyUI"
+    return resolve_workspace_local_root(project_dir) / "ComfyUI"
 
 
 def _default_comfyui_venv_dir(project_dir: Path) -> Path:
-    return _workspace_root(project_dir) / ".local" / "comfyui-env"
+    return resolve_workspace_local_root(project_dir) / "comfyui-env"
 
 
 def _should_bypass_proxy(url: str) -> bool:
