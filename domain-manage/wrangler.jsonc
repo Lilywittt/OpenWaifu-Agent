@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "openwaifu-domain-home",
+  "main": "./dist/worker.js",
+  "compatibility_date": "2026-04-23",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "openwaifu-agent.uk",
+      "custom_domain": true
+    }
+  ]
+}

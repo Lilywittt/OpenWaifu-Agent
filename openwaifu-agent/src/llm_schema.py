@@ -25,7 +25,7 @@ KEY_TO_CN = {
     "sampledSignalsZh": "采样内容",
     "signalCandidates": "采样候选项",
     "selectedSignalId": "选中采样编号",
-    "subjectProfile": "人物固有资产",
+    "subjectProfile": "原始人物资产",
     "worldDesign": "场景设计稿",
     "sceneDraft": "场景设计稿",
     "environmentDesign": "环境、布景与光影设计稿",

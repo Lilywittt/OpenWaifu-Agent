@@ -209,6 +209,52 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     .status-ok {{ color: var(--ok); }}
     .status-warn {{ color: var(--warn); }}
     .status-danger {{ color: var(--danger); }}
+    .status-alert {{
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(181, 76, 60, 0.26);
+      background: #fff2ef;
+    }}
+    .status-alert-title {{
+      color: var(--danger);
+      font-weight: 800;
+    }}
+    .status-alert-summary {{
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.55;
+    }}
+    .status-alert-action {{
+      color: var(--danger);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.5;
+    }}
+    .status-alert-raw {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    .history-error {{
+      display: grid;
+      gap: 4px;
+      margin-top: 4px;
+    }}
+    .history-error-title {{
+      color: var(--danger);
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .history-error-raw {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      word-break: break-word;
+    }}
     .badge {{
       display: inline-flex;
       align-items: center;
@@ -636,7 +682,12 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           <div id="status-run-id" class="mono muted">runId：-</div>
           <div id="status-run-root" class="mono muted">运行目录：-</div>
           <div id="status-slot" class="muted">执行位：-</div>
-          <div id="status-error" class="muted" style="display: none;"></div>
+          <div id="status-alert" class="status-alert" style="display: none;">
+            <div id="status-alert-title" class="status-alert-title"></div>
+            <div id="status-alert-summary" class="status-alert-summary"></div>
+            <div id="status-alert-action" class="status-alert-action"></div>
+            <div id="status-error" class="status-alert-raw"></div>
+          </div>
         </div>
       </section>
 
@@ -744,6 +795,18 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       if (["stopping", "interrupted"].includes(normalized)) return "status-warn";
       if (["failed"].includes(normalized)) return "status-danger";
       return "";
+    }}
+
+    function normalizeErrorSignal(signal, rawError) {{
+      const raw = normalizeText(signal?.raw || rawError);
+      if (!raw) return null;
+      return {{
+        kind: normalizeText(signal?.kind),
+        title: normalizeText(signal?.title) || "任务执行失败",
+        summary: normalizeText(signal?.summary) || raw,
+        action: normalizeText(signal?.action),
+        raw,
+      }};
     }}
 
     function configuredHistoryLimit(snapshot) {{
@@ -1031,12 +1094,27 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       document.getElementById("status-run-id").textContent = `runId：${{status.runId || "-"}}`;
       document.getElementById("status-run-root").textContent = `运行目录：${{status.runRoot || "-"}}`;
       document.getElementById("status-slot").textContent = `执行位：${{status.generationSlotText || "空闲"}}`;
+      const statusAlert = document.getElementById("status-alert");
+      const statusAlertTitle = document.getElementById("status-alert-title");
+      const statusAlertSummary = document.getElementById("status-alert-summary");
+      const statusAlertAction = document.getElementById("status-alert-action");
       const statusError = document.getElementById("status-error");
-      const shouldShowError = ["failed", "interrupted"].includes(normalizeText(status.status)) && normalizeText(status.error);
+      const errorSignal = normalizeErrorSignal(status.errorSignal || {{}}, status.error);
+      const shouldShowError = ["failed", "interrupted"].includes(normalizeText(status.status)) && errorSignal;
       if (shouldShowError) {{
+        statusAlert.style.display = "";
+        statusAlertTitle.textContent = errorSignal.title;
+        statusAlertSummary.textContent = errorSignal.summary;
+        statusAlertAction.textContent = errorSignal.action || "";
+        statusAlertAction.style.display = errorSignal.action ? "" : "none";
         statusError.style.display = "";
-        statusError.textContent = status.error;
+        statusError.textContent = errorSignal.raw;
       }} else {{
+        statusAlert.style.display = "none";
+        statusAlertTitle.textContent = "";
+        statusAlertSummary.textContent = "";
+        statusAlertAction.textContent = "";
+        statusAlertAction.style.display = "none";
         statusError.style.display = "none";
         statusError.textContent = "";
       }}
@@ -1197,7 +1275,13 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         const isActive = selectionKey && selectionKey === snapshot.selectedRunId;
         const title = item.sceneDraftPremiseZh || item.label || "未命名任务";
         const secondary = `${{decorateSourceKindLabel(item.sourceKind, item.sourceKindLabel || item.sourceKind || "-", snapshot)}} → ${{item.endStageLabel || item.endStage || "-"}}`;
-        const errorLine = item.error ? `<div class="muted">错误：${{item.error}}</div>` : "";
+        const errorSignal = normalizeErrorSignal(item.errorSignal || {{}}, item.error);
+        const errorLine = errorSignal ? `
+          <div class="history-error">
+            <div class="history-error-title">${{escapeHtml(errorSignal.title)}}</div>
+            <div class="history-error-raw">${{escapeHtml(errorSignal.raw)}}</div>
+          </div>
+        ` : "";
         const runIdLine = item.runId ? `<div class="mono muted">runId：${{item.runId}}</div>` : "";
         const timeLabel = item.deleted ? "删除时间" : "记录时间";
         const thumb = item.imageRoute && !item.deleted

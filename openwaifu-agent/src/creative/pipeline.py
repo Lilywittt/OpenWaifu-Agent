@@ -23,7 +23,9 @@ STAGE_CONFIGS = {
     },
     "world_design": {
         "prompt_path": "prompts/creative/world_design.md",
-        "temperature": 1.3,
+        "temperature": 0.8,
+        "top_p": 0.9,
+        "top_k": 50,
     },
     "environment_design": {
         "prompt_path": "prompts/creative/environment_design.md",
@@ -116,6 +118,8 @@ def _run_json_stage(
         trace_request_path=trace_dir / f"{stage_name}.request.json",
         trace_response_path=trace_dir / f"{stage_name}.response.json",
         temperature=stage_config.get("temperature"),
+        top_p=stage_config.get("top_p"),
+        top_k=stage_config.get("top_k"),
     )
     normalized_result = from_deepseek_payload(result)
     write_json(bundle.creative_dir / f"{stage_name}.json", normalized_result)
@@ -148,6 +152,8 @@ def _run_text_stage(
         trace_request_path=trace_dir / f"{stage_name}.request.json",
         trace_response_path=trace_dir / f"{stage_name}.response.json",
         temperature=stage_config.get("temperature"),
+        top_p=stage_config.get("top_p"),
+        top_k=stage_config.get("top_k"),
     )
     normalized_result = _normalize_text_output(result, stage_name=stage_name)
     write_text(bundle.creative_dir / output_filename, normalized_result + "\n")

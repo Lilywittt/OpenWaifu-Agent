@@ -168,11 +168,7 @@ class WorkbenchManager:
             raise RuntimeError("当前公共体验模式不支持这种输入方式。")
 
     def _can_control_current_task(self, viewer: WorkbenchViewer) -> bool:
-        if not self.profile.public:
-            return True
-        status_payload = read_workbench_status(self.project_dir) or {}
-        request = status_payload.get("request", {}) if isinstance(status_payload.get("request"), dict) else {}
-        return normalize_spaces(str(request.get("ownerId", ""))) == normalize_spaces(viewer.owner_id)
+        return not self.profile.public
 
     def _force_stop_active_worker(self, *, status_payload: dict[str, Any], active_worker: dict[str, Any]) -> None:
         worker_pid = int(active_worker.get("pid", 0) or 0)
@@ -256,6 +252,8 @@ class WorkbenchManager:
 
     def stop_task(self, *, viewer: WorkbenchViewer) -> dict[str, Any]:
         with self._lock:
+            if self.profile.public:
+                raise RuntimeError("内容体验工作台不提供停止任务。")
             active_worker = self._active_worker_locked()
             if active_worker is None:
                 raise RuntimeError("当前没有正在运行的内容生成任务。")

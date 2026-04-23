@@ -1,0 +1,16 @@
+{
+  "name": "@openwaifu/domain-manage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenWaifu-Agent 根域名入口与 Cloudflare Worker 部署配置。",
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build-worker.mjs",
+    "dev": "npm run build && wrangler dev --local --port 8787",
+    "check": "npm run build && node --check ./dist/worker.js",
+    "deploy": "npm run build && node ./scripts/deploy-worker.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.14.1"
+  }
+}

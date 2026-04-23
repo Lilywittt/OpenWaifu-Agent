@@ -222,12 +222,30 @@ class PublicWorkbenchTests(unittest.TestCase):
 
         self.assertEqual(snapshot["status"]["status"], "running")
         self.assertEqual(snapshot["status"]["runId"], run_dir.name)
-        self.assertTrue(snapshot["status"]["canStop"])
+        self.assertFalse(snapshot["status"]["canStop"])
         self.assertIsNotNone(snapshot["currentRunItem"])
         self.assertEqual(snapshot["currentRunItem"]["runId"], run_dir.name)
         self.assertEqual(snapshot["selectedRunId"], run_dir.name)
         self.assertIsNotNone(snapshot["selectedRunDetail"])
         self.assertEqual(snapshot["selectedRunDetail"]["runId"], run_dir.name)
+
+    def test_public_manager_rejects_stop_task(self):
+        with TemporaryDirectory() as temp_dir:
+            manager = WorkbenchManager(
+                Path(temp_dir),
+                profile=PUBLIC_PROFILE,
+                worker_command_builder=lambda _request_id: [],
+            )
+            with self.assertRaisesRegex(RuntimeError, "不提供停止任务"):
+                manager.stop_task(
+                    viewer=WorkbenchViewer(
+                        owner_id="access:me",
+                        display_name="me@example.com",
+                        email="me@example.com",
+                        authenticated=True,
+                        public=True,
+                    )
+                )
 
     def test_public_handler_rejects_private_only_actions(self):
         with TemporaryDirectory() as temp_dir:

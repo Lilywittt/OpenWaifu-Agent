@@ -125,6 +125,25 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
         self.assertIn("shared", snapshot["inventory"]["stateRoot"])
         self.assertIn("workbench", snapshot["inventory"]["stateRoot"])
 
+    def test_build_snapshot_classifies_api_balance_error(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            write_workbench_status(
+                project_dir,
+                {
+                    "status": "failed",
+                    "stage": "",
+                    "error": 'Creative model HTTP 402: {"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}',
+                },
+            )
+
+            snapshot = build_content_workbench_snapshot(project_dir)
+
+        self.assertEqual(snapshot["status"]["status"], "failed")
+        self.assertEqual(snapshot["status"]["errorSignal"]["kind"], "api_balance_required")
+        self.assertEqual(snapshot["status"]["errorSignal"]["title"], "创意模型余额不足")
+        self.assertIn("充值", snapshot["status"]["errorSignal"]["action"])
+
     def test_normalize_stale_status_marks_running_task_as_interrupted(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

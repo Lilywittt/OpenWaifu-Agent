@@ -66,11 +66,11 @@ class CreativePipelineTests(unittest.TestCase):
                 "subjectProfile": {
                     "subject_id": "demo_subject",
                     "display_name_zh": "demo",
-                    "identity_zh": ["初中女生", "少女感明确"],
-                    "appearance_zh": ["黑色齐肩发", "清瘦"],
-                    "psychology_zh": ["敏感", "好奇心强"],
-                    "allowed_changes_zh": ["允许增加临时红晕"],
-                    "forbidden_drift_zh": ["不允许成熟化"],
+                    "identity_zh": ["middle school girl", "clear youthfulness"],
+                    "appearance_zh": ["black shoulder-length hair", "slim"],
+                    "psychology_zh": ["sensitive", "curious"],
+                    "allowed_changes_zh": ["allow temporary blush"],
+                    "forbidden_drift_zh": ["no mature body drift"],
                     "notes_zh": [],
                 }
             }
@@ -121,6 +121,64 @@ class CreativePipelineTests(unittest.TestCase):
             self.assertEqual(creative_package["environmentDesign"], "environment text")
             self.assertEqual(creative_package["actionDesign"], "action text")
 
+    def test_world_design_uses_tuned_sampling_parameters(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            prompts_dir = project_dir / "prompts" / "creative"
+            prompts_dir.mkdir(parents=True)
+            for prompt_name in (
+                "social_signal_filter.md",
+                "world_design.md",
+                "environment_design.md",
+                "styling_design.md",
+                "action_design.md",
+            ):
+                (prompts_dir / prompt_name).write_text("template", encoding="utf-8")
+            _write_llm_profiles(project_dir)
+
+            bundle = create_run_bundle(project_dir, "default", "creative-pipeline-params")
+            character_assets = {
+                "subjectProfile": {
+                    "subject_id": "demo_subject",
+                    "display_name_zh": "demo",
+                    "identity_zh": ["identity"],
+                    "appearance_zh": ["appearance"],
+                    "psychology_zh": ["psychology"],
+                    "allowed_changes_zh": [],
+                    "forbidden_drift_zh": [],
+                    "notes_zh": [],
+                }
+            }
+            shortlist = {
+                "sourceKey": "reddit",
+                "sourceZh": "Reddit",
+                "providerKey": "reddit_teenagers",
+                "providerZh": "Reddit / teenagers",
+                "sampledSignalsZh": ["signal one", "signal two", "signal three"],
+            }
+
+            with patch("creative.pipeline.collect_social_trend_sample", return_value=shortlist), patch(
+                "creative.pipeline.call_json_task",
+                side_effect=[
+                    {"selectedSignalId": "signal_01"},
+                    {"scenePremiseZh": "demo premise", "worldSceneZh": "demo world"},
+                ],
+            ) as call_json_task_mock, patch(
+                "creative.pipeline.call_text_task",
+                side_effect=["environment text", "styling text", "action text"],
+            ):
+                run_creative_pipeline(
+                    project_dir,
+                    bundle,
+                    {"runMode": "default", "nowLocal": "2026-04-06T18:00:00"},
+                    character_assets,
+                )
+
+            world_design_call = call_json_task_mock.call_args_list[1]
+            self.assertEqual(world_design_call.kwargs["temperature"], 0.8)
+            self.assertEqual(world_design_call.kwargs["top_p"], 0.9)
+            self.assertEqual(world_design_call.kwargs["top_k"], 50)
+
     def test_creative_pipeline_surfaces_clear_social_sampling_error(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
@@ -141,11 +199,11 @@ class CreativePipelineTests(unittest.TestCase):
                 "subjectProfile": {
                     "subject_id": "demo_subject",
                     "display_name_zh": "demo",
-                    "identity_zh": ["初中女生", "少女感明确"],
-                    "appearance_zh": ["黑色齐肩发", "清瘦"],
-                    "psychology_zh": ["敏感", "好奇心强"],
-                    "allowed_changes_zh": ["允许增加临时红晕"],
-                    "forbidden_drift_zh": ["不允许成熟化"],
+                    "identity_zh": ["middle school girl", "clear youthfulness"],
+                    "appearance_zh": ["black shoulder-length hair", "slim"],
+                    "psychology_zh": ["sensitive", "curious"],
+                    "allowed_changes_zh": ["allow temporary blush"],
+                    "forbidden_drift_zh": ["no mature body drift"],
                     "notes_zh": [],
                 }
             }

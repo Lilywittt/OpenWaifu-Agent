@@ -53,17 +53,26 @@ def _build_body(
     system_prompt: str,
     user_payload: dict[str, Any] | None,
     temperature: float | None,
+    top_p: float | None,
+    top_k: int | None,
     max_tokens: int | None,
 ) -> dict[str, Any]:
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
     if user_payload is not None:
         messages.append({"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, indent=2)})
-    return {
+    body = {
         "model": model_config["model"],
         "temperature": model_config.get("temperature", 0.8) if temperature is None else temperature,
         "max_tokens": model_config.get("maxTokens", 1800) if max_tokens is None else max_tokens,
         "messages": messages,
     }
+    effective_top_p = model_config.get("topP") if top_p is None else top_p
+    effective_top_k = model_config.get("topK") if top_k is None else top_k
+    if effective_top_p is not None:
+        body["top_p"] = effective_top_p
+    if effective_top_k is not None:
+        body["top_k"] = effective_top_k
+    return body
 
 
 def _extract_response_text(payload: dict[str, Any]) -> str:
@@ -89,6 +98,48 @@ def _attempt_path(path: Path, attempt: int) -> Path:
     return path.with_name(f"{path.stem}.attempt{attempt}{path.suffix}")
 
 
+def _repair_trace_path(path: Path, parse_attempt: int) -> Path:
+    base = _attempt_path(path, parse_attempt)
+    return base.with_name(f"{base.stem}.repair{base.suffix}")
+
+
+def _parse_error_trace_path(path: Path, parse_attempt: int) -> Path:
+    base = _attempt_path(path, parse_attempt)
+    return base.with_name(f"{base.stem}.parse_error.txt")
+
+
+def _write_parse_error_trace(path: Path, *, raw_text: str, error: Exception) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = f"{type(error).__name__}: {error}\n\n--- RAW RESPONSE TEXT ---\n{raw_text}"
+    path.write_text(payload, encoding="utf-8")
+
+
+def _repair_json_text_via_model(
+    *,
+    project_dir: Path,
+    model_config: dict[str, Any],
+    broken_text: str,
+    trace_request_path: Path,
+    trace_response_path: Path,
+) -> Any:
+    repair_prompt = (
+        "你是 JSON 修复器。输入是一段本应为 JSON 的文本，但语法可能损坏。"
+        "在不改变原意的前提下做最小修改，把它修成合法 JSON。"
+        "只返回合法 JSON，不要解释，不要补充额外字段。"
+    )
+    _, payload = _call_model(
+        project_dir=project_dir,
+        model_config=model_config,
+        system_prompt=repair_prompt,
+        user_payload={"brokenJson": broken_text},
+        trace_request_path=trace_request_path,
+        trace_response_path=trace_response_path,
+        temperature=0.0,
+        max_tokens=model_config.get("maxTokens", 1800),
+    )
+    return json.loads(extract_json_block(_extract_response_text(payload)))
+
+
 def _call_model_once(
     *,
     model_config: dict[str, Any],
@@ -98,6 +149,8 @@ def _call_model_once(
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> Any:
     body = _build_body(
@@ -105,6 +158,8 @@ def _call_model_once(
         system_prompt=system_prompt,
         user_payload=user_payload,
         temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
         max_tokens=max_tokens,
     )
     trace_request_path.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +206,8 @@ def _call_model(
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     api_key = require_env_value(project_dir, model_config["envName"])
@@ -167,6 +224,8 @@ def _call_model(
                 trace_request_path=_attempt_path(trace_request_path, attempt),
                 trace_response_path=_attempt_path(trace_response_path, attempt),
                 temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
                 max_tokens=max_tokens,
             )
             return model_config, payload
@@ -188,29 +247,48 @@ def call_json_task(
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> Any:
     parse_retry_attempts = max(int(model_config.get("parseRetryAttempts", 1)), 1)
     parse_retry_delay_ms = max(int(model_config.get("parseRetryDelayMs", 0)), 0)
     last_error: Exception | None = None
-    for attempt in range(1, parse_retry_attempts + 1):
+    for parse_attempt in range(1, parse_retry_attempts + 1):
         try:
             _, payload = _call_model(
                 project_dir=project_dir,
                 model_config=model_config,
                 system_prompt=system_prompt,
                 user_payload=user_payload,
-                trace_request_path=trace_request_path,
-                trace_response_path=trace_response_path,
+                trace_request_path=_attempt_path(trace_request_path, parse_attempt),
+                trace_response_path=_attempt_path(trace_response_path, parse_attempt),
                 temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
                 max_tokens=max_tokens,
             )
-            return json.loads(extract_json_block(_extract_response_text(payload)))
+            raw_text = _extract_response_text(payload)
+            try:
+                return json.loads(extract_json_block(raw_text))
+            except Exception as parse_error:
+                _write_parse_error_trace(
+                    _parse_error_trace_path(trace_response_path, parse_attempt),
+                    raw_text=raw_text,
+                    error=parse_error,
+                )
+                return _repair_json_text_via_model(
+                    project_dir=project_dir,
+                    model_config=model_config,
+                    broken_text=raw_text,
+                    trace_request_path=_repair_trace_path(trace_request_path, parse_attempt),
+                    trace_response_path=_repair_trace_path(trace_response_path, parse_attempt),
+                )
         except Exception as error:
             last_error = error
-            if attempt >= parse_retry_attempts:
+            if parse_attempt >= parse_retry_attempts:
                 break
-            time.sleep((parse_retry_delay_ms * attempt) / 1000)
+            time.sleep((parse_retry_delay_ms * parse_attempt) / 1000)
     assert last_error is not None
     raise last_error
 
@@ -224,6 +302,8 @@ def call_text_task(
     trace_request_path: Path,
     trace_response_path: Path,
     temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> str:
     _, payload = _call_model(
@@ -234,6 +314,8 @@ def call_text_task(
         trace_request_path=trace_request_path,
         trace_response_path=trace_response_path,
         temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
         max_tokens=max_tokens,
     )
     return _strip_text_fence(_extract_response_text(payload))

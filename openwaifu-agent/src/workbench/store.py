@@ -26,6 +26,7 @@ from run_detail_store import build_run_detail_snapshot, build_run_detail_snapsho
 from runtime_layout import runs_root, runtime_root
 from sidecar_identity import read_bot_display_identity
 from sidecar_control import sidecar_server_process_path, sidecar_state_root
+from workbench.error_signal import build_workbench_error_signal
 from workbench.identity import WorkbenchViewer
 from workbench.profile import PRIVATE_PROFILE, WorkbenchProfile
 
@@ -776,6 +777,7 @@ def _build_history_view_item(project_dir: Path, item: dict[str, Any]) -> dict[st
     if not image_route and run_id and not deleted:
         image_route = f"/artifacts/generated-image?runId={run_id}"
     status_label = normalize_spaces(str(item.get("statusLabel", ""))) or _status_label(str(item.get("status", "")))
+    error_signal = build_workbench_error_signal(error)
     source_kind_label = normalize_spaces(str(item.get("sourceKindLabel", ""))) or SOURCE_KIND_LABELS.get(
         source_kind,
         source_kind,
@@ -801,6 +803,7 @@ def _build_history_view_item(project_dir: Path, item: dict[str, Any]) -> dict[st
         "endStageLabel": end_stage_label,
         "sceneDraftPremiseZh": scene_premise,
         "error": error,
+        "errorSignal": error_signal,
         "summaryPath": normalize_spaces(str(item.get("summaryPath", ""))),
         "imageRoute": image_route,
         "favorite": bool(item.get("favorite", False)),
@@ -1217,6 +1220,7 @@ def build_content_workbench_snapshot(
             "startedAt": normalize_spaces(str(visible_status_payload.get("startedAt", ""))),
             "finishedAt": normalize_spaces(str(visible_status_payload.get("finishedAt", ""))),
             "error": normalize_spaces(str(visible_status_payload.get("error", ""))),
+            "errorSignal": build_workbench_error_signal(visible_status_payload.get("error", "")),
             "request": _summarize_request_payload(
                 visible_status_payload.get("request", {})
                 if isinstance(visible_status_payload.get("request"), dict)
@@ -1224,7 +1228,12 @@ def build_content_workbench_snapshot(
             ),
             "busy": status in {"running", "stopping"} or active_worker is not None,
             "canStart": status not in {"running", "stopping"} and slot_holder is None and active_worker is None,
-            "canStop": status in {"running", "stopping"} and active_worker is not None and viewer_controls_current_task,
+            "canStop": (
+                not profile.public
+                and status in {"running", "stopping"}
+                and active_worker is not None
+                and viewer_controls_current_task
+            ),
             "generationSlotBusy": slot_holder is not None,
             "generationSlot": slot_holder or {},
             "generationSlotText": slot_busy_text,
