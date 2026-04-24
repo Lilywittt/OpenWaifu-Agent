@@ -20,7 +20,7 @@ PACKAGE_FILENAME = "01_social_post_package.json"
 FINAL_OUTPUT_FILENAME = "social_post.txt"
 STAGE_NAME = "06_social_post"
 STAGE_CONFIG = {
-    "temperature": 1.1,
+    "temperature": 1.0,
     "top_p": 0.9,
     "top_k": 50,
 }
