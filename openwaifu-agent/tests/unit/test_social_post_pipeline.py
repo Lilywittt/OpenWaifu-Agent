@@ -97,7 +97,9 @@ class SocialPostPipelineTests(unittest.TestCase):
             self.assertNotIn("{{character_asset}}", call_kwargs["system_prompt"])
             self.assertNotIn("{{scene_design}}", call_kwargs["system_prompt"])
             self.assertIsNone(call_kwargs["user_payload"])
-            self.assertEqual(call_kwargs["temperature"], 1.6)
+            self.assertEqual(call_kwargs["temperature"], 1.1)
+            self.assertEqual(call_kwargs["top_p"], 0.9)
+            self.assertEqual(call_kwargs["top_k"], 50)
 
 
 if __name__ == "__main__":

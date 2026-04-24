@@ -19,7 +19,11 @@ OUTPUT_FILENAME = "00_social_post.txt"
 PACKAGE_FILENAME = "01_social_post_package.json"
 FINAL_OUTPUT_FILENAME = "social_post.txt"
 STAGE_NAME = "06_social_post"
-TEMPERATURE = 1.6
+STAGE_CONFIG = {
+    "temperature": 1.1,
+    "top_p": 0.9,
+    "top_k": 50,
+}
 
 
 def _render_context_block(value: dict[str, Any]) -> str:
@@ -78,7 +82,9 @@ def run_social_post_stage(
         user_payload=None,
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
         trace_response_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.response.json",
-        temperature=TEMPERATURE,
+        temperature=STAGE_CONFIG["temperature"],
+        top_p=STAGE_CONFIG["top_p"],
+        top_k=STAGE_CONFIG["top_k"],
     )
     normalized_result = _normalize_social_post_text(result)
     write_text(bundle.social_post_dir / OUTPUT_FILENAME, normalized_result + "\n")
