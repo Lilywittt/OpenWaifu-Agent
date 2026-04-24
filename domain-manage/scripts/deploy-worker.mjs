@@ -6,6 +6,7 @@ import { cloudflareConfig } from "../config/cloudflare.mjs";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workerPath = path.join(rootDir, "dist", "worker.js");
 const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+const { homepage } = cloudflareConfig;
 
 if (!apiToken) {
   console.error("Missing CLOUDFLARE_API_TOKEN.");
@@ -17,11 +18,11 @@ const workerSource = await readFile(workerPath, "utf8");
 await uploadWorker(workerSource);
 await attachDomain();
 
-console.log(`Deployed ${cloudflareConfig.serviceName} to https://${cloudflareConfig.hostname}/`);
+console.log(`Deployed ${homepage.serviceName} to https://${homepage.hostname}/`);
 
 async function uploadWorker(source) {
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${cloudflareConfig.accountId}/workers/scripts/${cloudflareConfig.serviceName}`,
+    `https://api.cloudflare.com/client/v4/accounts/${cloudflareConfig.accountId}/workers/scripts/${homepage.serviceName}`,
     {
       method: "PUT",
       headers: {
@@ -46,8 +47,8 @@ async function attachDomain() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        hostname: cloudflareConfig.hostname,
-        service: cloudflareConfig.serviceName,
+        hostname: homepage.hostname,
+        service: homepage.serviceName,
         zone_id: cloudflareConfig.zoneId,
         zone_name: cloudflareConfig.zoneName,
       }),

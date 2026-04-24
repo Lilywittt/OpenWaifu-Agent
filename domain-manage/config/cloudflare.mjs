@@ -11,13 +11,9 @@ export const cloudflareConfig = {
     localUrl: "http://127.0.0.1:8767",
     tunnelName: "openwaifu-public-workbench",
     access: {
+      enabled: false,
       organizationName: "OpenWaifu-Agent",
-      authDomainCandidates: [
-        "openwaifu-agent.cloudflareaccess.com",
-        "openwaifu-agent-uk.cloudflareaccess.com",
-        "openwaifu-agent-public.cloudflareaccess.com",
-        "openwaifu-public-workbench.cloudflareaccess.com",
-      ],
+      authDomain: "openwaifu-agent.cloudflareaccess.com",
       identityProviderName: "OpenWaifu-Agent One-Time Pin",
       applicationName: "OpenWaifu-Agent Public Workbench",
       policyName: "OpenWaifu-Agent Public Access",

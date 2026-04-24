@@ -1,10 +1,11 @@
 const API_ROOT = "https://api.cloudflare.com/client/v4";
 
 export class CloudflareApiError extends Error {
-  constructor(message, payload) {
+  constructor(message, payload, status = 0) {
     super(message);
     this.name = "CloudflareApiError";
     this.payload = payload;
+    this.status = status;
   }
 }
 
@@ -65,5 +66,9 @@ async function requestCloudflare(
   }
 
   const details = JSON.stringify(payload?.errors ?? payload, null, 2);
-  throw new CloudflareApiError(`Cloudflare API request failed: ${details}`, payload);
+  throw new CloudflareApiError(
+    `Cloudflare API request failed: ${details}`,
+    payload,
+    response.status,
+  );
 }

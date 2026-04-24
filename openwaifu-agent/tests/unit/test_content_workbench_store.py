@@ -144,6 +144,45 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
         self.assertEqual(snapshot["status"]["errorSignal"]["title"], "创意模型余额不足")
         self.assertIn("充值", snapshot["status"]["errorSignal"]["action"])
 
+    def test_selected_run_detail_uses_run_label_when_scene_title_is_missing(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_dir = runs_root(project_dir) / "2026-04-24T16-30-00_run"
+            creative_dir = run_dir / "creative"
+            output_dir = run_dir / "output"
+            creative_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_json(
+                creative_dir / "01_world_design.json",
+                {
+                    "scenePremiseZh": "",
+                    "worldSceneZh": "她站在楼梯拐角处盯着公告板。",
+                },
+            )
+            write_json(
+                output_dir / "run_summary.json",
+                {
+                    "runId": run_dir.name,
+                    "sceneDraftPremiseZh": "",
+                    "label": "老子才是老大",
+                },
+            )
+            append_run_index_record(
+                project_dir,
+                {
+                    "status": "completed",
+                    "runId": run_dir.name,
+                    "runRoot": str(run_dir),
+                    "summaryPath": str(output_dir / "run_summary.json"),
+                    "label": "老子才是老大",
+                    "request": {"sourceKind": "scene_draft_text", "endStage": "scene_draft", "label": "老子才是老大"},
+                },
+            )
+
+            snapshot = build_content_workbench_snapshot(project_dir, selected_run_id=run_dir.name)
+
+        self.assertEqual(snapshot["selectedRunDetail"]["detailTitle"], "老子才是老大")
+
     def test_normalize_stale_status_marks_running_task_as_interrupted(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

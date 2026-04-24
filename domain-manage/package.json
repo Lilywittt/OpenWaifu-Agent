@@ -2,13 +2,18 @@
   "name": "@openwaifu/domain-manage",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenWaifu-Agent 根域名入口与 Cloudflare Worker 部署配置。",
+  "description": "OpenWaifu-Agent 域名入口、公共工作台接入与 Cloudflare 部署配置。",
   "type": "module",
   "scripts": {
     "build": "node ./scripts/build-worker.mjs",
     "dev": "npm run build && wrangler dev --local --port 8787",
-    "check": "npm run build && node --check ./dist/worker.js",
-    "deploy": "npm run build && node ./scripts/deploy-worker.mjs"
+    "check": "npm run build && node --check ./dist/worker.js && node --check ./scripts/deploy-worker.mjs && node --check ./scripts/ensure-public-workbench-domain.mjs && node --check ./scripts/get-public-workbench-runtime.mjs && node --check ./scripts/lib/public-workbench-domain.mjs",
+    "deploy:homepage": "npm run build && node ./scripts/deploy-worker.mjs",
+    "ensure:workbench-domain": "node ./scripts/ensure-public-workbench-domain.mjs",
+    "start:workbench": "powershell -ExecutionPolicy Bypass -File ./scripts/start-public-workbench-ingress.ps1",
+    "status:workbench": "powershell -ExecutionPolicy Bypass -File ./scripts/status-public-workbench-ingress.ps1",
+    "stop:workbench": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-public-workbench-ingress.ps1",
+    "deploy": "npm run deploy:homepage && npm run ensure:workbench-domain"
   },
   "devDependencies": {
     "wrangler": "^4.14.1"

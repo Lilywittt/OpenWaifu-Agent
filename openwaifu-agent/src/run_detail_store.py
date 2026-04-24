@@ -228,6 +228,15 @@ def _relative_run_path(run_dir: Path, path: Path) -> str:
         return str(path)
 
 
+def _pick_detail_title_candidate(*values: Any) -> str:
+    for value in values:
+        normalized = normalize_spaces(str(value))
+        if not normalized or normalized == "未记录":
+            continue
+        return normalized
+    return ""
+
+
 def _build_final_prompt_section(run_dir: Path) -> dict[str, Any]:
     prompt_guard_package_path = run_dir / "prompt_guard" / "02_prompt_package.json"
     prompt_package_path = run_dir / "prompt_builder" / "01_prompt_package.json"
@@ -490,8 +499,11 @@ def _build_run_detail_snapshot_from_run_dir(
     available_count = sum(1 for item in sections if item["exists"])
     effective_run_id = normalize_spaces(str(summary_payload.get("runId", ""))) or normalize_spaces(run_id_hint) or run_dir.name
     detail_title = (
-        normalize_spaces(str(summary_payload.get("sceneDraftPremiseZh", "")))
-        or next((row["value"] for row in sections[1]["metaRows"] if row.get("label") == "场景标题"), "")
+        _pick_detail_title_candidate(
+            summary_payload.get("sceneDraftPremiseZh", ""),
+            summary_payload.get("label", ""),
+            next((row["value"] for row in sections[1]["metaRows"] if row.get("label") == "场景标题"), ""),
+        )
         or effective_run_id
     )
     social_post_text = normalize_spaces(str(summary_payload.get("socialPostText", "")))

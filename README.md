@@ -1,15 +1,18 @@
 # openwaifu-agent
 
-这是总仓库根目录。当前仓库下只有两个同级模块：
+这个总仓库里，主产品在 [`openwaifu-agent/`](./openwaifu-agent/)。
 
-- [`domain-manage/`](./domain-manage/)：域名、Cloudflare、根域名静态页和子域名入口管理
-- [`openwaifu-agent/`](./openwaifu-agent/)：当前产品代码，来自原 `ig_roleplay_v3` 的安全迁移结果
+主产品当前包含这些核心能力：
 
-根目录的 [`ai_must_read.txt`](./ai_must_read.txt) 是整个仓库都必须遵守的协作约束。
+- QQ 生成链路与私聊服务
+- 私有测试工作台
+- 内容体验工作台
+- 运维面板
+- workbench 结果监听与 QQ 极简报告
+- 图文发布能力
 
-根目录 README 负责仓库入口和子项目定位。
+日常开发、调试、改产品逻辑，直接从 [`openwaifu-agent/README.md`](./openwaifu-agent/README.md) 进入。
 
-阅读顺序：
+[`domain-manage/`](./domain-manage/) 管理域名、Cloudflare、根域首页和内容体验工作台公网入口；只有处理这些事务时才需要阅读 [`domain-manage/README.md`](./domain-manage/README.md)。
 
-1. [`domain-manage/README.md`](./domain-manage/README.md)
-2. [`openwaifu-agent/README.md`](./openwaifu-agent/README.md)
+根目录的 [`ai_must_read.txt`](./ai_must_read.txt) 是整个仓库的协作约束。

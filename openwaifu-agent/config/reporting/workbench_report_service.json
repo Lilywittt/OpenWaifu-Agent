@@ -1,0 +1,7 @@
+{
+  "pollSeconds": 5,
+  "qqTarget": {
+    "configPath": "config/publish/qq_bot_message.json",
+    "scene": "user"
+  }
+}
