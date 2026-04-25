@@ -406,8 +406,18 @@ export default {
     }
 
     const requestUrl = new URL(request.url);
+    if (requestUrl.pathname === "/index.html") {
+      const redirectHeaders = new Headers(RESPONSE_SECURITY_HEADERS);
+      redirectHeaders.set("Cache-Control", HTML_CACHE_CONTROL);
+      redirectHeaders.set("Location", "/");
+      return new Response(null, {
+        status: 308,
+        headers: redirectHeaders
+      });
+    }
+
     const assetRequest = requestUrl.pathname === "/"
-      ? new Request(new URL("/index.html", requestUrl), request)
+      ? new Request(new URL("/", requestUrl), request)
       : request;
 
     const response = await env.ASSETS.fetch(assetRequest);
