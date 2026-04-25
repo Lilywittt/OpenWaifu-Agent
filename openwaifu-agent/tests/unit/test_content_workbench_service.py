@@ -161,6 +161,60 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(payload["detail"]["runRoot"], str(run_dir))
         self.assertEqual(payload["detail"]["detailTitle"], "深夜便利店")
 
+    def test_handler_exposes_publish_endpoints_for_private_workbench(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            manager = _FakeManager()
+            handler = _make_handler(
+                project_dir=project_dir,
+                refresh_seconds=5,
+                history_limit=10,
+                manager=manager,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            server.daemon_threads = True
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+                with patch(
+                    "workbench.service.list_publish_targets_payload",
+                    return_value={
+                        "targets": [{"id": "qq_bot_user", "displayName": "QQ", "adapter": "qq_bot_user"}],
+                        "defaultTargetIds": ["qq_bot_user"],
+                        "localDirectoryPresets": [],
+                    },
+                ), patch(
+                    "workbench.service.submit_publish_run",
+                    return_value={"jobId": "job-demo", "status": "completed", "receipts": []},
+                ), patch(
+                    "workbench.service.read_publish_job_status",
+                    return_value={"jobId": "job-demo", "status": "completed", "receipts": []},
+                ):
+                    with urlopen(base_url + "/api/publish/targets", timeout=2) as response:
+                        targets_payload = json.loads(response.read().decode("utf-8"))
+                    publish_request = Request(
+                        base_url + "/api/publish/run",
+                        data=json.dumps({"runId": "run-1", "targets": ["qq_bot_user"]}).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urlopen(publish_request, timeout=2) as response:
+                        publish_payload = json.loads(response.read().decode("utf-8"))
+                    with urlopen(base_url + "/api/publish/jobs/job-demo", timeout=2) as response:
+                        job_payload = json.loads(response.read().decode("utf-8"))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertTrue(targets_payload["ok"])
+        self.assertEqual(targets_payload["defaultTargetIds"], ["qq_bot_user"])
+        self.assertTrue(publish_payload["ok"])
+        self.assertEqual(publish_payload["job"]["jobId"], "job-demo")
+        self.assertTrue(job_payload["ok"])
+        self.assertEqual(job_payload["job"]["status"], "completed")
+
     def test_handler_toggle_favorite_and_review_path_reflect_state(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
@@ -296,7 +350,9 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
         self.assertEqual(request["label"], "spawned")
         self.assertIsNone(worker_payload)
         self.assertEqual(status_payload["status"], "running")
-        self.assertEqual(status_payload["stage"], "准备测试输入")
+        self.assertEqual(status_payload["stage"], "正在启动 worker")
+        self.assertEqual(status_payload["workerPid"], 24680)
+        self.assertEqual(status_payload["workerAckAt"], "")
 
     def test_manager_start_task_marks_failed_when_worker_never_bootstraps(self):
         with TemporaryDirectory() as temp_dir:
@@ -327,6 +383,33 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
 
         self.assertEqual(status_payload["status"], "failed")
         self.assertIn("worker", status_payload["error"])
+
+    def test_worker_bootstrap_ready_requires_worker_ack(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            manager = ContentWorkbenchManager(project_dir)
+            write_json(
+                content_workbench_state_root(project_dir) / "latest_status.json",
+                {
+                    "status": "running",
+                    "request": {"requestId": "req-1"},
+                    "workerPid": 24680,
+                    "workerAckAt": "",
+                },
+            )
+            with patch("workbench.service.read_active_worker", return_value=None):
+                self.assertFalse(manager._worker_bootstrap_ready(worker_pid=24680, request_id="req-1"))
+            write_json(
+                content_workbench_state_root(project_dir) / "latest_status.json",
+                {
+                    "status": "running",
+                    "request": {"requestId": "req-1"},
+                    "workerPid": 24680,
+                    "workerAckAt": "2026-04-24T23:30:00",
+                },
+            )
+            with patch("workbench.service.read_active_worker", return_value=None):
+                self.assertTrue(manager._worker_bootstrap_ready(worker_pid=24680, request_id="req-1"))
 
     def test_manager_start_task_resets_status_when_worker_spawn_fails(self):
         with TemporaryDirectory() as temp_dir:

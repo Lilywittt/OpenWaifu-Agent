@@ -1,43 +1,49 @@
-import { readFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+
 import { cloudflareConfig } from "../config/cloudflare.mjs";
+import { getCloudflareApiToken } from "./lib/domain-manage-env.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workerPath = path.join(rootDir, "dist", "worker.js");
-const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-const { homepage } = cloudflareConfig;
+const wranglerConfigPath = path.join(rootDir, "wrangler.jsonc");
+const wranglerCliPath = await resolveWranglerCli(rootDir);
+const apiToken = getCloudflareApiToken();
 
-if (!apiToken) {
-  console.error("Missing CLOUDFLARE_API_TOKEN.");
-  process.exit(1);
-}
+await runWranglerDeploy();
+await attachCustomDomain();
 
-const workerSource = await readFile(workerPath, "utf8");
+console.log(
+  `Deployed ${cloudflareConfig.homepage.serviceName} to https://${cloudflareConfig.homepage.hostname}/`,
+);
 
-await uploadWorker(workerSource);
-await attachDomain();
-
-console.log(`Deployed ${homepage.serviceName} to https://${homepage.hostname}/`);
-
-async function uploadWorker(source) {
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${cloudflareConfig.accountId}/workers/scripts/${homepage.serviceName}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/javascript",
+async function runWranglerDeploy() {
+  const exitCode = await new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [wranglerCliPath, "deploy", "--config", wranglerConfigPath],
+      {
+        cwd: rootDir,
+        env: {
+          ...process.env,
+          CLOUDFLARE_API_TOKEN: apiToken,
+          CLOUDFLARE_ACCOUNT_ID: cloudflareConfig.accountId,
+        },
+        stdio: "inherit",
       },
-      body: source,
-    },
-  );
+    );
 
-  const payload = await response.json();
-  ensureSuccess(response, payload, "upload worker");
+    child.on("error", reject);
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+
+  if (exitCode !== 0) {
+    throw new Error(`wrangler deploy failed with exit code ${exitCode}.`);
+  }
 }
 
-async function attachDomain() {
+async function attachCustomDomain() {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${cloudflareConfig.accountId}/workers/domains`,
     {
@@ -47,8 +53,8 @@ async function attachDomain() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        hostname: homepage.hostname,
-        service: homepage.serviceName,
+        hostname: cloudflareConfig.homepage.hostname,
+        service: cloudflareConfig.homepage.serviceName,
         zone_id: cloudflareConfig.zoneId,
         zone_name: cloudflareConfig.zoneName,
       }),
@@ -56,14 +62,22 @@ async function attachDomain() {
   );
 
   const payload = await response.json();
-  ensureSuccess(response, payload, "attach domain");
-}
-
-function ensureSuccess(response, payload, action) {
   if (response.ok && payload?.success) {
     return;
   }
 
   const details = JSON.stringify(payload?.errors ?? payload, null, 2);
-  throw new Error(`Failed to ${action}: ${details}`);
+  throw new Error(`Failed to attach custom domain: ${details}`);
+}
+
+async function resolveWranglerCli(projectDir) {
+  const absoluteCliPath = path.join(
+    projectDir,
+    "node_modules",
+    "wrangler",
+    "wrangler-dist",
+    "cli.js",
+  );
+  await access(absoluteCliPath);
+  return absoluteCliPath;
 }

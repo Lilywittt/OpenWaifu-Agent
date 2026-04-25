@@ -62,10 +62,18 @@ def _build_body(
         messages.append({"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, indent=2)})
     body = {
         "model": model_config["model"],
-        "temperature": model_config.get("temperature", 0.8) if temperature is None else temperature,
         "max_tokens": model_config.get("maxTokens", 1800) if max_tokens is None else max_tokens,
         "messages": messages,
     }
+    thinking = _resolve_thinking_config(model_config)
+    if thinking is not None:
+        body["thinking"] = thinking
+    if _thinking_enabled(thinking):
+        reasoning_effort = str(model_config.get("reasoningEffort", "")).strip()
+        if reasoning_effort:
+            body["reasoning_effort"] = reasoning_effort
+        return body
+    body["temperature"] = model_config.get("temperature", 0.8) if temperature is None else temperature
     effective_top_p = model_config.get("topP") if top_p is None else top_p
     effective_top_k = model_config.get("topK") if top_k is None else top_k
     if effective_top_p is not None:
@@ -73,6 +81,24 @@ def _build_body(
     if effective_top_k is not None:
         body["top_k"] = effective_top_k
     return body
+
+
+def _resolve_thinking_config(model_config: dict[str, Any]) -> dict[str, str] | None:
+    raw = model_config.get("thinking")
+    if isinstance(raw, dict):
+        thinking_type = str(raw.get("type", "")).strip().lower()
+        if thinking_type in {"enabled", "disabled"}:
+            return {"type": thinking_type}
+        return None
+    if isinstance(raw, bool):
+        return {"type": "enabled" if raw else "disabled"}
+    return None
+
+
+def _thinking_enabled(thinking: dict[str, str] | None) -> bool:
+    if not isinstance(thinking, dict):
+        return False
+    return str(thinking.get("type", "")).strip().lower() == "enabled"
 
 
 def _extract_response_text(payload: dict[str, Any]) -> str:
@@ -127,9 +153,13 @@ def _repair_json_text_via_model(
         "在不改变原意的前提下做最小修改，把它修成合法 JSON。"
         "只返回合法 JSON，不要解释，不要补充额外字段。"
     )
+    repair_model_config = dict(model_config)
+    if _thinking_enabled(_resolve_thinking_config(repair_model_config)):
+        repair_model_config["thinking"] = {"type": "disabled"}
+        repair_model_config.pop("reasoningEffort", None)
     _, payload = _call_model(
         project_dir=project_dir,
-        model_config=model_config,
+        model_config=repair_model_config,
         system_prompt=repair_prompt,
         user_payload={"brokenJson": broken_text},
         trace_request_path=trace_request_path,

@@ -13,6 +13,6 @@
 
 日常开发、调试、改产品逻辑，直接从 [`openwaifu-agent/README.md`](./openwaifu-agent/README.md) 进入。
 
-[`domain-manage/`](./domain-manage/) 管理域名、Cloudflare、根域首页和内容体验工作台公网入口；只有处理这些事务时才需要阅读 [`domain-manage/README.md`](./domain-manage/README.md)。
+[`domain-manage/`](./domain-manage/) 管理域名、Cloudflare、根域首页和内容体验工作台公网入口。首次把内容体验工作台接到公网，直接看 [`domain-manage/README.md`](./domain-manage/README.md) 里的 `bootstrap:workbench`。
 
 根目录的 [`ai_must_read.txt`](./ai_must_read.txt) 是整个仓库的协作约束。

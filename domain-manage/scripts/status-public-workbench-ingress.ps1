@@ -63,6 +63,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectDir = Split-Path -Parent $scriptDir
 $workspaceDir = Split-Path -Parent $projectDir
 $agentDir = Join-Path $workspaceDir "openwaifu-agent"
+$runtimeProfilePath = Join-Path $projectDir "runtime\public_workbench_ingress\runtime.json"
 $statePath = Join-Path $projectDir "runtime\public_workbench_ingress\cloudflared.state.json"
 
 if (-not (Test-Path -LiteralPath (Join-Path $agentDir "run_public_workbench.py"))) {
@@ -74,6 +75,17 @@ try {
     & python run_public_workbench.py status
 } finally {
     Pop-Location
+}
+
+if (Test-Path -LiteralPath $runtimeProfilePath) {
+    $runtime = Get-Content -Encoding utf8 -Raw $runtimeProfilePath | ConvertFrom-Json
+    Write-Host "[workbench-ingress] runtimeProfile=$runtimeProfilePath"
+    Write-Host "[workbench-ingress] runtimeHostname=https://$($runtime.hostname)/"
+    Write-Host "[workbench-ingress] runtimeTunnelId=$($runtime.tunnel.id)"
+    Write-Host "[workbench-ingress] runtimeGeneratedAt=$($runtime.generatedAt)"
+} else {
+    Write-Host "[workbench-ingress] runtimeProfile is missing"
+    Write-Host "[workbench-ingress] run npm.cmd run bootstrap:workbench once before starting ingress"
 }
 
 if (-not (Test-Path -LiteralPath $statePath)) {
@@ -97,5 +109,8 @@ Write-Host "[workbench-ingress] metrics=$($state.metricsUrl)"
 Write-Host "[workbench-ingress] cloudflaredReady=$($readyState.Ready)"
 Write-Host "[workbench-ingress] readyConnections=$($readyState.ReadyConnections)"
 Write-Host "[workbench-ingress] publicStatusCode=$statusCode"
+if ($null -ne $state.PSObject.Properties["protocol"] -and $state.protocol) {
+    Write-Host "[workbench-ingress] protocol=$($state.protocol)"
+}
 Write-Host "[workbench-ingress] stdout=$($state.stdoutPath)"
 Write-Host "[workbench-ingress] stderr=$($state.stderrPath)"

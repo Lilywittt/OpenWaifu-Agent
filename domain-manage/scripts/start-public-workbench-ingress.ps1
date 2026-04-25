@@ -3,7 +3,8 @@ param(
     [string]$Hostname = "hi.openwaifu-agent.uk",
     [string]$CloudflaredPath = "",
     [int]$ReadyTimeoutSeconds = 90,
-    [int]$MetricsPort = 0
+    [int]$MetricsPort = 0,
+    [string]$Protocol = "http2"
 )
 
 Set-StrictMode -Version Latest
@@ -158,6 +159,7 @@ $projectDir = Split-Path -Parent $scriptDir
 $workspaceDir = Split-Path -Parent $projectDir
 $agentDir = Join-Path $workspaceDir "openwaifu-agent"
 $runtimeDir = Join-Path $projectDir "runtime\public_workbench_ingress"
+$runtimeProfilePath = Join-Path $runtimeDir "runtime.json"
 $statePath = Join-Path $runtimeDir "cloudflared.state.json"
 $stdoutPath = Join-Path $runtimeDir "cloudflared.stdout.log"
 $stderrPath = Join-Path $runtimeDir "cloudflared.stderr.log"
@@ -171,12 +173,44 @@ New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 if (Test-Path -LiteralPath $statePath) {
     $existingState = Get-Content -Encoding utf8 -Raw $statePath | ConvertFrom-Json
     if ($existingState.pid -and (Get-Process -Id $existingState.pid -ErrorAction SilentlyContinue)) {
-        Write-Host "[workbench-ingress] cloudflared is already running, pid=$($existingState.pid)"
-        Write-Host "[workbench-ingress] hostname=$($existingState.hostname)"
-        Write-Host "[workbench-ingress] state=$statePath"
-        exit 0
+        $existingReadyUrl = ""
+        if ($null -ne $existingState.PSObject.Properties["metricsUrl"]) {
+            $existingReadyUrl = [string]$existingState.metricsUrl
+        }
+        $existingHostname = ""
+        if ($null -ne $existingState.PSObject.Properties["hostname"]) {
+            $existingHostname = [string]$existingState.hostname
+        }
+        $existingReadyState = Get-CloudflaredReadyState -ReadyUrl $existingReadyUrl
+        $existingPublicStatusCode = 0
+        if ($existingHostname) {
+            $existingPublicStatusCode = Get-PublicEndpointStatus -Url ("https://{0}/api/healthz" -f $existingHostname)
+        }
+
+        if ($existingReadyState.Ready -and $existingPublicStatusCode -eq 200) {
+            Write-Host "[workbench-ingress] cloudflared is already running, pid=$($existingState.pid)"
+            Write-Host "[workbench-ingress] hostname=$($existingHostname)"
+            Write-Host "[workbench-ingress] state=$statePath"
+            exit 0
+        }
+
+        Stop-Process -Id $existingState.pid -Force -ErrorAction SilentlyContinue
+        Write-Host "[workbench-ingress] replacing unhealthy cloudflared pid=$($existingState.pid)"
     }
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+}
+
+if (-not $TunnelToken) {
+    if (-not (Test-Path -LiteralPath $runtimeProfilePath)) {
+        throw "Missing runtime profile: $runtimeProfilePath`nRun npm.cmd run bootstrap:workbench once to write the formal public ingress config."
+    }
+    $runtime = Get-Content -Encoding utf8 -Raw $runtimeProfilePath | ConvertFrom-Json
+    $TunnelToken = [string]$runtime.tunnelToken
+    $Hostname = [string]$runtime.hostname
+}
+
+if (-not $TunnelToken) {
+    throw "Missing tunnel token."
 }
 
 Push-Location $agentDir
@@ -184,20 +218,6 @@ try {
     & python run_public_workbench.py --no-open-browser | Out-Null
 } finally {
     Pop-Location
-}
-
-if (-not $TunnelToken) {
-    $runtimeJson = & node (Join-Path $scriptDir "get-public-workbench-runtime.mjs")
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to fetch Cloudflare Tunnel runtime."
-    }
-    $runtime = $runtimeJson | ConvertFrom-Json
-    $TunnelToken = [string]$runtime.tunnelToken
-    $Hostname = [string]$runtime.hostname
-}
-
-if (-not $TunnelToken) {
-    throw "Missing tunnel token."
 }
 
 $resolvedMetricsPort = $MetricsPort
@@ -211,7 +231,7 @@ $process = Invoke-WithCloudflaredEnvironment {
     Invoke-WithNormalizedPathEnvironment {
         Start-Process `
             -FilePath $resolvedCloudflaredPath `
-            -ArgumentList @("tunnel", "--metrics", "127.0.0.1:$resolvedMetricsPort", "run", "--token", $TunnelToken) `
+            -ArgumentList @("tunnel", "--protocol", $Protocol, "--metrics", "127.0.0.1:$resolvedMetricsPort", "run", "--token", $TunnelToken) `
             -WorkingDirectory $projectDir `
             -RedirectStandardOutput $stdoutPath `
             -RedirectStandardError $stderrPath `
@@ -227,6 +247,8 @@ $process = Invoke-WithCloudflaredEnvironment {
     metricsUrl = $metricsUrl
     stdoutPath = $stdoutPath
     stderrPath = $stderrPath
+    runtimeProfilePath = $runtimeProfilePath
+    protocol = $Protocol
     startedAt = (Get-Date).ToString("s")
 } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $statePath
 
@@ -246,7 +268,7 @@ while ((Get-Date) -lt $deadline) {
     $readyConnections = [int]$readyState.ReadyConnections
     $publicStatusCode = Get-PublicEndpointStatus -Url $publicUrl
 
-    if ($readyState.Ready -and $publicStatusCode -gt 0) {
+    if ($readyState.Ready -and $publicStatusCode -eq 200) {
         $ready = $true
         break
     }
@@ -265,8 +287,10 @@ if (-not $ready) {
 Write-Host "[workbench-ingress] public workbench local url=http://127.0.0.1:8767"
 Write-Host "[workbench-ingress] public hostname=https://$Hostname/"
 Write-Host "[workbench-ingress] cloudflared pid=$($process.Id)"
+Write-Host "[workbench-ingress] protocol=$Protocol"
 Write-Host "[workbench-ingress] metrics=$metricsUrl"
 Write-Host "[workbench-ingress] readyConnections=$readyConnections"
+Write-Host "[workbench-ingress] runtime=$runtimeProfilePath"
 Write-Host "[workbench-ingress] state=$statePath"
 Write-Host "[workbench-ingress] stdout=$stdoutPath"
 Write-Host "[workbench-ingress] stderr=$stderrPath"

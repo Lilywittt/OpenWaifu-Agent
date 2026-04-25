@@ -5,7 +5,10 @@
       "baseUrl": "https://api.deepseek.com",
       "chatCompletionsPath": "/chat/completions",
       "envName": "DEEPSEEK_API_KEY",
-      "model": "deepseek-chat",
+      "model": "deepseek-v4-pro",
+      "thinking": {
+        "type": "disabled"
+      },
       "temperature": 0.8,
       "maxTokens": 1800,
       "timeoutMs": 180000,
@@ -19,7 +22,11 @@
       "baseUrl": "https://api.deepseek.com",
       "chatCompletionsPath": "/chat/completions",
       "envName": "DEEPSEEK_API_KEY",
-      "model": "deepseek-reasoner",
+      "model": "deepseek-v4-pro",
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoningEffort": "high",
       "temperature": 0.8,
       "maxTokens": 4096,
       "timeoutMs": 180000,

@@ -1,13 +1,13 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "openwaifu-domain-home",
+  "account_id": "ec0c5bcab04268171d57a073a220324f",
   "main": "./dist/worker.js",
   "compatibility_date": "2026-04-23",
-  "workers_dev": false,
-  "routes": [
-    {
-      "pattern": "openwaifu-agent.uk",
-      "custom_domain": true
-    }
-  ]
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "workers_dev": false
 }

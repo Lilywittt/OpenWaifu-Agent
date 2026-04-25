@@ -39,5 +39,6 @@ python run_product.py
 - 私有测试工作台：[content_workbench.md](./content_workbench.md)
 - 内容体验工作台与公网接入：[public_workbench.md](./public_workbench.md)
 - workbench 报告监听服务：[workbench_report_service.md](./workbench_report_service.md)
+- 统一发布服务：[publishing.md](./publishing.md)
 - 运维面板：[ops_dashboard.md](./ops_dashboard.md)
 - QQ 私聊链路：[qq_bot_private_service.md](./qq_bot_private_service.md)

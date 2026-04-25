@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -138,6 +139,56 @@ class PublishPipelineTests(unittest.TestCase):
             publish_plan = read_json(bundle.publish_dir / "01_publish_plan.json")
             self.assertEqual(publish_plan["targets"][0]["targetId"], "local_archive_dynamic")
             self.assertEqual(publish_package["receipts"][0]["targetId"], "local_archive_dynamic")
+
+    def test_failed_publish_does_not_write_published_ledger(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "publish-failed-target")
+            image_path = bundle.output_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+
+            character_assets = {"subjectProfile": _subject_profile()}
+            creative_package = {
+                "worldDesign": {
+                    "scenePremiseZh": "demo premise",
+                    "worldSceneZh": "demo scene",
+                }
+            }
+            social_post_package = {"socialPostText": "demo social post"}
+            execution_package = {
+                "meta": {"createdAt": "2026-04-08T20:00:00"},
+                "imagePath": str(image_path),
+            }
+
+            def failing_adapter(**_kwargs):
+                return {
+                    "targetId": "failing_target",
+                    "adapter": "failing_adapter",
+                    "status": "draft_needs_attention",
+                    "error": "adapter failed",
+                }
+
+            with patch("publish.pipeline.get_publish_adapter", return_value=failing_adapter):
+                with self.assertRaisesRegex(RuntimeError, "adapter failed"):
+                    run_publish_pipeline(
+                        project_dir,
+                        bundle,
+                        {"runMode": "default", "nowLocal": "2026-04-08T20:00:00"},
+                        character_assets,
+                        creative_package,
+                        social_post_package,
+                        execution_package,
+                        explicit_targets=[
+                            {
+                                "targetId": "failing_target",
+                                "adapter": "failing_adapter",
+                                "displayName": "Failing Target",
+                            }
+                        ],
+                    )
+
+            ledger_path = project_dir / "runtime" / "service_state" / "publish" / "published_ledger.json"
+            self.assertFalse(ledger_path.exists())
 
 
 if __name__ == "__main__":

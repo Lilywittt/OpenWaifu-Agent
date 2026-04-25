@@ -33,6 +33,7 @@ class WorkbenchProfile:
     sidecar_id: str
     title: str
     public: bool
+    allow_publish: bool
     allow_review_path: bool
     allow_favorites: bool
     allow_delete_run: bool
@@ -63,6 +64,7 @@ PRIVATE_PROFILE = WorkbenchProfile(
     sidecar_id="content_workbench",
     title="内容测试工作台",
     public=False,
+    allow_publish=True,
     allow_review_path=True,
     allow_favorites=True,
     allow_delete_run=True,
@@ -78,6 +80,7 @@ PUBLIC_PROFILE = WorkbenchProfile(
     sidecar_id="public_workbench",
     title="内容体验工作台",
     public=True,
+    allow_publish=False,
     allow_review_path=False,
     allow_favorites=False,
     allow_delete_run=False,

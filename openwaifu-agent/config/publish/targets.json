@@ -5,15 +5,39 @@
   "targets": {
     "local_archive": {
       "adapter": "local_archive",
-      "displayName": "Local Archive",
+      "displayName": "内部归档",
+      "description": "把发布包记录到项目内归档，用于追踪发布历史。",
+      "internal": true,
       "archiveRoot": "runtime/service_state/publish/local_archive"
     },
     "qq_bot_user": {
       "adapter": "qq_bot_user",
       "displayName": "QQ Bot User",
+      "description": "向指定 QQ 用户推送极简报告。",
       "scene": "user",
       "configPath": "config/publish/qq_bot_message.json",
       "userOpenIdEnvName": "QQ_BOT_USER_OPENID"
+    },
+    "pixiv_browser_draft": {
+      "adapter": "pixiv_browser_draft",
+      "displayName": "Pixiv",
+      "description": "使用 Edge 登录态打开 Pixiv 投稿页并填好草稿。",
+      "postUrl": "https://www.pixiv.net/illustration/create",
+      "timeoutSeconds": 90,
+      "tags": [
+        "OpenWaifuAgent",
+        "AIイラスト"
+      ],
+      "autoSubmit": false
+    },
+    "instagram_browser_draft": {
+      "adapter": "instagram_browser_draft",
+      "displayName": "Instagram",
+      "description": "使用 Edge 登录态打开 Instagram；当前页面流程会受平台改版影响，失败会返回明确原因。",
+      "postUrl": "https://www.instagram.com/",
+      "timeoutSeconds": 75,
+      "captionSuffix": "#OpenWaifuAgent #AIart",
+      "autoSubmit": false
     }
   }
 }

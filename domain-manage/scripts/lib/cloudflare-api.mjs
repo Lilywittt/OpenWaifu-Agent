@@ -1,5 +1,7 @@
 const API_ROOT = "https://api.cloudflare.com/client/v4";
 
+import { getCloudflareApiToken, getDomainManageEnvPath } from "./domain-manage-env.mjs";
+
 export class CloudflareApiError extends Error {
   constructor(message, payload, status = 0) {
     super(message);
@@ -9,10 +11,7 @@ export class CloudflareApiError extends Error {
   }
 }
 
-export function createCloudflareClient({ apiToken = process.env.CLOUDFLARE_API_TOKEN } = {}) {
-  if (!apiToken) {
-    throw new Error("Missing CLOUDFLARE_API_TOKEN.");
-  }
+export function createCloudflareClient({ apiToken = getCloudflareApiToken() } = {}) {
 
   return {
     request(path, options = {}) {
@@ -65,9 +64,16 @@ async function requestCloudflare(
     return payload?.result ?? payload;
   }
 
+  const authFailed =
+    response.status === 403 &&
+    Array.isArray(payload?.errors) &&
+    payload.errors.some((error) => Number(error?.code) === 10000);
   const details = JSON.stringify(payload?.errors ?? payload, null, 2);
+  const message = authFailed
+    ? `Cloudflare authentication failed. Check CLOUDFLARE_API_TOKEN in ${getDomainManageEnvPath()}.`
+    : `Cloudflare API request failed: ${details}`;
   throw new CloudflareApiError(
-    `Cloudflare API request failed: ${details}`,
+    message,
     payload,
     response.status,
   );

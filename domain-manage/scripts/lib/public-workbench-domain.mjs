@@ -29,13 +29,6 @@ export async function ensurePublicWorkbenchDomain(client) {
       application.id,
       publicWorkbench.access,
     );
-  } else {
-    await deleteAccessApplication(
-      client,
-      zoneId,
-      publicWorkbench.hostname,
-      publicWorkbench.access,
-    );
   }
 
   return {
@@ -282,24 +275,6 @@ async function ensureAccessApplication(client, zoneId, hostname, accessConfig, i
     body: desired,
   });
   return normalizeAccessApplication(updated);
-}
-
-async function deleteAccessApplication(client, zoneId, hostname, accessConfig) {
-  const applications = await listCollection(client, `/zones/${zoneId}/access/apps`, {
-    query: {
-      per_page: 100,
-    },
-  });
-
-  const targets = applications.filter(
-    (application) => application.domain === hostname || application.name === accessConfig.applicationName,
-  );
-
-  for (const application of targets) {
-    await client.request(`/zones/${zoneId}/access/apps/${application.id}`, {
-      method: "DELETE",
-    });
-  }
 }
 
 async function ensureAccessPolicy(client, zoneId, applicationId, accessConfig) {

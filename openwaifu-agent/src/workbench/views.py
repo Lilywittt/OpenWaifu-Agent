@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import html
+import json
+
 
 def render_content_workbench_html(*, project_name: str, refresh_seconds: int) -> str:
     refresh_ms = max(int(refresh_seconds), 2) * 1000
     refresh_label = max(int(refresh_seconds), 2)
     title_text = str(project_name).strip() or "内容工作台"
+    title_text_html = html.escape(title_text, quote=True)
+    title_text_js = json.dumps(title_text, ensure_ascii=False)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{title_text}</title>
+  <title>{title_text_html}</title>
   <style>
     :root {{
       --bg: #f5f1ea;
@@ -408,6 +413,205 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       background: #fff0ed;
       color: var(--danger);
     }}
+    .publish-panel {{
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 252, 247, 0.92);
+    }}
+    .publish-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .publish-title {{
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--accent-strong);
+    }}
+    .publish-target-list {{
+      display: grid;
+      gap: 10px;
+    }}
+    .publish-target-item {{
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdfa;
+      cursor: pointer;
+    }}
+    .publish-target-item.selected {{
+      border-color: rgba(143, 90, 42, 0.52);
+      background: #fff7ec;
+    }}
+    .publish-target-item.unavailable {{
+      background: #f8f3eb;
+      border-style: dashed;
+      opacity: 0.86;
+      cursor: not-allowed;
+    }}
+    .publish-target-item input {{
+      width: auto;
+      margin-top: 2px;
+    }}
+    .publish-target-copy {{
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }}
+    .publish-target-name {{
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }}
+    .publish-target-adapter {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }}
+    .publish-target-status {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }}
+    .publish-command {{
+      font-family: "JetBrains Mono", "Cascadia Code", monospace;
+      color: var(--accent-strong);
+      word-break: break-all;
+    }}
+    .publish-browser-setup {{
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border: 1px solid rgba(143, 90, 42, 0.14);
+      border-radius: 14px;
+      background: #f8f3eb;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }}
+    .publish-browser-setup.ready {{
+      background: #f4f8ef;
+    }}
+    .publish-browser-setup button {{
+      justify-self: start;
+      background: #f7f2ea;
+      color: var(--accent-strong);
+      padding: 7px 11px;
+      font-size: 12px;
+    }}
+    .publish-target-empty {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }}
+    .publish-preview {{
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f8f3eb;
+      border: 1px solid rgba(143, 90, 42, 0.12);
+    }}
+    .publish-local-export {{
+      display: grid;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f8f3eb;
+      border: 1px solid rgba(143, 90, 42, 0.12);
+    }}
+    .publish-local-export-grid {{
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .publish-local-export-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .publish-local-export-actions button {{
+      background: #f7f2ea;
+      color: var(--accent-strong);
+      padding: 7px 11px;
+      font-size: 12px;
+    }}
+    .publish-directory-state {{
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }}
+    .publish-preview-title {{
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }}
+    .publish-preview-text {{
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-size: 13px;
+      color: var(--ink);
+    }}
+    .publish-receipts {{
+      display: grid;
+      gap: 10px;
+    }}
+    .publish-receipt {{
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fffdfa;
+    }}
+    .publish-receipt-top {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .publish-receipt-title {{
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }}
+    .publish-receipt-meta {{
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }}
+    .publish-actions {{
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .publish-actions button {{
+      background: var(--accent);
+      color: #fffaf6;
+    }}
+    .publish-actions button.secondary {{
+      background: #f7f2ea;
+      color: var(--accent-strong);
+    }}
+    .publish-actions button.local-save {{
+      background: #f7f2ea;
+      color: var(--accent-strong);
+    }}
     .section-nav {{
       display: flex;
       gap: 8px;
@@ -575,6 +779,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       .span-4, .span-5, .span-7, .span-8 {{ grid-column: span 12; }}
       .detail-hero {{ grid-template-columns: 1fr; }}
       .form-grid {{ grid-template-columns: 1fr; }}
+      .publish-local-export-grid {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -583,7 +788,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     <section class="hero">
       <div class="hero-top">
         <div>
-          <h1 id="hero-title">{title_text}</h1>
+          <h1 id="hero-title">{title_text_html}</h1>
         </div>
         <div class="toolbar">
           <div class="pill" id="hero-status">正在读取状态</div>
@@ -743,11 +948,22 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     let reviewedPathDetail = null;
     let snapshotPollTimer = null;
     let snapshotFetchPromise = null;
+    let publishTargetsPayload = null;
+    let publishTargetsPromise = null;
+    let publishSelectionByRunId = {{}};
     let initializedForm = false;
     let expandedRawKeys = new Set();
     let detailSuspendUntil = 0;
     let lastHistoryListRenderKey = "";
     let lastDetailRenderKey = "";
+    const LOCAL_EXPORT_KIND_IMAGE_ONLY = "image_only";
+    const LOCAL_EXPORT_KIND_BUNDLE_FOLDER = "bundle_folder";
+    const LOCAL_EXPORT_DEFAULT_KIND = LOCAL_EXPORT_KIND_BUNDLE_FOLDER;
+    const LOCAL_EXPORT_DEFAULT_NAME = "openwaifu publish";
+    const LOCAL_EXPORT_TEXT_SUFFIX = "_social_post.txt";
+    const LOCAL_EXPORT_HANDLE_DB_NAME = "openwaifu-agent-workbench";
+    const LOCAL_EXPORT_HANDLE_STORE_NAME = "handles";
+    const LOCAL_EXPORT_HANDLE_KEY = "content-workbench-local-export-directory-v1";
 
     function nextPollDelayMs() {{
       return document.hidden ? hiddenRefreshMs : refreshMs;
@@ -766,6 +982,12 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       return currentPermissions(snapshot).public
         ? "public-workbench-mode-preference-v1"
         : "content-workbench-mode-preference-v1";
+    }}
+
+    function localExportPreferenceStorageKey(snapshot = currentSnapshot) {{
+      return currentPermissions(snapshot).public
+        ? "public-workbench-local-export-preference-v1"
+        : "content-workbench-local-export-preference-v1";
     }}
 
     function normalizeText(value) {{
@@ -853,6 +1075,13 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       element.className = "message" + (kind ? " " + kind : "");
     }}
 
+    function rerenderCurrentDetail() {{
+      lastDetailRenderKey = "";
+      if (currentSnapshot) {{
+        renderDetail(currentSnapshot);
+      }}
+    }}
+
     function buildSourceKindMap(sourceKinds) {{
       const map = new Map();
       (sourceKinds || []).forEach((item) => map.set(item.id, item));
@@ -902,6 +1131,180 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         sourceKind: document.getElementById("source-kind").value,
         endStage: document.getElementById("end-stage").value,
       }}, snapshot);
+    }}
+
+    function normalizeLocalExportKind(value) {{
+      return normalizeText(value) === LOCAL_EXPORT_KIND_IMAGE_ONLY
+        ? LOCAL_EXPORT_KIND_IMAGE_ONLY
+        : LOCAL_EXPORT_DEFAULT_KIND;
+    }}
+
+    function readLocalExportPreference(snapshot = currentSnapshot) {{
+      try {{
+        const raw = window.localStorage.getItem(localExportPreferenceStorageKey(snapshot));
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        return payload && typeof payload === "object" ? payload : null;
+      }} catch (_error) {{
+        return null;
+      }}
+    }}
+
+    function writeLocalExportPreference(patch, snapshot = currentSnapshot) {{
+      try {{
+        const previous = readLocalExportPreference(snapshot) || {{}};
+        const next = {{
+          exportKind: normalizeLocalExportKind(patch?.exportKind ?? previous.exportKind),
+          directoryLabel: normalizeText(patch?.directoryLabel ?? previous.directoryLabel),
+        }};
+        window.localStorage.setItem(localExportPreferenceStorageKey(snapshot), JSON.stringify(next));
+      }} catch (_error) {{
+        return;
+      }}
+    }}
+
+    function defaultLocalExportName(detail) {{
+      return (
+        normalizeText(detail?.sceneDraftPremiseZh) ||
+        normalizeText(detail?.detailTitle) ||
+        normalizeText(detail?.runId) ||
+        LOCAL_EXPORT_DEFAULT_NAME
+      );
+    }}
+
+    function currentLocalExportDirectoryLabel(snapshot = currentSnapshot) {{
+      return normalizeText(readLocalExportPreference(snapshot)?.directoryLabel);
+    }}
+
+    function idbRequestToPromise(request) {{
+      return new Promise((resolve, reject) => {{
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("IndexedDB 请求失败。"));
+      }});
+    }}
+
+    function openLocalExportHandleDb() {{
+      return new Promise((resolve, reject) => {{
+        const request = window.indexedDB.open(LOCAL_EXPORT_HANDLE_DB_NAME, 1);
+        request.onupgradeneeded = () => {{
+          const db = request.result;
+          if (!db.objectStoreNames.contains(LOCAL_EXPORT_HANDLE_STORE_NAME)) {{
+            db.createObjectStore(LOCAL_EXPORT_HANDLE_STORE_NAME);
+          }}
+        }};
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("无法打开本地目录记忆库。"));
+      }});
+    }}
+
+    async function readStoredLocalExportDirectoryHandle() {{
+      if (!window.indexedDB) {{
+        return null;
+      }}
+      const db = await openLocalExportHandleDb();
+      try {{
+        const transaction = db.transaction(LOCAL_EXPORT_HANDLE_STORE_NAME, "readonly");
+        const store = transaction.objectStore(LOCAL_EXPORT_HANDLE_STORE_NAME);
+        const payload = await idbRequestToPromise(store.get(LOCAL_EXPORT_HANDLE_KEY));
+        return payload && typeof payload === "object" ? payload : null;
+      }} finally {{
+        db.close();
+      }}
+    }}
+
+    async function writeStoredLocalExportDirectoryHandle(handle) {{
+      if (!window.indexedDB || !handle) {{
+        return;
+      }}
+      const label = normalizeText(handle.name);
+      const db = await openLocalExportHandleDb();
+      try {{
+        const transaction = db.transaction(LOCAL_EXPORT_HANDLE_STORE_NAME, "readwrite");
+        const store = transaction.objectStore(LOCAL_EXPORT_HANDLE_STORE_NAME);
+        await idbRequestToPromise(
+          store.put(
+            {{
+              handle,
+              label,
+              savedAt: new Date().toISOString(),
+            }},
+            LOCAL_EXPORT_HANDLE_KEY
+          )
+        );
+      }} finally {{
+        db.close();
+      }}
+      writeLocalExportPreference({{ directoryLabel: label }});
+    }}
+
+    async function clearStoredLocalExportDirectoryHandle() {{
+      if (!window.indexedDB) {{
+        writeLocalExportPreference({{ directoryLabel: "" }});
+        return;
+      }}
+      const db = await openLocalExportHandleDb();
+      try {{
+        const transaction = db.transaction(LOCAL_EXPORT_HANDLE_STORE_NAME, "readwrite");
+        const store = transaction.objectStore(LOCAL_EXPORT_HANDLE_STORE_NAME);
+        await idbRequestToPromise(store.delete(LOCAL_EXPORT_HANDLE_KEY));
+      }} finally {{
+        db.close();
+      }}
+      writeLocalExportPreference({{ directoryLabel: "" }});
+    }}
+
+    async function directoryPermissionState(handle) {{
+      if (!handle) {{
+        return "";
+      }}
+      try {{
+        if (typeof handle.queryPermission === "function") {{
+          return await handle.queryPermission({{ mode: "readwrite" }});
+        }}
+      }} catch (_error) {{
+        return "";
+      }}
+      return "";
+    }}
+
+    async function ensureLocalExportDirectoryHandle(options = {{}}) {{
+      const forceChoose = Boolean(options?.forceChoose);
+      if (!window.showDirectoryPicker) {{
+        throw new Error("当前浏览器不支持目录选择器。请用最新版 Edge 或 Chrome 打开私有测试工作台。");
+      }}
+      if (!forceChoose) {{
+        try {{
+          const remembered = await readStoredLocalExportDirectoryHandle();
+          const rememberedHandle = remembered?.handle || null;
+          if (rememberedHandle) {{
+            let permission = await directoryPermissionState(rememberedHandle);
+            if (permission === "prompt" && typeof rememberedHandle.requestPermission === "function") {{
+              permission = await rememberedHandle.requestPermission({{ mode: "readwrite" }});
+            }}
+            if (permission === "granted") {{
+              const label = normalizeText(remembered?.label) || normalizeText(rememberedHandle.name);
+              writeLocalExportPreference({{ directoryLabel: label }});
+              return {{
+                handle: rememberedHandle,
+                label,
+                remembered: true,
+              }};
+            }}
+            if (permission === "denied") {{
+              await clearStoredLocalExportDirectoryHandle();
+            }}
+          }}
+        }} catch (_error) {{
+          await clearStoredLocalExportDirectoryHandle();
+        }}
+      }}
+      const handle = await window.showDirectoryPicker({{ mode: "readwrite" }});
+      await writeStoredLocalExportDirectoryHandle(handle);
+      return {{
+        handle,
+        label: normalizeText(handle.name),
+        remembered: false,
+      }};
     }}
 
     function applyRequestModeToForm(request, snapshot) {{
@@ -1074,6 +1477,579 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         throw new Error(normalizeText(data.error) || "请求失败。");
       }}
       return data;
+    }}
+
+    async function fetchJson(url) {{
+      const response = await fetch(url, {{ cache: "no-store" }});
+      const data = await response.json().catch(() => ({{ ok: false, error: "返回结果不是合法 JSON。" }}));
+      if (!response.ok || !data.ok) {{
+        throw new Error(normalizeText(data.error) || "请求失败。");
+      }}
+      return data;
+    }}
+
+    function targetDisplayNameById(targetId) {{
+      const targets = Array.isArray(publishTargetsPayload?.targets) ? publishTargetsPayload.targets : [];
+      const matched = targets.find((target) => normalizeText(target?.id) === normalizeText(targetId));
+      return normalizeText(matched?.displayName) || normalizeText(targetId) || "未命名目标";
+    }}
+
+    function userSelectablePublishTargets() {{
+      return Array.isArray(publishTargetsPayload?.targets)
+        ? publishTargetsPayload.targets.filter((target) => {{
+            const targetId = normalizeText(target?.id);
+            return targetId && !target?.internal;
+          }})
+        : [];
+    }}
+
+    function publishStateForRun(detail) {{
+      const runId = normalizeText(detail?.runId);
+      if (!runId) {{
+        return {{
+          targetId: "",
+          localExportKind: normalizeLocalExportKind(readLocalExportPreference()?.exportKind),
+          localExportName: defaultLocalExportName(detail),
+        }};
+      }}
+      const existing = publishSelectionByRunId[runId];
+      if (existing) {{
+        return existing;
+      }}
+      const localExportPreference = readLocalExportPreference();
+      const state = {{
+        targetId: "",
+        localExportKind: normalizeLocalExportKind(localExportPreference?.exportKind),
+        localExportName: defaultLocalExportName(detail),
+      }};
+      publishSelectionByRunId[runId] = state;
+      return state;
+    }}
+
+    async function ensurePublishTargetsLoaded(snapshot = currentSnapshot, options = {{}}) {{
+      if (!currentPermissions(snapshot).allowPublish) {{
+        return null;
+      }}
+      const force = Boolean(options?.force);
+      if (force) {{
+        publishTargetsPayload = null;
+      }}
+      if (!force && publishTargetsPayload) {{
+        return publishTargetsPayload;
+      }}
+      if (publishTargetsPromise) {{
+        return publishTargetsPromise;
+      }}
+      publishTargetsPromise = fetchJson("/api/publish/targets")
+        .then((payload) => {{
+          publishTargetsPayload = payload;
+          return payload;
+        }})
+        .finally(() => {{
+          publishTargetsPromise = null;
+          if (currentSnapshot) {{
+            renderDetail(currentSnapshot);
+          }}
+        }});
+      return publishTargetsPromise;
+    }}
+
+    function renderPublishBrowserSetup() {{
+      const targets = Array.isArray(publishTargetsPayload?.targets) ? publishTargetsPayload.targets : [];
+      const hasBrowserTargets = targets.some((target) => Boolean(target?.requiresBrowserProfile));
+      const edge = publishTargetsPayload?.browserProfiles?.edge || null;
+      if (!hasBrowserTargets || !edge) {{
+        return "";
+      }}
+      const ready = Boolean(edge.readyForPublish);
+      const command = normalizeText(ready ? edge.statusCommand : edge.syncCommand);
+      const guidance = normalizeText(edge.guidance);
+      return `
+        <div class="publish-browser-setup ${{ready ? "ready" : "needs-setup"}}">
+          <strong>${{escapeHtml(edge.statusText || "Edge 发布配置状态未知。")}}</strong>
+          ${{guidance ? `<span>${{escapeHtml(guidance)}}</span>` : ""}}
+          ${{command ? `<span>脚本：<span class="publish-command">${{escapeHtml(command)}}</span></span>` : ""}}
+          <button type="button" data-publish-refresh-targets>刷新发布配置</button>
+        </div>
+      `;
+    }}
+
+    function renderPublishReceipts(detail) {{
+      const receipts = Array.isArray(detail?.publishReceipts) ? detail.publishReceipts : [];
+      if (!receipts.length) {{
+        return '<div class="publish-target-empty">当前 run 还没有发布记录。</div>';
+      }}
+      return `
+        <div class="publish-receipts">
+          ${{receipts.map((receipt) => `
+            <div class="publish-receipt">
+              <div class="publish-receipt-top">
+                <div class="publish-receipt-title">${{escapeHtml(targetDisplayNameById(receipt.targetId || receipt.adapter))}}</div>
+                <span class="badge">${{escapeHtml(receipt.status || "unknown")}}</span>
+              </div>
+              <div class="publish-receipt-meta">
+                <span>发布时间：${{escapeHtml(receipt.publishedAt || "-")}}</span>
+                ${{receipt.exportKind ? `<span>导出内容：${{escapeHtml(receipt.exportKind === LOCAL_EXPORT_KIND_IMAGE_ONLY ? "只导出图片" : "导出图文文件夹")}}</span>` : ""}}
+                ${{receipt.exportName ? `<span>导出名称：${{escapeHtml(receipt.exportName)}}</span>` : ""}}
+                ${{receipt.directoryLabel ? `<span>目录：${{escapeHtml(receipt.directoryLabel)}}</span>` : ""}}
+                ${{receipt.bundlePath ? `<span>文件夹：${{escapeHtml(receipt.bundlePath)}}</span>` : ""}}
+                ${{receipt.containerName ? `<span>容器名：${{escapeHtml(receipt.containerName)}}</span>` : ""}}
+                ${{receipt.imagePath ? `<span>图片：${{escapeHtml(receipt.imagePath)}}</span>` : ""}}
+                ${{receipt.textPath ? `<span>文案：${{escapeHtml(receipt.textPath)}}</span>` : ""}}
+                ${{receipt.archiveRecordPath ? `<span>记录：${{escapeHtml(receipt.archiveRecordPath)}}</span>` : ""}}
+              </div>
+            </div>
+          `).join("")}}
+        </div>
+      `;
+    }}
+
+    function sanitizeLocalFilename(value) {{
+      const cleaned = normalizeText(value)
+        .replace(/[<>:"/\\\\|?*\\x00-\\x1f]+/g, "_")
+        .replace(/\\s+/g, " ")
+        .replace(/^\\.+/, "")
+        .trim()
+        .replace(/[ .]+$/g, "")
+        .slice(0, 80)
+        .trim()
+        .replace(/[ .]+$/g, "");
+      return cleaned || LOCAL_EXPORT_DEFAULT_NAME;
+    }}
+
+    function extensionFromImagePath(path) {{
+      const match = normalizeText(path).match(/\\.([A-Za-z0-9]+)$/);
+      const extension = match ? match[1].toLowerCase() : "png";
+      return ["png", "jpg", "jpeg", "webp"].includes(extension) ? extension : "png";
+    }}
+
+    async function writeBrowserFile(directoryHandle, filename, blob) {{
+      const fileHandle = await directoryHandle.getFileHandle(filename, {{ create: true }});
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    }}
+
+    async function fileSystemEntryExists(parentHandle, entryName, kind) {{
+      const normalizedName = normalizeText(entryName);
+      if (!normalizedName) {{
+        return false;
+      }}
+      try {{
+        if (kind === "directory") {{
+          await parentHandle.getDirectoryHandle(normalizedName);
+        }} else {{
+          await parentHandle.getFileHandle(normalizedName);
+        }}
+        return true;
+      }} catch (error) {{
+        if (error?.name === "NotFoundError") {{
+          return false;
+        }}
+        if (error?.name === "TypeMismatchError") {{
+          return true;
+        }}
+        throw error;
+      }}
+    }}
+
+    async function nextAvailableBrowserEntryName(parentHandle, baseName, kind, suffix = "") {{
+      let counter = 1;
+      while (counter < 1000) {{
+        const candidate = counter === 1
+          ? `${{baseName}}${{suffix}}`
+          : `${{baseName}} (${{counter}})${{suffix}}`;
+        if (!(await fileSystemEntryExists(parentHandle, candidate, kind))) {{
+          return candidate;
+        }}
+        counter += 1;
+      }}
+      throw new Error("导出目标重名次数过多，请换一个名称。");
+    }}
+
+    function resolveLocalExportOptions(detail, state) {{
+      const exportKind = normalizeLocalExportKind(state?.localExportKind);
+      const exportName = sanitizeLocalFilename(
+        normalizeText(state?.localExportName) || defaultLocalExportName(detail)
+      );
+      return {{
+        kind: exportKind,
+        name: exportName,
+      }};
+    }}
+
+    async function saveRunToLocalDirectory(detail, state, options = {{}}) {{
+      const imageRoute = normalizeText(detail?.imageRoute);
+      const localExport = resolveLocalExportOptions(detail, state);
+      const socialPost = normalizeText(detail?.socialPostPreview);
+      if (!imageRoute) {{
+        throw new Error("当前 run 还没有可导出的图片。");
+      }}
+      if (localExport.kind !== LOCAL_EXPORT_KIND_IMAGE_ONLY && !socialPost) {{
+        throw new Error("当前 run 还没有可导出的社媒文案。");
+      }}
+      const directorySelection = await ensureLocalExportDirectoryHandle({{
+        forceChoose: Boolean(options?.forceChooseDirectory),
+      }});
+      const directoryHandle = directorySelection.handle;
+      const baseName = localExport.name;
+      const imageResponse = await fetch(imageRoute, {{ cache: "no-store" }});
+      if (!imageResponse.ok) {{
+        throw new Error("图片下载失败，无法写入本地目录。");
+      }}
+      const imageBlob = await imageResponse.blob();
+      const imageExtension = extensionFromImagePath(detail?.generatedImagePath);
+      if (localExport.kind === LOCAL_EXPORT_KIND_IMAGE_ONLY) {{
+        const imageFileName = await nextAvailableBrowserEntryName(
+          directoryHandle,
+          baseName,
+          "file",
+          `.${{imageExtension}}`
+        );
+        await writeBrowserFile(directoryHandle, imageFileName, imageBlob);
+        return {{
+          fileCount: 1,
+          fileNames: [imageFileName],
+          localExport,
+          directoryLabel: normalizeText(directorySelection.label),
+          containerName: "",
+        }};
+      }}
+      const folderName = await nextAvailableBrowserEntryName(directoryHandle, baseName, "directory");
+      const bundleHandle = await directoryHandle.getDirectoryHandle(folderName, {{ create: true }});
+      const imageFileName = `${{baseName}}.${{imageExtension}}`;
+      const textFileName = `${{baseName}}${{LOCAL_EXPORT_TEXT_SUFFIX}}`;
+      await writeBrowserFile(bundleHandle, imageFileName, imageBlob);
+      await writeBrowserFile(
+        bundleHandle,
+        textFileName,
+        new Blob([socialPost + "\\n"], {{ type: "text/plain;charset=utf-8" }})
+      );
+      return {{
+        fileCount: 2,
+        fileNames: [imageFileName, textFileName],
+        localExport,
+        directoryLabel: normalizeText(directorySelection.label),
+        containerName: folderName,
+      }};
+    }}
+
+    async function recordClientPublishResult(detail, target, result) {{
+      const payload = {{
+        runId: normalizeText(detail?.runId),
+        targetId: normalizeText(target?.id),
+        fileNames: Array.isArray(result?.fileNames) ? result.fileNames : [],
+        localExport: result?.localExport || {{}},
+        containerName: normalizeText(result?.containerName),
+        directoryLabel: normalizeText(result?.directoryLabel),
+      }};
+      const response = await submitJson("/api/publish/client-result", payload);
+      return response.job || null;
+    }}
+
+    function renderLocalExportEditor(detail, target, state) {{
+      if (!target || normalizeText(target?.executor) !== "browser_save" || !target?.supportsLocalExport) {{
+        return "";
+      }}
+      const kinds = Array.isArray(target?.localExportKinds) && target.localExportKinds.length
+        ? target.localExportKinds
+        : [
+            {{ id: LOCAL_EXPORT_KIND_IMAGE_ONLY, label: "只导出图片", description: "只保存最终图片。" }},
+            {{ id: LOCAL_EXPORT_KIND_BUNDLE_FOLDER, label: "导出图文文件夹", description: "保存最终图片和对应社媒文案。" }},
+          ];
+      const selectedKind = normalizeLocalExportKind(state?.localExportKind || target?.defaultLocalExportKind);
+      const exportNameValue = normalizeText(state?.localExportName) || defaultLocalExportName(detail);
+      const directoryLabel = currentLocalExportDirectoryLabel();
+      const directorySummary = directoryLabel
+        ? `已记住目录：${{escapeHtml(directoryLabel)}}`
+        : "当前还没有记住导出目录。首次导出时会弹出目录选择器。";
+      const socialPostRequirement = selectedKind === LOCAL_EXPORT_KIND_IMAGE_ONLY
+        ? "当前选择只导出图片。"
+        : "当前选择导出图文文件夹。";
+      return `
+        <div class="publish-local-export">
+          <div class="publish-local-export-grid">
+            <div class="field">
+              <label for="publish-local-export-kind">导出内容</label>
+              <select id="publish-local-export-kind">
+                ${{kinds.map((item) => {{
+                  const kindId = normalizeText(item?.id);
+                  const selected = kindId === selectedKind ? "selected" : "";
+                  return `<option value="${{escapeHtml(kindId)}}" ${{selected}}>${{escapeHtml(item?.label || kindId)}}</option>`;
+                }}).join("")}}
+              </select>
+              <div class="hint">
+                ${{escapeHtml((kinds.find((item) => normalizeText(item?.id) === selectedKind) || {{}}).description || socialPostRequirement)}}
+              </div>
+            </div>
+            <div class="field">
+              <label for="publish-local-export-name">导出名称</label>
+              <input id="publish-local-export-name" type="text" value="${{escapeHtml(exportNameValue)}}" placeholder="${{escapeHtml(defaultLocalExportName(detail))}}">
+              <div class="hint">图片导出时会生成文件名；图文导出时会生成同名文件夹。</div>
+            </div>
+          </div>
+          <div class="publish-directory-state">
+            <span>${{directorySummary}}</span>
+            <span>${{escapeHtml(socialPostRequirement)}}</span>
+          </div>
+          <div class="publish-local-export-actions">
+            <button type="button" class="secondary" data-local-export-change-dir>更换目录</button>
+            <button type="button" class="secondary" data-local-export-clear-dir ${{directoryLabel ? "" : "disabled"}}>清除目录记忆</button>
+          </div>
+        </div>
+      `;
+    }}
+
+    function renderPublishPanel(detail, snapshot) {{
+      const permissions = currentPermissions(snapshot);
+      if (!permissions.allowPublish || reviewedPathDetail || !normalizeText(detail?.runId)) {{
+        return "";
+      }}
+      const state = publishStateForRun(detail);
+      const targets = userSelectablePublishTargets();
+      const hasImage = Boolean(normalizeText(detail?.generatedImagePath));
+      const hasSocialPost = Boolean(normalizeText(detail?.socialPostPreview));
+      const selectedTargetId = normalizeText(state.targetId);
+      const availableTargetIds = new Set(
+        targets
+          .filter((target) => target?.available !== false)
+          .map((target) => normalizeText(target?.id))
+          .filter(Boolean)
+      );
+      if (publishTargetsPayload) {{
+        if (selectedTargetId && !availableTargetIds.has(selectedTargetId)) {{
+          state.targetId = "";
+        }}
+      }}
+      const activeTargetId = normalizeText(state.targetId);
+      const selectedTarget = targets.find((target) => normalizeText(target?.id) === activeTargetId && target?.available !== false) || null;
+      const localExportKind = normalizeLocalExportKind(state?.localExportKind);
+      const requiresSocialPost = !selectedTarget
+        ? true
+        : normalizeText(selectedTarget?.executor) === "browser_save"
+          ? localExportKind !== LOCAL_EXPORT_KIND_IMAGE_ONLY
+          : true;
+      const disabledReason = !hasImage
+        ? "当前 run 还没有最终图片。"
+        : requiresSocialPost && !hasSocialPost
+          ? "当前 run 还没有社媒文案。"
+          : !selectedTarget
+            ? "请选择一个发布目标。"
+          : "";
+      const staticTargetsHtml = publishTargetsPayload
+        ? (targets.length
+            ? targets.map((target) => {{
+                const targetId = normalizeText(target?.id);
+                const available = target?.available !== false;
+                const checked = available && normalizeText(state.targetId) === targetId ? "checked" : "";
+                const disabled = available ? "" : "disabled";
+                const itemClass = available
+                  ? `publish-target-item ${{checked ? "selected" : ""}}`
+                  : "publish-target-item unavailable";
+                const statusText = normalizeText(target?.statusText);
+                const guidance = normalizeText(target?.guidance);
+                const setupCommand = normalizeText(target?.setupCommand);
+                const description = normalizeText(target?.description) || normalizeText(target?.adapter);
+                return `
+                  <label class="${{itemClass}}">
+                    <input type="radio" name="publish-target-${{escapeHtml(normalizeText(detail?.runId))}}" data-publish-target="${{escapeHtml(targetId)}}" ${{checked}} ${{disabled}}>
+                    <span class="publish-target-copy">
+                      <span class="publish-target-name">${{escapeHtml(target.displayName || targetId)}}</span>
+                      ${{description ? `<span class="publish-target-adapter">${{escapeHtml(description)}}</span>` : ""}}
+                      ${{statusText ? `<span class="publish-target-status">${{escapeHtml(statusText)}}</span>` : ""}}
+                      ${{!available && guidance ? `<span class="publish-target-status">${{escapeHtml(guidance)}}</span>` : ""}}
+                      ${{!available && setupCommand ? `<span class="publish-target-status">脚本：<span class="publish-command">${{escapeHtml(setupCommand)}}</span></span>` : ""}}
+                    </span>
+                  </label>
+                `;
+              }}).join("")
+            : '<div class="publish-target-empty">当前没有可用发布目标。</div>')
+        : '<div class="publish-target-empty">正在加载发布目标…</div>';
+      return `
+        <section class="publish-panel" id="publish-panel">
+          <div class="publish-head">
+            <div class="publish-title">发布</div>
+            <span class="muted">选择一个目标，触发一次发布动作。</span>
+          </div>
+          ${{renderPublishBrowserSetup()}}
+          <div class="publish-target-list">${{staticTargetsHtml}}</div>
+          ${{renderLocalExportEditor(detail, selectedTarget, state)}}
+          <div class="publish-preview">
+            <div class="publish-preview-title">社媒文案预览</div>
+            <div class="publish-preview-text">${{escapeHtml(detail?.socialPostPreview || "当前还没有社媒文案。")}}</div>
+          </div>
+          <div class="publish-actions">
+            <button type="button" data-publish-submit ${{disabledReason ? "disabled" : ""}}>执行发布</button>
+            ${{disabledReason ? `<span class="muted">${{escapeHtml(disabledReason)}}</span>` : '<span class="muted">完成后会记录本次发布结果，并清空当前选择。</span>'}}
+          </div>
+          <div class="field full">
+            <label>发布记录</label>
+            ${{renderPublishReceipts(detail)}}
+          </div>
+        </section>
+      `;
+    }}
+
+    async function waitForPublishJob(jobId, timeoutMs = 30000) {{
+      const normalizedJobId = normalizeText(jobId);
+      if (!normalizedJobId) {{
+        throw new Error("发布任务缺少 jobId。");
+      }}
+      const deadline = Date.now() + Math.max(Number(timeoutMs) || 0, 1000);
+      let lastJob = null;
+      while (Date.now() <= deadline) {{
+        const payload = await fetchJson(`/api/publish/jobs/${{encodeURIComponent(normalizedJobId)}}`);
+        lastJob = payload.job || null;
+        const status = normalizeText(lastJob?.status);
+        if (status === "completed" || status === "failed") {{
+          return lastJob;
+        }}
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+      }}
+      return lastJob;
+    }}
+
+    function bindPublishPanel(detail) {{
+      const panel = document.getElementById("publish-panel");
+      if (!panel) {{
+        return;
+      }}
+      const state = publishStateForRun(detail);
+      panel.querySelectorAll("[data-publish-target]").forEach((radio) => {{
+        radio.addEventListener("change", () => {{
+          if (radio.disabled) {{
+            return;
+          }}
+          const targetId = normalizeText(radio.getAttribute("data-publish-target"));
+          if (!targetId) {{
+            return;
+          }}
+          if (radio.checked) {{
+            state.targetId = targetId;
+            rerenderCurrentDetail();
+          }}
+          }});
+      }});
+      const localExportKindSelect = panel.querySelector("#publish-local-export-kind");
+      if (localExportKindSelect) {{
+        localExportKindSelect.addEventListener("change", () => {{
+          const nextKind = normalizeLocalExportKind(localExportKindSelect.value);
+          if (state.localExportKind === nextKind) {{
+            return;
+          }}
+          state.localExportKind = nextKind;
+          writeLocalExportPreference({{ exportKind: nextKind }});
+          rerenderCurrentDetail();
+        }});
+      }}
+      const localExportNameInput = panel.querySelector("#publish-local-export-name");
+      if (localExportNameInput) {{
+        localExportNameInput.addEventListener("input", () => {{
+          state.localExportName = normalizeText(localExportNameInput.value);
+        }});
+      }}
+      const changeDirectoryButton = panel.querySelector("[data-local-export-change-dir]");
+      if (changeDirectoryButton) {{
+        changeDirectoryButton.addEventListener("click", async () => {{
+          try {{
+            changeDirectoryButton.disabled = true;
+            const selection = await ensureLocalExportDirectoryHandle({{ forceChoose: true }});
+            rerenderCurrentDetail();
+            applyActionMessage(`已切换导出目录：${{normalizeText(selection?.label) || "已更新"}}`, "success");
+          }} catch (error) {{
+            const message = error?.name === "AbortError" ? "已取消目录选择。" : (error.message || "切换导出目录失败。");
+            applyActionMessage(message, "error");
+          }} finally {{
+            changeDirectoryButton.disabled = false;
+          }}
+        }});
+      }}
+      const clearDirectoryButton = panel.querySelector("[data-local-export-clear-dir]");
+      if (clearDirectoryButton) {{
+        clearDirectoryButton.addEventListener("click", async () => {{
+          try {{
+            clearDirectoryButton.disabled = true;
+            await clearStoredLocalExportDirectoryHandle();
+            rerenderCurrentDetail();
+            applyActionMessage("已清除导出目录记忆。", "success");
+          }} catch (error) {{
+            applyActionMessage(error.message || "清除导出目录记忆失败。", "error");
+          }} finally {{
+            clearDirectoryButton.disabled = false;
+          }}
+        }});
+      }}
+      const refreshTargetsButton = panel.querySelector("[data-publish-refresh-targets]");
+      if (refreshTargetsButton) {{
+        refreshTargetsButton.addEventListener("click", async () => {{
+          try {{
+            refreshTargetsButton.disabled = true;
+            applyActionMessage("正在刷新发布配置…");
+            await ensurePublishTargetsLoaded(currentSnapshot, {{ force: true }});
+            rerenderCurrentDetail();
+            applyActionMessage("发布配置已刷新。", "success");
+          }} catch (error) {{
+            applyActionMessage(error.message || "刷新发布配置失败。", "error");
+          }} finally {{
+            refreshTargetsButton.disabled = false;
+          }}
+        }});
+      }}
+      const submitButton = panel.querySelector("[data-publish-submit]");
+      if (submitButton) {{
+        submitButton.addEventListener("click", async () => {{
+          try {{
+            const targets = userSelectablePublishTargets();
+            const selectedTargetId = normalizeText(state.targetId);
+            const target = targets.find((item) => normalizeText(item?.id) === selectedTargetId && item?.available !== false);
+            if (!target) {{
+              throw new Error("请选择一个可用发布目标。");
+            }}
+            submitButton.disabled = true;
+            let job = null;
+            if (normalizeText(target?.executor) === "browser_save") {{
+              applyActionMessage("请选择本地保存目录…");
+              const result = await saveRunToLocalDirectory(detail, state);
+              try {{
+                job = await recordClientPublishResult(detail, target, result);
+              }} catch (recordError) {{
+                state.targetId = "";
+                rerenderCurrentDetail();
+                applyActionMessage(`本地另存完成，但发布记录写入失败：${{recordError.message || "未知错误"}}`, "error");
+                return;
+              }}
+            }} else {{
+              const payload = {{
+                runId: normalizeText(detail?.runId),
+                targetId: selectedTargetId,
+                options: {{
+                  localExport: resolveLocalExportOptions(detail, state),
+                }},
+              }};
+              applyActionMessage("正在发布…");
+              const submitResponse = await submitJson("/api/publish/run", payload);
+              job = submitResponse.job || null;
+              const jobId = normalizeText(job?.jobId);
+              if (jobId && normalizeText(job?.status) !== "completed" && normalizeText(job?.status) !== "failed") {{
+                job = await waitForPublishJob(jobId);
+              }}
+            }}
+            if (normalizeText(job?.status) === "failed") {{
+              throw new Error(normalizeText(job?.error) || "发布失败。");
+            }}
+            state.targetId = "";
+            rerenderCurrentDetail();
+            await fetchSnapshot({{ forceDetail: true }});
+            const receiptCount = Array.isArray(job?.receipts) ? job.receipts.length : 0;
+            applyActionMessage(`发布完成：${{receiptCount || 1}} 个结果。`, "success");
+          }} catch (error) {{
+            const message = error?.name === "AbortError" ? "已取消本地另存。" : (error.message || "发布失败。");
+            applyActionMessage(message, "error");
+          }} finally {{
+            submitButton.disabled = false;
+          }}
+        }});
+      }}
     }}
 
     function renderStatus(snapshot) {{
@@ -1420,6 +2396,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     }}
 
     function detailRenderKey(snapshot, detail, selectedItem) {{
+      const publishState = detail ? publishStateForRun(detail) : null;
       return stableJson({{
         reviewedPath: normalizeText(reviewedPath),
         reviewedPathDetail: reviewedPathDetail || null,
@@ -1439,6 +2416,11 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
               sceneDraftPremiseZh: normalizeText(selectedItem.sceneDraftPremiseZh),
             }}
           : null,
+        publish: {{
+          allow: Boolean(currentPermissions(snapshot).allowPublish),
+          targetsLoaded: Boolean(publishTargetsPayload),
+          selectedTarget: publishState ? normalizeText(publishState.targetId) : "",
+        }},
         detail: detail || null,
       }});
     }}
@@ -1602,6 +2584,9 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const root = document.getElementById("detail-root");
       const badge = document.getElementById("detail-badge");
       const selectedItem = reviewedPathDetail ? null : selectedHistoryItem(snapshot);
+      if (detail && !reviewedPathDetail && currentPermissions(snapshot).allowPublish) {{
+        ensurePublishTargetsLoaded(snapshot).catch(() => null);
+      }}
       const renderKey = detailRenderKey(snapshot, detail, selectedItem);
       if (renderKey === lastDetailRenderKey) {{
         return;
@@ -1671,6 +2656,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         : '<div class="empty">当前还没有最终图片。</div>';
       const sections = Array.isArray(detail.sections) ? detail.sections : [];
       const sectionsHtml = sections.map((section) => renderSection(section, detail.runId)).join("");
+      const publishPanel = renderPublishPanel(detail, snapshot);
       const sectionNav = sections.length
         ? `
           <div class="section-nav">
@@ -1693,9 +2679,11 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           </div>
           <div>${{imagePanel}}</div>
         </div>
+        ${{publishPanel}}
         ${{sectionNav}}
         <div class="section-grid" style="margin-top: 18px;">${{sectionsHtml || '<div class="empty">当前没有可展示的中间产物。</div>'}}</div>
       `;
+      bindPublishPanel(detail);
     }}
 
     async function fetchSnapshot(options = {{}}) {{
@@ -1753,7 +2741,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const detailWasRendered = shouldRenderDetail(snapshot, options);
       selectedRunId = normalizeText(snapshot?.selectedRunId);
       currentSnapshot = snapshot;
-      document.getElementById("hero-title").textContent = snapshot?.identity?.workbenchTitle || "{title_text}";
+      document.getElementById("hero-title").textContent = snapshot?.identity?.workbenchTitle || {title_text_js};
       ensureFormOptions(snapshot);
       if (!initializedForm) {{
         initializeDefaultForm(snapshot);

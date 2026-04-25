@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
 
 from io_utils import read_json, read_text, write_json
 from runtime_layout import create_run_bundle
-from social_post.pipeline import run_social_post_pipeline
+from social_post.pipeline import STAGE_CONFIG, run_social_post_pipeline
 
 
 def _subject_profile() -> dict:
@@ -37,7 +37,8 @@ def _write_llm_profiles(project_dir: Path) -> None:
                     "baseUrl": "https://api.deepseek.com",
                     "chatCompletionsPath": "/chat/completions",
                     "envName": "DEEPSEEK_API_KEY",
-                    "model": "deepseek-chat",
+                    "model": "deepseek-v4-pro",
+                    "thinking": {"type": "disabled"},
                 }
             },
             "stages": {
@@ -97,9 +98,9 @@ class SocialPostPipelineTests(unittest.TestCase):
             self.assertNotIn("{{character_asset}}", call_kwargs["system_prompt"])
             self.assertNotIn("{{scene_design}}", call_kwargs["system_prompt"])
             self.assertIsNone(call_kwargs["user_payload"])
-            self.assertEqual(call_kwargs["temperature"], 1.1)
-            self.assertEqual(call_kwargs["top_p"], 0.9)
-            self.assertEqual(call_kwargs["top_k"], 50)
+            self.assertEqual(call_kwargs["temperature"], STAGE_CONFIG["temperature"])
+            self.assertEqual(call_kwargs["top_p"], STAGE_CONFIG["top_p"])
+            self.assertEqual(call_kwargs["top_k"], STAGE_CONFIG["top_k"])
 
 
 if __name__ == "__main__":

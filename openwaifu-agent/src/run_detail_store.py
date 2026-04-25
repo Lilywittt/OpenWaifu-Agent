@@ -534,6 +534,8 @@ def _build_run_detail_snapshot_from_run_dir(
             if resolved_image_path and route_run_id
             else ""
         ),
+        "publishReceipts": publish_receipts,
+        "publishPackagePath": normalize_spaces(str(summary_payload.get("publishPackagePath", ""))),
         "publishStatus": normalize_spaces(str(first_receipt.get("status", ""))),
         "publishedAt": normalize_spaces(str(first_receipt.get("publishedAt", ""))),
         "sectionCounts": {

@@ -272,19 +272,23 @@ class PublicWorkbenchTests(unittest.TestCase):
                     health = json.loads(response.read().decode("utf-8"))
 
                 blocked_paths = [
-                    ("/api/review-path", {"path": str(project_dir)}),
-                    ("/api/toggle-favorite", {"kind": "run", "runId": "run-1"}),
-                    ("/api/delete-run", {"runId": "run-1"}),
-                    ("/api/shutdown", {}),
+                    ("GET", "/api/publish/targets", None),
+                    ("GET", "/api/publish/jobs/demo-job", None),
+                    ("POST", "/api/publish/run", {"runId": "run-1", "targets": ["qq_bot_user"]}),
+                    ("POST", "/api/publish/client-result", {"runId": "run-1", "targetId": "local_save_as"}),
+                    ("POST", "/api/review-path", {"path": str(project_dir)}),
+                    ("POST", "/api/toggle-favorite", {"kind": "run", "runId": "run-1"}),
+                    ("POST", "/api/delete-run", {"runId": "run-1"}),
+                    ("POST", "/api/shutdown", {}),
                 ]
                 statuses: list[int] = []
-                for path, payload in blocked_paths:
+                for method, path, payload in blocked_paths:
                     opener = build_opener(ProxyHandler({}))
                     request = Request(
                         base_url + path,
-                        data=json.dumps(payload).encode("utf-8"),
+                        data=(json.dumps(payload).encode("utf-8") if payload is not None else None),
                         headers={**headers, "Connection": "close"},
-                        method="POST",
+                        method=method,
                     )
                     try:
                         with opener.open(request, timeout=2):
@@ -297,7 +301,7 @@ class PublicWorkbenchTests(unittest.TestCase):
                 thread.join(timeout=2)
 
         self.assertEqual(health["service"], "public_workbench")
-        self.assertEqual(statuses, [403, 403, 403, 403])
+        self.assertEqual(statuses, [403, 403, 403, 403, 403, 403, 403, 403])
 
 
 if __name__ == "__main__":

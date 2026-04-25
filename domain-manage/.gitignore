@@ -3,6 +3,7 @@ node_modules/
 .wrangler-dev.log
 dist/
 runtime/
+.env.local
 .cf-login.txt
 .tmp-homepage.png
 .tmp-homepage-mobile.png

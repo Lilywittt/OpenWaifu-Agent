@@ -1268,6 +1268,7 @@ def build_content_workbench_snapshot(
             + ([{"id": "deleted", "label": "已删除"}] if profile.allow_deleted_history else []),
             "permissions": {
                 "public": profile.public,
+                "allowPublish": profile.allow_publish,
                 "allowReviewPath": profile.allow_review_path,
                 "allowFavorites": profile.allow_favorites,
                 "allowDeleteRun": profile.allow_delete_run,

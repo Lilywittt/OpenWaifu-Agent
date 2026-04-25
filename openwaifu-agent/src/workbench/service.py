@@ -18,6 +18,12 @@ from uuid import uuid4
 
 from generation_slot import GenerationSlotBusyError, read_generation_slot
 from io_utils import normalize_spaces
+from publish.service import (
+    list_publish_targets as list_publish_targets_payload,
+    read_publish_job_status,
+    record_client_publish_result,
+    submit_publish_run,
+)
 from process_utils import is_process_alive, spawn_background_process, terminate_process_tree
 from review_favorites import FAVORITE_KIND_PATH, favorite_selection_key, find_review_favorite
 from run_detail_store import (
@@ -146,9 +152,12 @@ class WorkbenchManager:
             status_worker_pid = int(status_payload.get("workerPid", 0) or 0)
         except (TypeError, ValueError):
             status_worker_pid = 0
-        return status_worker_pid == int(worker_pid)
+        if status_worker_pid != int(worker_pid):
+            return False
+        worker_ack_at = normalize_spaces(str(status_payload.get("workerAckAt", "")))
+        return bool(worker_ack_at)
 
-    def _wait_for_worker_bootstrap(self, *, worker_pid: int, request_id: str, timeout_seconds: float = 5.0) -> None:
+    def _wait_for_worker_bootstrap(self, *, worker_pid: int, request_id: str, timeout_seconds: float = 20.0) -> None:
         deadline = datetime.now().timestamp() + max(float(timeout_seconds), 0.0)
         while datetime.now().timestamp() < deadline:
             if self._worker_bootstrap_ready(worker_pid=worker_pid, request_id=request_id):
@@ -158,7 +167,7 @@ class WorkbenchManager:
             threading.Event().wait(0.1)
         if self._worker_bootstrap_ready(worker_pid=worker_pid, request_id=request_id):
             return
-        raise RuntimeError("内容工作台 worker 未成功启动，请查看 worker 日志。")
+        raise RuntimeError("内容工作台 worker 在 20 秒内未完成启动握手，请检查 worker 日志。")
 
     def _assert_public_source_allowed(self, request: dict[str, Any]) -> None:
         if self.profile.allows_all_source_kinds:
@@ -229,6 +238,20 @@ class WorkbenchManager:
             )
             try:
                 worker_pid = self._launch_worker_process(request_id=normalized_request["requestId"])
+                write_workbench_status(
+                    self.project_dir,
+                    {
+                        "status": "running",
+                        "stage": "正在启动 worker",
+                        "request": normalized_request,
+                        "startedAt": started_at,
+                        "runId": "",
+                        "runRoot": "",
+                        "workerPid": worker_pid,
+                        "workerAckAt": "",
+                        "error": "",
+                    },
+                )
                 self._wait_for_worker_bootstrap(worker_pid=worker_pid, request_id=normalized_request["requestId"])
             except Exception as exc:
                 clear_active_request(self.project_dir)
@@ -451,6 +474,30 @@ def _make_handler(
                     }
                 )
                 return
+            if parsed.path == "/api/publish/targets":
+                if not profile.allow_publish:
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                self._send_json({"ok": True, **list_publish_targets_payload(project_dir)})
+                return
+            if parsed.path.startswith("/api/publish/jobs/"):
+                if not profile.allow_publish:
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                job_id = normalize_spaces(parsed.path.removeprefix("/api/publish/jobs/"))
+                if not job_id:
+                    self._send_json({"ok": False, "error": "Missing jobId"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    payload = read_publish_job_status(project_dir, job_id)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "未找到发布任务。"},
+                        status=HTTPStatus.NOT_FOUND,
+                    )
+                    return
+                self._send_json({"ok": True, "job": payload})
+                return
             self._send_json({"ok": False, "error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
         def do_POST(self) -> None:  # noqa: N802
@@ -487,6 +534,38 @@ def _make_handler(
                     self._send_json({"ok": False, "error": message}, status=status)
                     return
                 self._send_json({"ok": True, "request": normalized_request})
+                return
+            if parsed.path == "/api/publish/run":
+                if not profile.allow_publish:
+                    self._discard_request_body()
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                try:
+                    payload = self._read_json_body()
+                    job = submit_publish_run(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "发布失败。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, "job": job})
+                return
+            if parsed.path == "/api/publish/client-result":
+                if not profile.allow_publish:
+                    self._discard_request_body()
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                try:
+                    payload = self._read_json_body()
+                    job = record_client_publish_result(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "发布结果记录失败。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, "job": job})
                 return
             if parsed.path == "/api/delete-run":
                 if not profile.allow_delete_run:

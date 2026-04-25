@@ -1,5 +1,6 @@
 from .package import build_publish_input
 from .pipeline import load_publish_targets, resolve_publish_targets, run_publish_pipeline, run_publish_stage
+from .service import list_publish_targets, read_publish_job_status, submit_publish_run
 from .qq_bot_callback import (
     build_callback_verification_response,
     extract_user_openid,
