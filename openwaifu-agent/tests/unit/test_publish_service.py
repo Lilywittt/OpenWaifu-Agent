@@ -11,8 +11,10 @@ if str(SRC) not in sys.path:
 from io_utils import read_json, write_json
 from publish.service import (
     list_publish_targets,
+    read_publish_social_post,
     read_publish_job_status,
     record_client_publish_result,
+    save_publish_social_post,
     submit_publish_run,
 )
 from publish.targets import resolve_publish_targets_for_request
@@ -292,6 +294,76 @@ class PublishServiceTests(unittest.TestCase):
             self.assertEqual(receipt["textPath"], "")
             self.assertTrue(image_export_path.exists())
             self.assertEqual(image_export_path.name, "Rainy Poster.png")
+
+    def test_manual_social_post_override_is_used_by_publish_run(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_targets_config(project_dir)
+            run_id = "2026-04-24T18-40-00_publish_manual_caption"
+            run_dir = _write_run_artifacts(project_dir, run_id)
+            manual_text = "Manual caption line 1\nManual caption line 2"
+
+            saved_state = save_publish_social_post(
+                project_dir,
+                {
+                    "runId": run_id,
+                    "socialPostText": manual_text,
+                },
+            )
+            job = submit_publish_run(
+                project_dir,
+                {
+                    "runId": run_id,
+                    "localDirectory": "exports/manual-caption",
+                    "options": {
+                        "localExport": {
+                            "kind": "bundle_folder",
+                            "name": "Manual Caption",
+                        }
+                    },
+                },
+            )
+
+            state = read_publish_social_post(project_dir, run_id)
+            publish_input = read_json(run_dir / "publish" / "service_jobs" / job["jobId"] / "00_publish_input.json")
+            summary_payload = read_json(run_dir / "output" / "run_summary.json")
+            text_export_path = Path(summary_payload["publishReceipts"][0]["textPath"])
+            exported_text = text_export_path.read_text(encoding="utf-8")
+
+            self.assertTrue(saved_state["isManual"])
+            self.assertEqual(state["socialPostText"], manual_text)
+            self.assertEqual(publish_input["socialPostText"], manual_text)
+            self.assertEqual(summary_payload["socialPostText"], manual_text)
+            self.assertIn(manual_text, exported_text)
+
+    def test_submit_publish_run_accepts_social_post_option(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_targets_config(project_dir)
+            run_id = "2026-04-24T18-41-00_publish_option_caption"
+            run_dir = _write_run_artifacts(project_dir, run_id)
+            manual_text = "One-off caption from publishing page"
+
+            job = submit_publish_run(
+                project_dir,
+                {
+                    "runId": run_id,
+                    "localDirectory": "exports/option-caption",
+                    "options": {
+                        "socialPostText": manual_text,
+                        "localExport": {
+                            "kind": "bundle_folder",
+                            "name": "Option Caption",
+                        },
+                    },
+                },
+            )
+
+            state = read_publish_social_post(project_dir, run_id)
+            publish_input = read_json(run_dir / "publish" / "service_jobs" / job["jobId"] / "00_publish_input.json")
+
+            self.assertEqual(state["socialPostText"], manual_text)
+            self.assertEqual(publish_input["socialPostText"], manual_text)
 
     def test_browser_target_reports_setup_guidance_until_edge_sync(self):
         with TemporaryDirectory() as temp_dir:

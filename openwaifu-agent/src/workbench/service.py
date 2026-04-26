@@ -20,8 +20,10 @@ from generation_slot import GenerationSlotBusyError, read_generation_slot
 from io_utils import normalize_spaces
 from publish.service import (
     list_publish_targets as list_publish_targets_payload,
+    read_publish_social_post,
     read_publish_job_status,
     record_client_publish_result,
+    save_publish_social_post,
     submit_publish_run,
 )
 from process_utils import is_process_alive, spawn_background_process, terminate_process_tree
@@ -480,6 +482,25 @@ def _make_handler(
                     return
                 self._send_json({"ok": True, **list_publish_targets_payload(project_dir)})
                 return
+            if parsed.path == "/api/publish/social-post":
+                if not profile.allow_publish:
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                query = parse_qs(parsed.query)
+                run_id = str((query.get("runId") or [""])[0])
+                if not can_access_workbench_run(project_dir, run_id, viewer=viewer, profile=profile):
+                    self._send_json({"ok": False, "error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                    return
+                try:
+                    social_post = read_publish_social_post(project_dir, run_id)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "未找到发布文案。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, "socialPost": social_post})
+                return
             if parsed.path.startswith("/api/publish/jobs/"):
                 if not profile.allow_publish:
                     _send_permission_error(self, "当前模式不提供发布能力。")
@@ -550,6 +571,26 @@ def _make_handler(
                     )
                     return
                 self._send_json({"ok": True, "job": job})
+                return
+            if parsed.path == "/api/publish/social-post":
+                if not profile.allow_publish:
+                    self._discard_request_body()
+                    _send_permission_error(self, "当前模式不提供发布能力。")
+                    return
+                try:
+                    payload = self._read_json_body()
+                    run_id = normalize_spaces(str(payload.get("runId", ""))) if isinstance(payload, dict) else ""
+                    if not can_access_workbench_run(project_dir, run_id, viewer=viewer, profile=profile):
+                        self._send_json({"ok": False, "error": "Run not found"}, status=HTTPStatus.NOT_FOUND)
+                        return
+                    social_post = save_publish_social_post(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "发布文案保存失败。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, "socialPost": social_post})
                 return
             if parsed.path == "/api/publish/client-result":
                 if not profile.allow_publish:

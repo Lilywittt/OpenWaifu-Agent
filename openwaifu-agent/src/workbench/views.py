@@ -513,13 +513,44 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       font-size: 12px;
       line-height: 1.6;
     }}
-    .publish-preview {{
+    .publish-social-post-editor {{
       display: grid;
-      gap: 6px;
+      gap: 10px;
       padding: 12px 14px;
       border-radius: 14px;
-      background: #f8f3eb;
-      border: 1px solid rgba(143, 90, 42, 0.12);
+      background: #fffdfa;
+      border: 1px solid rgba(143, 90, 42, 0.14);
+    }}
+    .publish-social-post-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+    .publish-social-post-head label {{
+      margin: 0;
+    }}
+    .publish-social-post-textarea {{
+      min-height: 150px;
+      border-radius: 12px;
+    }}
+    .publish-social-post-actions {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .publish-social-post-actions button {{
+      background: #f7f2ea;
+      color: var(--accent-strong);
+      padding: 7px 11px;
+      font-size: 12px;
+    }}
+    .publish-social-post-count {{
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
     }}
     .publish-local-export {{
       display: grid;
@@ -551,17 +582,6 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       color: var(--muted);
       font-size: 12px;
       line-height: 1.6;
-    }}
-    .publish-preview-title {{
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-    }}
-    .publish-preview-text {{
-      white-space: pre-wrap;
-      line-height: 1.6;
-      font-size: 13px;
-      color: var(--ink);
     }}
     .publish-receipts {{
       display: grid;
@@ -964,6 +984,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     const LOCAL_EXPORT_HANDLE_DB_NAME = "openwaifu-agent-workbench";
     const LOCAL_EXPORT_HANDLE_STORE_NAME = "handles";
     const LOCAL_EXPORT_HANDLE_KEY = "content-workbench-local-export-directory-v1";
+    const PUBLISH_SOCIAL_POST_MAX_LENGTH = 5000;
 
     function nextPollDelayMs() {{
       return document.hidden ? hiddenRefreshMs : refreshMs;
@@ -992,6 +1013,13 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
 
     function normalizeText(value) {{
       return String(value || "").trim();
+    }}
+
+    function normalizeMultilineText(value) {{
+      return String(value || "")
+        .replaceAll("\\r\\n", "\\n")
+        .replaceAll("\\r", "\\n")
+        .trim();
     }}
 
     function clearReviewedPathDetail() {{
@@ -1503,6 +1531,10 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         : [];
     }}
 
+    function initialPublishSocialPostText(detail) {{
+      return normalizeMultilineText(detail?.socialPostPreview);
+    }}
+
     function publishStateForRun(detail) {{
       const runId = normalizeText(detail?.runId);
       if (!runId) {{
@@ -1510,10 +1542,18 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           targetId: "",
           localExportKind: normalizeLocalExportKind(readLocalExportPreference()?.exportKind),
           localExportName: defaultLocalExportName(detail),
+          socialPostText: "",
+          generatedSocialPostText: "",
+          socialPostLoaded: false,
+          socialPostDirty: false,
+          socialPostError: "",
         }};
       }}
       const existing = publishSelectionByRunId[runId];
       if (existing) {{
+        if (!existing.socialPostDirty && !existing.socialPostLoaded) {{
+          existing.socialPostText = initialPublishSocialPostText(detail);
+        }}
         return existing;
       }}
       const localExportPreference = readLocalExportPreference();
@@ -1521,6 +1561,14 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         targetId: "",
         localExportKind: normalizeLocalExportKind(localExportPreference?.exportKind),
         localExportName: defaultLocalExportName(detail),
+        socialPostText: initialPublishSocialPostText(detail),
+        generatedSocialPostText: initialPublishSocialPostText(detail),
+        socialPostLoaded: false,
+        socialPostDirty: false,
+        socialPostManual: false,
+        socialPostUpdatedAt: "",
+        socialPostError: "",
+        socialPostPromise: null,
       }};
       publishSelectionByRunId[runId] = state;
       return state;
@@ -1552,6 +1600,79 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           }}
         }});
       return publishTargetsPromise;
+    }}
+
+    function publishSocialPostTextForRun(detail, state = publishStateForRun(detail)) {{
+      const text = typeof state?.socialPostText === "string" ? state.socialPostText : detail?.socialPostPreview;
+      return normalizeMultilineText(text);
+    }}
+
+    async function ensurePublishSocialPostLoaded(detail, options = {{}}) {{
+      const runId = normalizeText(detail?.runId);
+      if (!runId) {{
+        return null;
+      }}
+      const state = publishStateForRun(detail);
+      const force = Boolean(options?.force);
+      if (!force && state.socialPostLoaded) {{
+        return state;
+      }}
+      if (state.socialPostPromise) {{
+        return state.socialPostPromise;
+      }}
+      state.socialPostPromise = fetchJson(`/api/publish/social-post?runId=${{encodeURIComponent(runId)}}`)
+        .then((payload) => {{
+          const socialPost = payload.socialPost || {{}};
+          const text = String(socialPost.socialPostText || "");
+          if (force || !state.socialPostDirty) {{
+            state.socialPostText = text;
+          }}
+          state.generatedSocialPostText = String(socialPost.generatedSocialPostText || "");
+          state.socialPostManual = Boolean(socialPost.isManual);
+          state.socialPostUpdatedAt = normalizeText(socialPost.updatedAt);
+          state.socialPostLoaded = true;
+          state.socialPostError = "";
+          return state;
+        }})
+        .catch((error) => {{
+          state.socialPostError = error.message || "发布文案加载失败。";
+          throw error;
+        }})
+        .finally(() => {{
+          state.socialPostPromise = null;
+          rerenderCurrentDetail();
+        }});
+      return state.socialPostPromise;
+    }}
+
+    async function savePublishSocialPost(detail, state, options = {{}}) {{
+      const runId = normalizeText(detail?.runId);
+      const socialPostText = publishSocialPostTextForRun(detail, state);
+      if (!runId) {{
+        throw new Error("当前 run 无法保存发布文案。");
+      }}
+      if (!socialPostText) {{
+        throw new Error("发布文案不能为空。");
+      }}
+      const response = await submitJson("/api/publish/social-post", {{
+        runId,
+        socialPostText,
+      }});
+      const socialPost = response.socialPost || {{}};
+      state.socialPostText = String(socialPost.socialPostText || socialPostText);
+      state.generatedSocialPostText = String(socialPost.generatedSocialPostText || state.generatedSocialPostText || "");
+      state.socialPostManual = Boolean(socialPost.isManual);
+      state.socialPostUpdatedAt = normalizeText(socialPost.updatedAt);
+      state.socialPostLoaded = true;
+      state.socialPostDirty = false;
+      state.socialPostError = "";
+      if (options?.refreshSnapshot !== false) {{
+        await fetchSnapshot({{ forceDetail: true }});
+      }}
+      if (!options?.silent) {{
+        applyActionMessage("发布文案已保存。", "success");
+      }}
+      return state;
     }}
 
     function renderPublishBrowserSetup() {{
@@ -1681,7 +1802,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     async function saveRunToLocalDirectory(detail, state, options = {{}}) {{
       const imageRoute = normalizeText(detail?.imageRoute);
       const localExport = resolveLocalExportOptions(detail, state);
-      const socialPost = normalizeText(detail?.socialPostPreview);
+      const socialPost = publishSocialPostTextForRun(detail, state);
       if (!imageRoute) {{
         throw new Error("当前 run 还没有可导出的图片。");
       }}
@@ -1800,6 +1921,37 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       `;
     }}
 
+    function renderPublishSocialPostEditor(detail, state) {{
+      const socialPostText = publishSocialPostTextForRun(detail, state);
+      const charCount = socialPostText.length;
+      const overLimit = charCount > PUBLISH_SOCIAL_POST_MAX_LENGTH;
+      const saveDisabled = !socialPostText || overLimit ? "disabled" : "";
+      const resetDisabled = normalizeMultilineText(state?.generatedSocialPostText) ? "" : "disabled";
+      const statusText = state?.socialPostError
+        ? state.socialPostError
+        : state?.socialPostDirty
+          ? "有未保存修改"
+          : state?.socialPostManual
+            ? "已保存手动文案"
+            : state?.socialPostLoaded
+              ? "使用生成文案"
+              : "正在加载文案…";
+      return `
+        <div class="publish-social-post-editor">
+          <div class="publish-social-post-head">
+            <label for="publish-social-post-text">发布文案</label>
+            <span class="publish-social-post-count" data-publish-social-post-count>${{charCount}} / ${{PUBLISH_SOCIAL_POST_MAX_LENGTH}}</span>
+          </div>
+          <textarea id="publish-social-post-text" class="publish-social-post-textarea" maxlength="${{PUBLISH_SOCIAL_POST_MAX_LENGTH}}">${{escapeHtml(socialPostText)}}</textarea>
+          <div class="publish-social-post-actions">
+            <button type="button" data-publish-save-social-post ${{saveDisabled}}>保存文案</button>
+            <button type="button" data-publish-reset-social-post ${{resetDisabled}}>填入生成文案</button>
+            <span class="muted" data-publish-social-post-status>${{escapeHtml(statusText)}}</span>
+          </div>
+        </div>
+      `;
+    }}
+
     function renderPublishPanel(detail, snapshot) {{
       const permissions = currentPermissions(snapshot);
       if (!permissions.allowPublish || reviewedPathDetail || !normalizeText(detail?.runId)) {{
@@ -1808,7 +1960,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const state = publishStateForRun(detail);
       const targets = userSelectablePublishTargets();
       const hasImage = Boolean(normalizeText(detail?.generatedImagePath));
-      const hasSocialPost = Boolean(normalizeText(detail?.socialPostPreview));
+      const socialPostText = publishSocialPostTextForRun(detail, state);
+      const hasSocialPost = Boolean(socialPostText);
       const selectedTargetId = normalizeText(state.targetId);
       const availableTargetIds = new Set(
         targets
@@ -1873,11 +2026,8 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           </div>
           ${{renderPublishBrowserSetup()}}
           <div class="publish-target-list">${{staticTargetsHtml}}</div>
+          ${{renderPublishSocialPostEditor(detail, state)}}
           ${{renderLocalExportEditor(detail, selectedTarget, state)}}
-          <div class="publish-preview">
-            <div class="publish-preview-title">社媒文案预览</div>
-            <div class="publish-preview-text">${{escapeHtml(detail?.socialPostPreview || "当前还没有社媒文案。")}}</div>
-          </div>
           <div class="publish-actions">
             <button type="button" data-publish-submit ${{disabledReason ? "disabled" : ""}}>执行发布</button>
             ${{disabledReason ? `<span class="muted">${{escapeHtml(disabledReason)}}</span>` : '<span class="muted">完成后会记录本次发布结果，并清空当前选择。</span>'}}
@@ -1948,6 +2098,87 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           state.localExportName = normalizeText(localExportNameInput.value);
         }});
       }}
+      const updateSocialPostControlState = () => {{
+        const socialPostText = publishSocialPostTextForRun(detail, state);
+        const charCount = socialPostText.length;
+        const overLimit = charCount > PUBLISH_SOCIAL_POST_MAX_LENGTH;
+        const countNode = panel.querySelector("[data-publish-social-post-count]");
+        const statusNode = panel.querySelector("[data-publish-social-post-status]");
+        const saveButton = panel.querySelector("[data-publish-save-social-post]");
+        const submitButton = panel.querySelector("[data-publish-submit]");
+        if (countNode) {{
+          countNode.textContent = `${{charCount}} / ${{PUBLISH_SOCIAL_POST_MAX_LENGTH}}`;
+        }}
+        if (statusNode) {{
+          statusNode.textContent = overLimit
+            ? `发布文案不能超过 ${{PUBLISH_SOCIAL_POST_MAX_LENGTH}} 个字符。`
+            : (state.socialPostDirty ? "有未保存修改" : (state.socialPostManual ? "已保存手动文案" : "使用生成文案"));
+        }}
+        if (saveButton) {{
+          saveButton.disabled = !socialPostText || overLimit;
+        }}
+        if (submitButton) {{
+          const targets = userSelectablePublishTargets();
+          const selectedTargetId = normalizeText(state.targetId);
+          const target = targets.find((item) => normalizeText(item?.id) === selectedTargetId && item?.available !== false);
+          const localExportKind = normalizeLocalExportKind(state?.localExportKind);
+          const requiresSocialPost = !target
+            ? true
+            : normalizeText(target?.executor) === "browser_save"
+              ? localExportKind !== LOCAL_EXPORT_KIND_IMAGE_ONLY
+              : true;
+          submitButton.disabled = overLimit
+            || !normalizeText(detail?.generatedImagePath)
+            || !target
+            || (requiresSocialPost && !socialPostText);
+        }}
+      }};
+      const socialPostTextarea = panel.querySelector("#publish-social-post-text");
+      if (socialPostTextarea) {{
+        socialPostTextarea.addEventListener("input", () => {{
+          state.socialPostText = String(socialPostTextarea.value || "")
+            .replaceAll("\\r\\n", "\\n")
+            .replaceAll("\\r", "\\n");
+          state.socialPostDirty = true;
+          state.socialPostError = "";
+          updateSocialPostControlState();
+        }});
+      }}
+      const saveSocialPostButton = panel.querySelector("[data-publish-save-social-post]");
+      if (saveSocialPostButton) {{
+        saveSocialPostButton.addEventListener("click", async () => {{
+          try {{
+            if (socialPostTextarea) {{
+              state.socialPostText = String(socialPostTextarea.value || "")
+                .replaceAll("\\r\\n", "\\n")
+                .replaceAll("\\r", "\\n");
+            }}
+            saveSocialPostButton.disabled = true;
+            applyActionMessage("正在保存发布文案…");
+            await savePublishSocialPost(detail, state);
+            rerenderCurrentDetail();
+          }} catch (error) {{
+            state.socialPostError = error.message || "发布文案保存失败。";
+            updateSocialPostControlState();
+            applyActionMessage(state.socialPostError, "error");
+          }} finally {{
+            saveSocialPostButton.disabled = false;
+          }}
+        }});
+      }}
+      const resetSocialPostButton = panel.querySelector("[data-publish-reset-social-post]");
+      if (resetSocialPostButton) {{
+        resetSocialPostButton.addEventListener("click", () => {{
+          const generatedText = String(state.generatedSocialPostText || detail?.socialPostPreview || "");
+          state.socialPostText = generatedText;
+          state.socialPostDirty = true;
+          state.socialPostError = "";
+          if (socialPostTextarea) {{
+            socialPostTextarea.value = generatedText;
+          }}
+          updateSocialPostControlState();
+        }});
+      }}
       const changeDirectoryButton = panel.querySelector("[data-local-export-change-dir]");
       if (changeDirectoryButton) {{
         changeDirectoryButton.addEventListener("click", async () => {{
@@ -2005,7 +2236,27 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
             if (!target) {{
               throw new Error("请选择一个可用发布目标。");
             }}
+            if (socialPostTextarea) {{
+              state.socialPostText = String(socialPostTextarea.value || "")
+                .replaceAll("\\r\\n", "\\n")
+                .replaceAll("\\r", "\\n");
+            }}
+            const socialPostText = publishSocialPostTextForRun(detail, state);
+            const localExportKind = normalizeLocalExportKind(state?.localExportKind);
+            const requiresSocialPost = normalizeText(target?.executor) === "browser_save"
+              ? localExportKind !== LOCAL_EXPORT_KIND_IMAGE_ONLY
+              : true;
+            if (socialPostText.length > PUBLISH_SOCIAL_POST_MAX_LENGTH) {{
+              throw new Error(`发布文案不能超过 ${{PUBLISH_SOCIAL_POST_MAX_LENGTH}} 个字符。`);
+            }}
+            if (requiresSocialPost && !socialPostText) {{
+              throw new Error("发布文案不能为空。");
+            }}
             submitButton.disabled = true;
+            if (socialPostText && state.socialPostDirty) {{
+              applyActionMessage("正在保存发布文案…");
+              await savePublishSocialPost(detail, state, {{ silent: true, refreshSnapshot: false }});
+            }}
             let job = null;
             if (normalizeText(target?.executor) === "browser_save") {{
               applyActionMessage("请选择本地保存目录…");
@@ -2024,6 +2275,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
                 targetId: selectedTargetId,
                 options: {{
                   localExport: resolveLocalExportOptions(detail, state),
+                  socialPostText,
                 }},
               }};
               applyActionMessage("正在发布…");
@@ -2420,6 +2672,11 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           allow: Boolean(currentPermissions(snapshot).allowPublish),
           targetsLoaded: Boolean(publishTargetsPayload),
           selectedTarget: publishState ? normalizeText(publishState.targetId) : "",
+          socialPostText: publishState ? String(publishState.socialPostText || "") : "",
+          socialPostLoaded: publishState ? Boolean(publishState.socialPostLoaded) : false,
+          socialPostDirty: publishState ? Boolean(publishState.socialPostDirty) : false,
+          socialPostManual: publishState ? Boolean(publishState.socialPostManual) : false,
+          socialPostError: publishState ? normalizeText(publishState.socialPostError) : "",
         }},
         detail: detail || null,
       }});
@@ -2586,6 +2843,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const selectedItem = reviewedPathDetail ? null : selectedHistoryItem(snapshot);
       if (detail && !reviewedPathDetail && currentPermissions(snapshot).allowPublish) {{
         ensurePublishTargetsLoaded(snapshot).catch(() => null);
+        ensurePublishSocialPostLoaded(detail).catch(() => null);
       }}
       const renderKey = detailRenderKey(snapshot, detail, selectedItem);
       if (renderKey === lastDetailRenderKey) {{

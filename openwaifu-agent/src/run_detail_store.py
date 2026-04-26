@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 from io_utils import normalize_spaces
+from publish.social_post_edit import read_effective_social_post
 from runtime_layout import runs_root
 
 
@@ -506,7 +507,10 @@ def _build_run_detail_snapshot_from_run_dir(
         )
         or effective_run_id
     )
-    social_post_text = normalize_spaces(str(summary_payload.get("socialPostText", "")))
+    try:
+        social_post_text = str(read_effective_social_post(run_dir).get("socialPostText", ""))
+    except Exception:
+        social_post_text = str(summary_payload.get("socialPostText", ""))
     publish_receipts = (
         summary_payload.get("publishReceipts", [])
         if isinstance(summary_payload.get("publishReceipts", []), list)

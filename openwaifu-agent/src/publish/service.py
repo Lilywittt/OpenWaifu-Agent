@@ -15,6 +15,11 @@ from .jobs import build_publish_job, read_publish_job, write_publish_job
 from .local_export import default_local_export_name, normalize_local_export_options
 from .package import build_publish_input
 from .pipeline import run_publish_stage
+from .social_post_edit import (
+    apply_effective_social_post_package,
+    read_effective_social_post,
+    save_social_post_override,
+)
 from .state import append_published_record
 from .targets import list_publish_targets as build_publish_targets_payload
 from .targets import resolve_publish_targets_for_request
@@ -57,7 +62,10 @@ def _resolve_publish_source(project_dir: Path, run_dir: Path, publish_dir: Path)
     if character_assets is None:
         character_assets = load_character_assets(project_dir)
     creative_package = read_json(run_dir / "creative" / "05_creative_package.json")
-    social_post_package = read_json(run_dir / "social_post" / "01_social_post_package.json")
+    social_post_package = apply_effective_social_post_package(
+        run_dir,
+        read_json(run_dir / "social_post" / "01_social_post_package.json"),
+    )
     execution_package = read_json(run_dir / "execution" / "04_execution_package.json")
     bundle = _build_publish_bundle(run_dir, publish_dir)
     publish_input = build_publish_input(
@@ -133,10 +141,37 @@ def list_publish_targets(project_dir: Path) -> dict[str, Any]:
     return build_publish_targets_payload(project_dir)
 
 
+def read_publish_social_post(project_dir: Path, run_id: str) -> dict[str, Any]:
+    run_dir = _resolve_run_dir(Path(project_dir).resolve(), run_id)
+    return read_effective_social_post(run_dir)
+
+
+def save_publish_social_post(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("发布文案请求必须是 JSON 对象。")
+    run_id = normalize_spaces(str(payload.get("runId", "")))
+    if not run_id:
+        raise RuntimeError("runId 不能为空。")
+    run_dir = _resolve_run_dir(Path(project_dir).resolve(), run_id)
+    source = normalize_spaces(str(payload.get("source", ""))) or "workbench"
+    return save_social_post_override(run_dir, payload.get("socialPostText", ""), source=source)
+
+
+def _request_social_post_text(options: dict[str, Any]) -> Any:
+    if "socialPostText" in options:
+        return options["socialPostText"]
+    if "caption" in options:
+        return options["caption"]
+    return None
+
+
 def submit_publish_run(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     project_dir = Path(project_dir).resolve()
     request = normalize_publish_run_request(payload)
     run_dir = _resolve_run_dir(project_dir, request.run_id)
+    requested_social_post_text = _request_social_post_text(request.options)
+    if requested_social_post_text is not None:
+        save_social_post_override(run_dir, requested_social_post_text, source="publish_request")
     job = build_publish_job(
         run_id=request.run_id,
         target_ids=list(request.target_ids),

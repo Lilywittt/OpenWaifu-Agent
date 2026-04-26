@@ -69,11 +69,11 @@ ${preloadMarkup}
         --text: #f7f8ff;
         --muted: rgba(233, 237, 255, 0.84);
         --line: rgba(255, 255, 255, 0.12);
-        --panel-shadow: 0 28px 90px rgba(2, 8, 24, 0.42);
+        --panel-shadow: 0 24px 60px rgba(2, 8, 24, 0.36);
         --button-bg: linear-gradient(135deg, #f6f7ff, #c9d5ff 38%, #8be0ff);
         --button-text: #08111f;
         --button-shadow: 0 16px 36px rgba(95, 162, 255, 0.24);
-        --hero-width: min(100%, 700px);
+        --hero-width: min(100%, clamp(560px, 42vw, 620px));
       }
 
       * {
@@ -188,7 +188,7 @@ ${preloadMarkup}
         width: var(--hero-width);
         display: grid;
         gap: 18px;
-        padding: clamp(28px, 3vw, 42px);
+        padding: clamp(24px, 2.45vw, 36px);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 32px;
         background:
@@ -210,7 +210,7 @@ ${preloadMarkup}
 
       .title-main {
         display: block;
-        font-size: clamp(3.5rem, 6vw, 6.6rem);
+        font-size: clamp(3.15rem, 4.45vw, 4.95rem);
         font-weight: 700;
       }
 

@@ -12,7 +12,10 @@ if str(SRC) not in sys.path:
 
 from publish.adapters import browser_automation_adapter_names, is_browser_automation_adapter
 from publish.adapters.bilibili_dynamic import publish_to_bilibili_dynamic
-from publish.adapters.instagram_browser_draft import publish_to_instagram_browser_draft
+from publish.adapters.instagram_browser_draft import (
+    _click_instagram_share_button,
+    publish_to_instagram_browser_draft,
+)
 
 
 class _FakePage:
@@ -32,6 +35,19 @@ class _FakeSession:
 
     def disconnect(self) -> None:
         self.disconnected = True
+
+
+class _InstagramActionFakePage:
+    def __init__(self) -> None:
+        self.evaluate_calls: list[dict] = []
+        self.url = "https://www.instagram.com/"
+
+    def evaluate(self, _script: str, payload: dict) -> bool:
+        self.evaluate_calls.append(payload)
+        return True
+
+    def wait_for_timeout(self, *_args, **_kwargs) -> None:
+        return None
 
 
 def _bundle() -> SimpleNamespace:
@@ -90,6 +106,56 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             self.assertTrue(receipt["shareReady"])
             self.assertFalse(receipt["shareClicked"])
             self.assertTrue(session.disconnected)
+
+    def test_instagram_auto_submit_uses_scoped_share_action(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://www.instagram.com/")
+            publish_input = {
+                "imagePath": str(image_path),
+                "socialPostText": "demo caption",
+            }
+
+            with patch("publish.adapters.instagram_browser_draft.open_edge_page", return_value=session), patch(
+                "publish.adapters.instagram_browser_draft._open_create_dialog", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft.set_file_input_candidates", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft._advance_to_caption_step", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft._click_instagram_share_button", return_value=True
+            ) as share_click, patch(
+                "publish.adapters.instagram_browser_draft._wait_for_instagram_share_result", return_value=True
+            ):
+                receipt = publish_to_instagram_browser_draft(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="instagram_browser_draft",
+                    target_config={"autoSubmit": True},
+                    publish_input=publish_input,
+                )
+
+            self.assertEqual(receipt["status"], "published")
+            self.assertTrue(receipt["shareClicked"])
+            share_click.assert_called_once_with(session.page)
+            self.assertTrue(session.disconnected)
+
+    def test_instagram_share_button_requires_caption_step_and_rejects_friend_share_labels(self) -> None:
+        page = _InstagramActionFakePage()
+        with patch("publish.adapters.instagram_browser_draft._caption_ready", return_value=True):
+            clicked = _click_instagram_share_button(page)
+
+        self.assertTrue(clicked)
+        self.assertEqual(page.evaluate_calls[0]["dialogSelector"], "div[role='dialog']")
+        self.assertIn("好友", page.evaluate_calls[0]["wrongHints"])
+        self.assertIn("Share", page.evaluate_calls[0]["labels"])
 
     def test_bilibili_receipt_reports_submit_ready_before_submit(self) -> None:
         with TemporaryDirectory() as temp_dir:

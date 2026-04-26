@@ -8,7 +8,6 @@ from .browser_actions import (
     click_visible_text_candidates,
     dismiss_common_popups,
     fill_first_editor_verified,
-    has_visible_text_candidates,
     set_file_input_candidates,
     wait_for_any_locator,
 )
@@ -63,6 +62,25 @@ INSTAGRAM_SHARE_DONE_TEXTS = [
     "已分享",
     "发布成功",
 ]
+INSTAGRAM_DIALOG_SELECTOR = "div[role='dialog']"
+INSTAGRAM_DIALOG_ACTION_SCOPE = (
+    "button,[role='button'],a[href='#'],div[tabindex='0'],span[role='button']"
+)
+INSTAGRAM_WRONG_SHARE_HINTS = [
+    "send",
+    "message",
+    "friend",
+    "friends",
+    "direct",
+    "copylink",
+    "shareto",
+    "发送",
+    "私信",
+    "好友",
+    "朋友",
+    "复制链接",
+    "分享给",
+]
 
 
 def _caption_required_fragments(publish_input: dict, caption_text: str) -> list[str]:
@@ -103,23 +121,122 @@ def _caption_ready(page) -> bool:
     return wait_for_any_locator(page, INSTAGRAM_CAPTION_READY_SELECTORS, timeout_ms=1000)
 
 
+def _click_instagram_dialog_action(page, labels: list[str], *, timeout_ms: int = 5000) -> bool:
+    script = """
+    ({ labels, dialogSelector, scopeSelector, wrongHints }) => {
+      const normalize = (value) => String(value || "").replace(/\\s+/g, "").toLowerCase();
+      const wanted = labels.map(normalize).filter(Boolean);
+      const hints = wrongHints.map(normalize).filter(Boolean);
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width >= 2
+          && rect.height >= 2
+          && rect.bottom >= 0
+          && rect.right >= 0
+          && rect.top <= window.innerHeight
+          && rect.left <= window.innerWidth
+          && style.visibility !== "hidden"
+          && style.display !== "none";
+      };
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector))
+        .filter(visible)
+        .sort((left, right) => {
+          const leftRect = left.getBoundingClientRect();
+          const rightRect = right.getBoundingClientRect();
+          return (rightRect.width * rightRect.height) - (leftRect.width * leftRect.height);
+        });
+      for (const dialog of dialogs) {
+        const dialogText = normalize(dialog.innerText || dialog.textContent || "");
+        const createDialog =
+          dialog.querySelector("input[type='file']")
+          || dialog.querySelector("[contenteditable='true']")
+          || dialogText.includes("create")
+          || dialogText.includes("newpost")
+          || dialogText.includes("创建")
+          || dialogText.includes("新帖子")
+          || dialogText.includes("caption")
+          || dialogText.includes("说明")
+          || dialogText.includes("文案")
+          || dialogText.includes("撰写");
+        if (!createDialog) continue;
+        const dialogRect = dialog.getBoundingClientRect();
+        const candidates = Array.from(dialog.querySelectorAll(scopeSelector))
+          .filter(visible)
+          .map((element) => {
+            const rawText = element.innerText || element.textContent || element.getAttribute("aria-label") || element.title || "";
+            const text = normalize(rawText);
+            const rect = element.getBoundingClientRect();
+            const exact = wanted.includes(text);
+            const aria = normalize(element.getAttribute("aria-label") || element.title || "");
+            const ariaExact = wanted.includes(aria);
+            const wrong = hints.some((hint) => text.includes(hint) || aria.includes(hint));
+            const nearTopRight = rect.top <= dialogRect.top + Math.max(96, dialogRect.height * 0.18)
+              && rect.left >= dialogRect.left + dialogRect.width * 0.48;
+            return {
+              element,
+              exact,
+              ariaExact,
+              wrong,
+              nearTopRight,
+              score:
+                (exact ? 1000 : 0)
+                + (ariaExact ? 800 : 0)
+                + (nearTopRight ? 160 : 0)
+                - (wrong ? 2000 : 0)
+                - Math.abs((rect.top + rect.bottom) / 2 - dialogRect.top),
+            };
+          })
+          .filter((item) => (item.exact || item.ariaExact) && !item.wrong)
+          .sort((left, right) => right.score - left.score);
+        const picked = candidates[0]?.element;
+        if (!picked) continue;
+        picked.scrollIntoView({ block: "center", inline: "center" });
+        const rect = picked.getBoundingClientRect();
+        const x = rect.left + Math.min(Math.max(rect.width / 2, 1), rect.width - 1);
+        const y = rect.top + Math.min(Math.max(rect.height / 2, 1), rect.height - 1);
+        const target = document.elementFromPoint(x, y) || picked;
+        for (const type of ["mouseover", "mousedown", "mouseup", "click"]) {
+          target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }));
+        }
+        if (target !== picked) {
+          picked.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }));
+        }
+        return true;
+      }
+      return false;
+    }
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        try:
+            if page.evaluate(
+                script,
+                {
+                    "labels": labels,
+                    "dialogSelector": INSTAGRAM_DIALOG_SELECTOR,
+                    "scopeSelector": INSTAGRAM_DIALOG_ACTION_SCOPE,
+                    "wrongHints": INSTAGRAM_WRONG_SHARE_HINTS,
+                },
+            ):
+                return True
+        except Exception:
+            pass
+        try:
+            page.wait_for_timeout(250)
+        except Exception:
+            time.sleep(0.25)
+    return False
+
+
 def _click_instagram_next_step(page) -> bool:
-    selectors: list[str] = []
-    for label in INSTAGRAM_NEXT_TEXTS:
-        selectors.extend(
-            [
-                f"div[role='dialog'] button:has-text('{label}')",
-                f"div[role='dialog'] div[role='button']:has-text('{label}')",
-                f"div[role='dialog'] [role='button']:has-text('{label}')",
-            ]
-        )
-    if click_locator_candidates(page, selectors, timeout_ms=3000):
+    if _click_instagram_dialog_action(page, INSTAGRAM_NEXT_TEXTS, timeout_ms=3000):
         return True
     return click_visible_text_candidates(
         page,
         INSTAGRAM_NEXT_TEXTS,
         timeout_ms=4000,
-        scope_selector="div[role='dialog'] button,div[role='dialog'] [role='button'],button,[role='button']",
+        scope_selector="div[role='dialog'] button,div[role='dialog'] [role='button']",
     )
 
 
@@ -137,13 +254,8 @@ def _advance_to_caption_step(page) -> bool:
 
 
 def _instagram_share_ready(page) -> bool:
-    if has_visible_text_candidates(
-        page,
-        INSTAGRAM_SHARE_TEXTS,
-        timeout_ms=3000,
-        scope_selector="div[role='dialog'] button,div[role='dialog'] [role='button'],button,[role='button']",
-    ):
-        return True
+    if not _caption_ready(page):
+        return False
     selectors: list[str] = []
     for label in INSTAGRAM_SHARE_TEXTS:
         selectors.extend(
@@ -154,6 +266,12 @@ def _instagram_share_ready(page) -> bool:
             ]
         )
     return wait_for_any_locator(page, selectors, timeout_ms=2000)
+
+
+def _click_instagram_share_button(page) -> bool:
+    if not _caption_ready(page):
+        return False
+    return _click_instagram_dialog_action(page, INSTAGRAM_SHARE_TEXTS, timeout_ms=12000)
 
 
 def _open_create_dialog(page) -> bool:
@@ -234,7 +352,7 @@ def publish_to_instagram_browser_draft(
         share_clicked = False
         submit_confirmed = False
         if bool(target_config.get("autoSubmit", False)) and caption_filled and share_ready:
-            share_clicked = click_visible_text_candidates(page, INSTAGRAM_SHARE_TEXTS, timeout_ms=12000)
+            share_clicked = _click_instagram_share_button(page)
             submit_confirmed = _wait_for_instagram_share_result(page) if share_clicked else False
         auto_submit = bool(target_config.get("autoSubmit", False))
         trust_share_click = bool(target_config.get("trustShareClick", False))

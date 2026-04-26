@@ -1,4 +1,5 @@
-import { access, copyFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { homepageGalleryConfig } from "../../config/homepage-gallery.mjs";
@@ -39,6 +40,56 @@ export async function verifyHomepageAssets() {
     desktopBackgrounds: verifiedAssets.slice(1),
     all: verifiedAssets,
   };
+}
+
+export async function verifyHomepageDistAssets(outputDir) {
+  const assets = await verifyHomepageAssets();
+  const records = [];
+  const mismatches = [];
+  for (const asset of assets.all) {
+    const outputPath = path.join(outputDir, ...asset.assetPath.split("/"));
+    const [sourceHash, outputHash, sourceStat, outputStat] = await Promise.all([
+      hashFile(asset.absolutePath),
+      hashFile(outputPath),
+      stat(asset.absolutePath),
+      stat(outputPath),
+    ]);
+    const record = {
+      id: asset.id,
+      role: asset.role ?? "",
+      assetPath: asset.assetPath,
+      sourcePath: asset.absolutePath,
+      outputPath,
+      sourceBytes: sourceStat.size,
+      outputBytes: outputStat.size,
+      sourceHash,
+      outputHash,
+      match: sourceHash === outputHash && sourceStat.size === outputStat.size,
+    };
+    records.push(record);
+    if (!record.match) {
+      mismatches.push(record);
+    }
+  }
+  if (mismatches.length > 0) {
+    throw new Error(
+      `Homepage dist assets do not match curated assets: ${mismatches
+        .map((item) => item.assetPath)
+        .join(", ")}`,
+    );
+  }
+  return {
+    ok: true,
+    assetCount: records.length,
+    mobileHero: records[0],
+    desktopBackgrounds: records.slice(1),
+    all: records,
+  };
+}
+
+export async function hashFile(filePath) {
+  const content = await readFile(filePath);
+  return createHash("sha256").update(content).digest("hex").toUpperCase();
 }
 
 export async function copyHomepageAssetsToDist(outputDir) {

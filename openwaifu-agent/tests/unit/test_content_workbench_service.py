@@ -188,11 +188,27 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
                     "workbench.service.submit_publish_run",
                     return_value={"jobId": "job-demo", "status": "completed", "receipts": []},
                 ), patch(
+                    "workbench.service.read_publish_social_post",
+                    return_value={"runId": "run-1", "socialPostText": "manual text", "isManual": True},
+                ), patch(
+                    "workbench.service.save_publish_social_post",
+                    return_value={"runId": "run-1", "socialPostText": "edited text", "isManual": True},
+                ), patch(
                     "workbench.service.read_publish_job_status",
                     return_value={"jobId": "job-demo", "status": "completed", "receipts": []},
                 ):
                     with urlopen(base_url + "/api/publish/targets", timeout=2) as response:
                         targets_payload = json.loads(response.read().decode("utf-8"))
+                    with urlopen(base_url + "/api/publish/social-post?runId=run-1", timeout=2) as response:
+                        social_post_payload = json.loads(response.read().decode("utf-8"))
+                    social_post_request = Request(
+                        base_url + "/api/publish/social-post",
+                        data=json.dumps({"runId": "run-1", "socialPostText": "edited text"}).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urlopen(social_post_request, timeout=2) as response:
+                        social_post_save_payload = json.loads(response.read().decode("utf-8"))
                     publish_request = Request(
                         base_url + "/api/publish/run",
                         data=json.dumps({"runId": "run-1", "targets": ["qq_bot_user"]}).encode("utf-8"),
@@ -210,6 +226,10 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
 
         self.assertTrue(targets_payload["ok"])
         self.assertEqual(targets_payload["defaultTargetIds"], ["qq_bot_user"])
+        self.assertTrue(social_post_payload["ok"])
+        self.assertEqual(social_post_payload["socialPost"]["socialPostText"], "manual text")
+        self.assertTrue(social_post_save_payload["ok"])
+        self.assertEqual(social_post_save_payload["socialPost"]["socialPostText"], "edited text")
         self.assertTrue(publish_payload["ok"])
         self.assertEqual(publish_payload["job"]["jobId"], "job-demo")
         self.assertTrue(job_payload["ok"])
