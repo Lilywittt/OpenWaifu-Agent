@@ -37,12 +37,35 @@ def _write_targets_config(project_dir: Path, *, include_browser_target: bool = F
         },
     }
     if include_browser_target:
-        targets["pixiv_browser_draft"] = {
-            "adapter": "pixiv_browser_draft",
-            "displayName": "Pixiv",
-            "postUrl": "https://www.pixiv.net/illustration/create",
-            "autoSubmit": False,
-        }
+        targets.update(
+            {
+                "pixiv_browser_draft": {
+                    "adapter": "pixiv_browser_draft",
+                    "displayName": "Pixiv",
+                    "postUrl": "https://www.pixiv.net/illustration/create",
+                    "autoSubmit": False,
+                },
+                "instagram_browser_draft": {
+                    "adapter": "instagram_browser_draft",
+                    "displayName": "Instagram",
+                    "postUrl": "https://www.instagram.com/",
+                    "autoSubmit": True,
+                },
+                "bilibili_dynamic": {
+                    "adapter": "bilibili_dynamic",
+                    "displayName": "Bilibili 动态",
+                    "postUrl": "https://t.bilibili.com/",
+                    "browserProfilePersistence": "target",
+                    "autoSubmit": True,
+                },
+                "qzone_browser_draft": {
+                    "adapter": "qzone_browser_draft",
+                    "displayName": "QQ 空间",
+                    "postUrl": "https://user.qzone.qq.com/",
+                    "autoSubmit": False,
+                },
+            }
+        )
     write_json(
         config_dir / "targets.json",
         {
@@ -288,6 +311,26 @@ class PublishServiceTests(unittest.TestCase):
                     project_dir,
                     target_ids=["pixiv_browser_draft"],
                 )
+
+    def test_browser_publish_targets_share_edge_profile_contract(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_targets_config(project_dir, include_browser_target=True)
+            _write_edge_local_config(project_dir)
+
+            payload = list_publish_targets(project_dir)
+
+        targets = {item["id"]: item for item in payload["targets"]}
+        for target_id in (
+            "pixiv_browser_draft",
+            "instagram_browser_draft",
+            "bilibili_dynamic",
+            "qzone_browser_draft",
+        ):
+            self.assertTrue(targets[target_id]["requiresBrowserProfile"])
+            self.assertEqual(targets[target_id]["browserProfile"], "edge")
+            self.assertEqual(targets[target_id]["executor"], "server")
+            self.assertFalse(targets[target_id]["available"])
 
 
 if __name__ == "__main__":

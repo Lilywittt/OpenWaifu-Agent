@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -15,3 +16,10 @@ class PublishAdapter(Protocol):
         publish_input: dict[str, Any],
     ) -> dict[str, Any]:
         ...
+
+
+@dataclass(frozen=True)
+class PublishAdapterSpec:
+    name: str
+    handler: PublishAdapter
+    browser_automation: bool = False

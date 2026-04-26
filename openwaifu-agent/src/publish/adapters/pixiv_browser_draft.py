@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .browser_common import (
+from .browser_actions import (
     click_text_candidates,
     fill_first_locator,
-    open_edge_page,
+    set_file_input,
+)
+from .browser_session import open_edge_page
+from .publish_content import (
     publish_caption,
     publish_tags,
     publish_title,
     receipt_base,
-    set_file_input,
 )
 
 

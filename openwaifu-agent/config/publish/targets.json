@@ -33,10 +33,35 @@
     "instagram_browser_draft": {
       "adapter": "instagram_browser_draft",
       "displayName": "Instagram",
-      "description": "使用 Edge 登录态打开 Instagram；当前页面流程会受平台改版影响，失败会返回明确原因。",
+      "description": "使用 Edge 登录态打开 Instagram 创建帖子页，上传图片、填写正文并自动分享。",
       "postUrl": "https://www.instagram.com/",
-      "timeoutSeconds": 75,
+      "timeoutSeconds": 120,
       "captionSuffix": "#OpenWaifuAgent #AIart",
+      "autoSubmit": true
+    },
+    "bilibili_dynamic": {
+      "adapter": "bilibili_dynamic",
+      "displayName": "Bilibili 动态",
+      "description": "使用 Edge 登录态打开 Bilibili 动态页，上传图片、填写正文并自动发布。",
+      "postUrl": "https://t.bilibili.com/",
+      "timeoutSeconds": 120,
+      "tags": [
+        "OpenWaifuAgent",
+        "AI绘画"
+      ],
+      "includeTitle": false,
+      "browserProfilePersistence": "target",
+      "autoSubmit": true
+    },
+    "qzone_browser_draft": {
+      "adapter": "qzone_browser_draft",
+      "displayName": "QQ 空间",
+      "description": "使用 Edge 登录态打开 QQ 空间并准备图文说说草稿，由人工确认发布。",
+      "postUrl": "https://user.qzone.qq.com/",
+      "userIdEnvName": "QZONE_USER_ID",
+      "timeoutSeconds": 120,
+      "authorizationWaitSeconds": 75,
+      "captionSuffix": "#OpenWaifuAgent",
       "autoSubmit": false
     }
   }

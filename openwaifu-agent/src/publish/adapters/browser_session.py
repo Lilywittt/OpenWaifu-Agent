@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import os
 import socket
 import shutil
 import subprocess
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -24,6 +24,7 @@ from runtime_layout import sanitize_segment
 
 
 DEFAULT_BROWSER_TIMEOUT_MS = 45000
+SHORT_ACTION_TIMEOUT_MS = 5000
 
 
 @dataclass
@@ -62,19 +63,56 @@ def _wait_for_cdp(port: int, timeout_seconds: float = 20.0) -> None:
     raise RuntimeError("Edge 调试端口未按时就绪。")
 
 
+def _edge_debugging_port_for_user_data_dir(user_data_dir: Path) -> int | None:
+    if os.name != "nt":
+        return None
+    target = str(Path(user_data_dir).resolve())
+    escaped_target = target.replace("'", "''")
+    script = (
+        f"$target = '{escaped_target}'; "
+        "Get-CimInstance Win32_Process -Filter \"name='msedge.exe'\" | "
+        "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($target) -and $_.CommandLine.Contains('--remote-debugging-port=') } | "
+        "Select-Object -First 1 -ExpandProperty CommandLine"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    command_line = result.stdout.strip()
+    marker = "--remote-debugging-port="
+    if result.returncode != 0 or marker not in command_line:
+        return None
+    raw_port = command_line.split(marker, 1)[1].split()[0].strip().strip('"')
+    try:
+        return int(raw_port)
+    except ValueError:
+        return None
+
+
 def _create_edge_session_dir(
     project_dir: Path,
     profile,
     session_name: str = "",
     session_user_data_dir: Path | None = None,
+    persistent_user_data_dir: bool = False,
 ) -> Path:
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    timestamp = time.strftime("%Y%m%dT%H%M%S")
     suffix = sanitize_segment(session_name) if session_name else uuid.uuid4().hex[:8]
     if session_user_data_dir is None:
         session_user_data_dir = edge_publish_sessions_root(project_dir) / f"{timestamp}_{suffix}_{uuid.uuid4().hex[:8]}"
     else:
         session_user_data_dir = Path(session_user_data_dir).resolve()
     ensure_dir(session_user_data_dir)
+    if persistent_user_data_dir and (session_user_data_dir / "Local State").exists() and (
+        session_user_data_dir / profile.managed_profile_dir
+    ).exists():
+        return session_user_data_dir
     session_profile_dir = session_user_data_dir / profile.managed_profile_dir
     ensure_dir(session_profile_dir)
     shutil.copy2(profile.managed_user_data_dir / "Local State", session_user_data_dir / "Local State")
@@ -129,6 +167,7 @@ def open_edge_page(
     *,
     session_name: str = "",
     session_user_data_dir: Path | None = None,
+    persistent_user_data_dir: bool = False,
 ) -> BrowserAutomationSession:
     status = read_edge_publish_profile_status(project_dir)
     if not status.get("readyForPublish"):
@@ -140,7 +179,22 @@ def open_edge_page(
         profile,
         session_name=session_name,
         session_user_data_dir=session_user_data_dir,
+        persistent_user_data_dir=persistent_user_data_dir,
     )
+    if persistent_user_data_dir:
+        existing_port = _edge_debugging_port_for_user_data_dir(session_user_data_dir)
+        if existing_port is not None:
+            try:
+                _wait_for_cdp(existing_port, timeout_seconds=3)
+                return _connect_edge_session(
+                    profile,
+                    port=existing_port,
+                    url=url,
+                    process=None,
+                    user_data_dir=session_user_data_dir,
+                )
+            except Exception:
+                pass
     port = _free_port()
     argv = [
         str(profile.executable_path),
@@ -166,95 +220,3 @@ def open_edge_page(
         except Exception:
             pass
         raise
-
-
-def publish_title(publish_input: dict[str, Any], target_config: dict[str, Any]) -> str:
-    configured = str(target_config.get("title", "")).strip()
-    if configured:
-        return configured
-    return (
-        str(publish_input.get("scenePremiseZh", "")).strip()
-        or str(publish_input.get("subjectDisplayNameZh", "")).strip()
-        or str(publish_input.get("runId", "")).strip()
-    )
-
-
-def publish_caption(publish_input: dict[str, Any], target_config: dict[str, Any]) -> str:
-    caption_prefix = str(target_config.get("captionPrefix", "")).strip()
-    caption_suffix = str(target_config.get("captionSuffix", "")).strip()
-    text = str(publish_input.get("socialPostText", "")).strip()
-    parts = [part for part in (caption_prefix, text, caption_suffix) if part]
-    return "\n\n".join(parts)
-
-
-def publish_tags(publish_input: dict[str, Any], target_config: dict[str, Any]) -> list[str]:
-    raw_tags = target_config.get("tags", [])
-    if not isinstance(raw_tags, list):
-        return []
-    tags: list[str] = []
-    seen: set[str] = set()
-    for item in raw_tags:
-        tag = str(item).strip().lstrip("#")
-        key = tag.casefold()
-        if not tag or key in seen:
-            continue
-        tags.append(tag)
-        seen.add(key)
-    return tags
-
-
-def receipt_base(
-    *,
-    target_id: str,
-    adapter: str,
-    status: str,
-    page_url: str,
-    port: int,
-    user_data_dir: Path | str = "",
-) -> dict[str, Any]:
-    payload = {
-        "targetId": target_id,
-        "adapter": adapter,
-        "status": status,
-        "publishedAt": datetime.now().isoformat(timespec="seconds"),
-        "postUrl": page_url,
-        "browser": "edge",
-        "remoteDebuggingPort": port,
-    }
-    if user_data_dir:
-        payload["browserUserDataDir"] = str(user_data_dir)
-    return payload
-
-
-def set_file_input(page: Any, image_path: Path) -> bool:
-    try:
-        input_locator = page.locator("input[type='file']").first
-        input_locator.set_input_files(str(image_path), timeout=DEFAULT_BROWSER_TIMEOUT_MS)
-        return True
-    except Exception:
-        return False
-
-
-def fill_first_locator(page: Any, selectors: list[str], value: str) -> bool:
-    if not value:
-        return False
-    for selector in selectors:
-        try:
-            locator = page.locator(selector).first
-            if locator.count() <= 0:
-                continue
-            locator.fill(value, timeout=5000)
-            return True
-        except Exception:
-            continue
-    return False
-
-
-def click_text_candidates(page: Any, labels: list[str], timeout_ms: int = 5000) -> bool:
-    for label in labels:
-        try:
-            page.get_by_text(label, exact=False).first.click(timeout=timeout_ms)
-            return True
-        except Exception:
-            continue
-    return False

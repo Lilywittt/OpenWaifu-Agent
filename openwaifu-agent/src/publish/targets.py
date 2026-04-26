@@ -6,6 +6,7 @@ from typing import Any
 from io_utils import normalize_spaces, read_json
 from path_policy import resolve_workspace_path
 
+from .adapters import browser_automation_adapter_names
 from .browser_profiles import (
     load_publish_local_config,
     publish_local_config_path,
@@ -26,10 +27,7 @@ from .local_export import (
 
 
 TARGETS_CONFIG_PATH = "config/publish/targets.json"
-BROWSER_DRAFT_ADAPTERS = {
-    "instagram_browser_draft",
-    "pixiv_browser_draft",
-}
+BROWSER_AUTOMATION_ADAPTERS = browser_automation_adapter_names()
 
 
 def publish_targets_config_path(project_dir: Path, targets_path: Path | None = None) -> Path:
@@ -92,14 +90,20 @@ def _normalize_preset(project_dir: Path, payload: dict[str, Any]) -> dict[str, s
 def _target_descriptor(raw_target: dict[str, Any], edge_status: dict[str, Any]) -> dict[str, Any]:
     adapter = normalize_spaces(str(raw_target.get("adapter", "")))
     description = normalize_spaces(str(raw_target.get("description", "")))
-    if adapter in BROWSER_DRAFT_ADAPTERS:
+    if adapter in BROWSER_AUTOMATION_ADAPTERS:
         ready = bool(edge_status.get("readyForPublish"))
+        uses_target_profile = (
+            normalize_spaces(str(raw_target.get("browserProfilePersistence", ""))).casefold() == "target"
+        )
+        guidance = normalize_spaces(str(edge_status.get("guidance", "")))
+        if ready and uses_target_profile:
+            guidance = "登录态过期时，在打开的目标发布窗口完成登录，然后重新触发发布。"
         return {
             "requiresBrowserProfile": True,
             "browserProfile": "edge",
             "available": ready,
             "statusText": normalize_spaces(str(edge_status.get("statusText", ""))),
-            "guidance": normalize_spaces(str(edge_status.get("guidance", ""))),
+            "guidance": guidance,
             "setupCommand": normalize_spaces(
                 str(edge_status.get("statusCommand" if ready else "syncCommand", ""))
             ),
@@ -124,7 +128,7 @@ def _target_descriptor(raw_target: dict[str, Any], edge_status: dict[str, Any]) 
 
 def _ensure_publish_target_available(project_dir: Path, target_config: dict[str, Any]) -> None:
     adapter = normalize_spaces(str(target_config.get("adapter", "")))
-    if adapter not in BROWSER_DRAFT_ADAPTERS:
+    if adapter not in BROWSER_AUTOMATION_ADAPTERS:
         return
     edge_status = read_edge_publish_profile_status(project_dir)
     if bool(edge_status.get("readyForPublish")):

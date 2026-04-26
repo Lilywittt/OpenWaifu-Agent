@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from io_utils import read_json, write_json
-from publish.browser_profiles import edge_publish_sessions_root
+from publish.browser_profiles import edge_publish_sessions_root, edge_publish_target_profiles_root
 from runtime_layout import sanitize_segment
 
-from .adapters import get_publish_adapter
+from .adapters import get_publish_adapter, is_browser_automation_adapter
 from .package import build_publish_input
 from .state import append_published_record
 from .targets import (
@@ -24,10 +24,6 @@ INPUT_FILENAME = "00_publish_input.json"
 PLAN_FILENAME = "01_publish_plan.json"
 PACKAGE_FILENAME = "04_publish_package.json"
 SUMMARY_FILENAME = "publish_summary.json"
-BROWSER_AUTOMATION_ADAPTERS = {
-    "instagram_browser_draft",
-    "pixiv_browser_draft",
-}
 DEFAULT_BROWSER_ADAPTER_TIMEOUT_SECONDS = 90
 
 
@@ -53,6 +49,14 @@ def _browser_adapter_timeout_seconds(target: dict[str, Any]) -> int:
 def _browser_session_user_data_dir(project_dir: Path, bundle, target_id: str, index: int) -> Path:
     session_id = sanitize_segment(f"{Path(bundle.publish_dir).name}_{index:02d}_{bundle.run_id}_{target_id}")
     return edge_publish_sessions_root(project_dir) / session_id
+
+
+def _browser_target_profile_dir(project_dir: Path, target_id: str) -> Path:
+    return edge_publish_target_profiles_root(project_dir) / sanitize_segment(target_id)
+
+
+def _uses_persistent_browser_profile(target: dict[str, Any]) -> bool:
+    return str(target.get("browserProfilePersistence", "")).strip().casefold() == "target"
 
 
 def _terminate_edge_processes_for_user_data_dir(user_data_dir: Path) -> None:
@@ -182,13 +186,20 @@ def run_publish_stage(
         }
         adapter_name = str(target.get("adapter", ""))
         browser_session_user_data_dir = Path()
-        if adapter_name in BROWSER_AUTOMATION_ADAPTERS:
-            browser_session_user_data_dir = _browser_session_user_data_dir(project_dir, bundle, target_id, index)
+        browser_automation_adapter = is_browser_automation_adapter(adapter_name)
+        if browser_automation_adapter:
+            browser_session_persistent = _uses_persistent_browser_profile(target)
+            browser_session_user_data_dir = (
+                _browser_target_profile_dir(project_dir, target_id)
+                if browser_session_persistent
+                else _browser_session_user_data_dir(project_dir, bundle, target_id, index)
+            )
             target["browserSessionUserDataDir"] = str(browser_session_user_data_dir)
+            target["browserSessionPersistent"] = browser_session_persistent
             request_payload["target"] = target
         write_json(bundle.publish_dir / request_filename, request_payload)
         receipt_path = bundle.publish_dir / receipt_filename
-        if adapter_name in BROWSER_AUTOMATION_ADAPTERS:
+        if browser_automation_adapter:
             receipt = _run_adapter_in_subprocess(
                 project_dir=project_dir,
                 request_path=bundle.publish_dir / request_filename,

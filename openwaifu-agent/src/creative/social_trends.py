@@ -21,6 +21,10 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _TEXT_SIGNAL_RE = re.compile(r"[A-Za-z0-9\u4e00-\u9fff]")
 _ALPHA_SIGNAL_RE = re.compile(r"[A-Za-z\u4e00-\u9fff]")
 _BILIBILI_DESC_NOISE_RE = re.compile(r"(?:[#＃]\s*\d{1,3}|第?\s*\d{1,3}\s*(?:话|集|期)|ep\.?\s*\d{1,3})", re.I)
+_BILIBILI_TITLE_PREFIX_RE = re.compile(r"^【\s*\d{1,2}\s*月\s*】\s*")
+_BILIBILI_TITLE_SUFFIX_RE = re.compile(r"\s*(?:【\s*独家正版\s*】)?\s*$")
+_BILIBILI_TITLE_EPISODE_RE = re.compile(r"\s+\d{1,3}\s*$")
+_BILIBILI_EP_ID_RE = re.compile(r"/ep(\d+)|ep_id=(\d+)")
 _SOURCE_BACKOFF_WINDOW = timedelta(hours=6)
 _PARTITION_BACKOFF_WINDOW = timedelta(hours=2)
 _SOCIAL_SIGNAL_SHORTLIST_SIZE = 3
@@ -30,14 +34,17 @@ _REDDIT_COMMENT_HTTP_TIMEOUT_SECONDS = 3
 _COMMENT_HTTP_TIMEOUT_SECONDS = 2
 _REDDIT_TARGET_CANDIDATE_COUNT = _SOCIAL_SIGNAL_SHORTLIST_SIZE
 _REDDIT_COMMENT_FALLBACK_LIMIT = 0
+_REDDIT_PULLPUSH_SIZE = 20
 _BILIBILI_TARGET_CANDIDATE_COUNT = _SOCIAL_SIGNAL_SHORTLIST_SIZE
-_BILIBILI_COMMENT_FALLBACK_LIMIT = 2
+_BILIBILI_COMMENT_FALLBACK_LIMIT = 0
 _BLUESKY_FEED_CACHE_WINDOW = timedelta(minutes=30)
 _RANDOM = random.SystemRandom()
 _BLUESKY_FEED_CACHE: dict[str, Any] = {
     "loadedAt": None,
     "feeds": [],
 }
+_REDDIT_DIRECT_BLOCKED = False
+_BILIBILI_SEASON_CACHE: dict[str, dict[str, str]] = {}
 
 @dataclass(frozen=True)
 class SocialPartition:
@@ -62,6 +69,13 @@ def _trim(text: str, limit: int = 260) -> str:
     return cleaned[: limit - 1].rstrip() + "…"
 
 
+def _error_detail(text: str, limit: int = 500) -> str:
+    cleaned = normalize_spaces(text)
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
 def _parse_iso_datetime(raw: str) -> datetime | None:
     cleaned = normalize_spaces(raw)
     if not cleaned:
@@ -78,6 +92,52 @@ def _is_low_signal_bilibili_desc(text: str) -> bool:
         return True
     stripped = _BILIBILI_DESC_NOISE_RE.sub(" ", cleaned)
     return len(_ALPHA_SIGNAL_RE.findall(stripped)) < 4
+
+
+def _clean_bilibili_title(text: str) -> str:
+    cleaned = normalize_spaces(text)
+    cleaned = _BILIBILI_TITLE_PREFIX_RE.sub("", cleaned)
+    cleaned = _BILIBILI_TITLE_SUFFIX_RE.sub("", cleaned)
+    cleaned = _BILIBILI_TITLE_EPISODE_RE.sub("", cleaned)
+    return normalize_spaces(cleaned)
+
+
+def _extract_bilibili_ep_id(url: str) -> str:
+    match = _BILIBILI_EP_ID_RE.search(str(url or ""))
+    if not match:
+        return ""
+    return normalize_spaces(match.group(1) or match.group(2) or "")
+
+
+def _clean_bilibili_evaluate(text: str) -> str:
+    cleaned = _strip_html(text)
+    cleaned = cleaned.replace("\\n", " ")
+    return _trim(cleaned, 420)
+
+
+def _fetch_bilibili_season_detail(ep_id: str) -> dict[str, str]:
+    normalized_ep_id = normalize_spaces(ep_id)
+    if not normalized_ep_id:
+        return {}
+    if normalized_ep_id in _BILIBILI_SEASON_CACHE:
+        return dict(_BILIBILI_SEASON_CACHE[normalized_ep_id])
+    payload = _fetch_json(
+        f"https://api.bilibili.com/pgc/view/web/season?ep_id={quote(normalized_ep_id, safe='')}",
+        headers={"Referer": f"https://www.bilibili.com/bangumi/play/ep{normalized_ep_id}"},
+    )
+    result = payload.get("result", {})
+    if not isinstance(result, dict):
+        return {}
+    styles = result.get("styles", [])
+    if not isinstance(styles, list):
+        styles = []
+    detail = {
+        "title": _clean_bilibili_title(str(result.get("season_title") or result.get("title") or "")),
+        "styles": "、".join(unique_list([str(item) for item in styles if normalize_spaces(str(item))])[:6]),
+        "evaluate": _clean_bilibili_evaluate(str(result.get("evaluate", ""))),
+    }
+    _BILIBILI_SEASON_CACHE[normalized_ep_id] = dict(detail)
+    return detail
 
 
 def _should_backoff_source(source_key: str, error: str) -> bool:
@@ -120,7 +180,7 @@ def _fetch_json(
         with urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
+        detail = _error_detail(error.read().decode("utf-8", errors="replace"))
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
     except (URLError, OSError) as error:
         try:
@@ -128,7 +188,7 @@ def _fetch_json(
             with opener.open(request, timeout=timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as retry_error:
-            detail = retry_error.read().decode("utf-8", errors="replace")
+            detail = _error_detail(retry_error.read().decode("utf-8", errors="replace"))
             raise RuntimeError(f"HTTP {retry_error.code}: {detail}") from retry_error
         except (URLError, OSError):
             pass
@@ -152,7 +212,7 @@ def _fetch_text(
         with urlopen(request, timeout=timeout_seconds) as response:
             return response.read().decode("utf-8", errors="replace")
     except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
+        detail = _error_detail(error.read().decode("utf-8", errors="replace"))
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
     except (URLError, OSError) as error:
         try:
@@ -160,48 +220,46 @@ def _fetch_text(
             with opener.open(request, timeout=timeout_seconds) as response:
                 return response.read().decode("utf-8", errors="replace")
         except HTTPError as retry_error:
-            detail = retry_error.read().decode("utf-8", errors="replace")
+            detail = _error_detail(retry_error.read().decode("utf-8", errors="replace"))
             raise RuntimeError(f"HTTP {retry_error.code}: {detail}") from retry_error
         except (URLError, OSError):
             pass
         raise RuntimeError(f"transport error: {error}") from error
 
 
-def _fetch_reddit_posts(subreddit: str) -> list[dict[str, str]]:
-    payload = _fetch_json(
-        f"https://www.reddit.com/r/{subreddit}/hot.json?limit=20&raw_json=1",
-        timeout_seconds=_REDDIT_HTTP_TIMEOUT_SECONDS,
-    )
-    items: list[dict[str, str]] = []
-    for child in payload.get("data", {}).get("children", [])[:20]:
-        data = child.get("data", {})
-        if data.get("stickied") or data.get("pinned"):
-            continue
-        title = normalize_spaces(str(data.get("title", "")))
-        body = _trim(normalize_spaces(str(data.get("selftext", ""))), 1200)
-        lowered = f"{title} {body}".casefold()
-        if data.get("distinguished") == "moderator":
-            continue
-        if any(
-            token in lowered
-            for token in (
-                "moderator applications",
-                "new post flair",
-                "official question thread",
-                "daily simple questions",
-                "discord server",
-                "read our rules",
-            )
-        ):
-            continue
-        items.append(
-            {
-                "subreddit": normalize_spaces(str(data.get("subreddit_name_prefixed", ""))),
-                "title": title,
-                "body": body,
-                "permalink": normalize_spaces(str(data.get("permalink", ""))),
-            }
+def _normalize_reddit_post(data: dict[str, Any], *, subreddit: str) -> dict[str, str] | None:
+    if data.get("stickied") or data.get("pinned"):
+        return None
+    title = _strip_html(str(data.get("title", "")))
+    body = _trim(_strip_html(str(data.get("selftext", ""))), 1200)
+    lowered = f"{title} {body}".casefold()
+    if not title or title in {"[deleted]", "[removed]"}:
+        return None
+    if body in {"[deleted]", "[removed]"}:
+        body = ""
+    if data.get("distinguished") == "moderator":
+        return None
+    if any(
+        token in lowered
+        for token in (
+            "moderator applications",
+            "new post flair",
+            "official question thread",
+            "daily simple questions",
+            "discord server",
+            "read our rules",
         )
+    ):
+        return None
+    return {
+        "subreddit": normalize_spaces(str(data.get("subreddit_name_prefixed") or f"r/{data.get('subreddit', subreddit)}")),
+        "title": title,
+        "body": body,
+        "permalink": normalize_spaces(str(data.get("permalink", ""))),
+    }
+
+
+def _dedupe_reddit_posts(items: list[dict[str, str]]) -> list[dict[str, str]]:
     deduped: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in items:
@@ -211,6 +269,53 @@ def _fetch_reddit_posts(subreddit: str) -> list[dict[str, str]]:
         seen.add(key)
         deduped.append(item)
     return deduped
+
+
+def _fetch_reddit_posts_direct(subreddit: str) -> list[dict[str, str]]:
+    payload = _fetch_json(
+        f"https://www.reddit.com/r/{subreddit}/hot.json?limit=20&raw_json=1",
+        timeout_seconds=_REDDIT_HTTP_TIMEOUT_SECONDS,
+    )
+    items: list[dict[str, str]] = []
+    for child in payload.get("data", {}).get("children", [])[:20]:
+        data = child.get("data", {})
+        item = _normalize_reddit_post(data, subreddit=subreddit)
+        if item is not None:
+            items.append(item)
+    return _dedupe_reddit_posts(items)
+
+
+def _fetch_reddit_posts_pullpush(subreddit: str) -> list[dict[str, str]]:
+    payload = _fetch_json(
+        "https://api.pullpush.io/reddit/search/submission/"
+        f"?subreddit={quote(subreddit, safe='')}&sort=desc&sort_type=created_utc&size={_REDDIT_PULLPUSH_SIZE}",
+        timeout_seconds=_REDDIT_HTTP_TIMEOUT_SECONDS,
+    )
+    raw_items = payload.get("data", [])
+    if not isinstance(raw_items, list):
+        return []
+    items: list[dict[str, str]] = []
+    for data in raw_items[:_REDDIT_PULLPUSH_SIZE]:
+        if not isinstance(data, dict):
+            continue
+        item = _normalize_reddit_post(data, subreddit=subreddit)
+        if item is not None:
+            items.append(item)
+    return _dedupe_reddit_posts(items)
+
+
+def _fetch_reddit_posts(subreddit: str) -> list[dict[str, str]]:
+    global _REDDIT_DIRECT_BLOCKED
+    if _REDDIT_DIRECT_BLOCKED:
+        return _fetch_reddit_posts_pullpush(subreddit)
+    try:
+        return _fetch_reddit_posts_direct(subreddit)
+    except RuntimeError as error:
+        message = normalize_spaces(str(error)).casefold()
+        if "http 403" in message or "http 429" in message or "blocked" in message or "forbidden" in message:
+            _REDDIT_DIRECT_BLOCKED = True
+            return _fetch_reddit_posts_pullpush(subreddit)
+        raise
 
 
 def _fetch_reddit_comment_bodies(permalink: str) -> list[str]:
@@ -369,6 +474,7 @@ def _collect_bilibili_region(rid: int) -> list[dict[str, str]]:
                 ),
                 "tname": normalize_spaces(str(data.get("typename", "") or data.get("tname", ""))),
                 "pub_location": normalize_spaces(str(data.get("pub_location", ""))),
+                "redirect_url": normalize_spaces(str(data.get("redirect_url", ""))),
             }
         )
     deduped: list[dict[str, str]] = []
@@ -408,9 +514,20 @@ def _fetch_bilibili_comment_bodies(aid: str) -> list[str]:
 
 
 def _render_bilibili_signal(item: dict[str, str], *, allow_comment_fallback: bool = True) -> str:
+    title = _clean_bilibili_title(item.get("title", ""))
     desc = item.get("desc", "")
     if _is_low_signal_bilibili_desc(desc):
         desc = ""
+    if not desc:
+        ep_id = _extract_bilibili_ep_id(item.get("redirect_url", ""))
+        try:
+            season = _fetch_bilibili_season_detail(ep_id)
+        except Exception:
+            season = {}
+        title = normalize_spaces(str(season.get("title", ""))) or title
+        styles = normalize_spaces(str(season.get("styles", "")))
+        evaluate = normalize_spaces(str(season.get("evaluate", "")))
+        desc = " | ".join(part for part in (f"风格：{styles}" if styles else "", f"简介：{evaluate}" if evaluate else "") if part)
     if not desc and allow_comment_fallback:
         comment_bodies = _fetch_bilibili_comment_bodies(item.get("aid", ""))
         if comment_bodies:
@@ -422,8 +539,8 @@ def _render_bilibili_signal(item: dict[str, str], *, allow_comment_fallback: boo
         for part in (
             item.get("tname", ""),
             item.get("pub_location", ""),
-            item.get("title", ""),
-            desc,
+            title,
+            desc if normalize_spaces(desc).casefold() != normalize_spaces(title).casefold() else "",
         )
         if part
     ]
@@ -481,7 +598,7 @@ def _build_registry() -> list[SocialPartition]:
     mainstream_platform_weight = 1.0
 
     reddit_subreddits = [
-        ("reddit_teenagers", "Reddit / teenagers", 3.6, "teenagers"),
+        ("reddit_teenagers", "Reddit / teenagers", 4.68, "teenagers"),
         ("reddit_outfits", "Reddit / Outfits", 1.01, "Outfits"),
         ("reddit_streetwear", "Reddit / streetwear", 1.0, "streetwear"),
         ("reddit_food", "Reddit / food", 1.0, "food"),
@@ -507,7 +624,6 @@ def _build_registry() -> list[SocialPartition]:
 
     allowed_bluesky_feeds = {
         "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot": ("bluesky_discover", "Bluesky / Discover", 1.02),
-        "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/with-friends": ("bluesky_with_friends", "Bluesky / Popular With Friends", 0.98),
         "at://did:plc:y7crv2yh74s7qhmtx3mvbgv5/app.bsky.feed.generator/art-new": ("bluesky_art", "Bluesky / Artists Trending", 1.03),
         "at://did:plc:5rw2on4i56btlcajojaxwcat/app.bsky.feed.generator/aaao6g552b33o": ("bluesky_gardening", "Bluesky / Gardening", 0.99),
         "at://did:plc:geoqe3qls5mwezckxxsewys2/app.bsky.feed.generator/aaabrbjcg4hmk": ("bluesky_booksky", "Bluesky / BookSky", 0.97),
@@ -541,6 +657,16 @@ def _build_registry() -> list[SocialPartition]:
             provider_zh="哔哩哔哩 / 日漫分区",
             weight=2.0,
             collector=lambda: _collect_bilibili_partition(33),
+        )
+    )
+    registry.append(
+        SocialPartition(
+            source_key="bilibili",
+            source_zh="哔哩哔哩",
+            provider_key="bilibili_doujin_handdrawn",
+            provider_zh="哔哩哔哩 / 同人·手书",
+            weight=1.8,
+            collector=lambda: _collect_bilibili_partition(47),
         )
     )
     registry.append(

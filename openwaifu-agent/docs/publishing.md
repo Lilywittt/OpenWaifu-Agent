@@ -17,6 +17,8 @@
 - `local_save_as`
 - `pixiv_browser_draft`
 - `instagram_browser_draft`
+- `bilibili_dynamic`
+- `qzone_browser_draft`
 
 `local_archive` 是内部归档目标，用来把发布包、输入和回执留在项目 runtime 里，方便追踪发布历史。测试工作台前端展示用户可触发目标。
 
@@ -25,7 +27,9 @@
 浏览器目标的验收状态：
 
 - `pixiv_browser_draft`：已通过接口烟测，能上传图片并填写标题、说明；默认停在草稿页，由人工确认最终发布。
-- `instagram_browser_draft`：已接入独立浏览器会话和 75 秒超时保护；当前页面流程没有稳定填表，失败会返回明确错误。
+- `instagram_browser_draft`：从 Instagram 首页进入创建帖子弹层，上传图片、填写正文并按配置自动分享；登录态、页面控件或分享按钮不可用时返回 `draft_needs_attention`。
+- `bilibili_dynamic`：使用 Bilibili 动态页，上传图片、填写标题与社媒文案，并按配置自动发布；Bilibili 使用独立的持久发布 profile，用户在发布窗口完成一次登录后，后续发布会复用这份登录态。
+- `qzone_browser_draft`：使用 QQ 空间页面准备图文说说草稿，默认停在人工确认发布前；首次头像授权登录时，发布服务会等待用户在打开页面点击头像，授权完成后继续填草稿，等待超时后 receipt 会标记 `authorizationRequired`。
 
 浏览器发布脚本：
 
@@ -82,6 +86,15 @@
 }
 ```
 
+Bilibili 动态、Instagram、QQ 空间都走同一个发布接口，只更换 `targetId`：
+
+```json
+{
+  "runId": "2026-04-24T19-10-12_run",
+  "targetId": "bilibili_dynamic"
+}
+```
+
 脚本和自动任务需要导出到服务端目录时，使用 `localDirectory`：
 
 ```json
@@ -123,6 +136,8 @@
 
 这里定义系统支持哪些目标、展示名是什么、每个目标走哪个 adapter。
 
+QQ 空间目标通过 `.env` 中的 `QZONE_USER_ID` 定位空间主页。配置项 `userIdEnvName` 保持为 `QZONE_USER_ID` 即可复用本机私有配置。
+
 本机配置放在：
 
 - `F:/openwaifu-workspace/.local/openwaifu-agent/publish/targets.local.json`
@@ -134,6 +149,12 @@ Edge 浏览器发布配置默认落在：
 - `F:/openwaifu-workspace/.local/openwaifu-agent/publish/browser-auth/edge-user-data`
 
 这份受管配置给发布服务使用。同步命令会把当前 Edge 默认配置里的登录态复制到这里。
+
+Bilibili 动态发布使用独立的目标级持久 profile：
+
+- `F:/openwaifu-workspace/.local/openwaifu-agent/publish/browser-auth/edge-target-profiles/bilibili_dynamic`
+
+这份 profile 会从受管 Edge 配置初始化一次，之后保留 Bilibili 在发布窗口中写入的登录态。Bilibili 页面提示登录时，在打开的发布窗口完成登录，再重新触发 Bilibili 动态发布即可。
 
 浏览器发布运行时会为每次发布创建独立会话目录：
 
@@ -153,7 +174,7 @@ Edge 浏览器发布配置默认落在：
 
 ## 使用顺序
 
-首次使用浏览器发布时，先在 Edge 登录 Pixiv、Instagram 等平台，然后关闭 Edge，执行：
+首次使用浏览器发布时，先在 Edge 登录 Pixiv、Instagram、Bilibili、QQ 空间等平台，然后关闭 Edge，执行：
 
 ```powershell
 python run_publish_browser_profile.py sync-edge
@@ -172,3 +193,5 @@ python run_publish_browser_profile.py cleanup-sessions
 ```
 
 私有测试工作台的发布面板会显示 Edge 配置状态。登录态缺失、未同步或浏览器目标超时，都会在接口和前端返回明确原因。
+
+QQ 空间首次打开时可能进入头像授权登录页。授权页由平台控制，发布服务会等待 `authorizationWaitSeconds` 配置的时间；用户在窗口内点击头像完成授权后，流程会继续准备草稿。

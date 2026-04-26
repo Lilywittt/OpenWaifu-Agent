@@ -190,6 +190,65 @@ class PublishPipelineTests(unittest.TestCase):
             ledger_path = project_dir / "runtime" / "service_state" / "publish" / "published_ledger.json"
             self.assertFalse(ledger_path.exists())
 
+    def test_browser_target_profile_persistence_uses_target_auth_dir(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "publish-browser-persistent-profile")
+            image_path = bundle.output_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+
+            character_assets = {"subjectProfile": _subject_profile()}
+            creative_package = {
+                "worldDesign": {
+                    "scenePremiseZh": "demo premise",
+                    "worldSceneZh": "demo scene",
+                }
+            }
+            social_post_package = {"socialPostText": "demo social post"}
+            execution_package = {
+                "meta": {"createdAt": "2026-04-08T21:00:00"},
+                "imagePath": str(image_path),
+            }
+
+            def browser_adapter(**kwargs):
+                receipt_path = kwargs["receipt_path"]
+                receipt = {
+                    "targetId": "bilibili_dynamic",
+                    "adapter": "bilibili_dynamic",
+                    "status": "published",
+                    "publishedAt": "2026-04-08T21:00:00",
+                }
+                from io_utils import write_json
+
+                write_json(receipt_path, receipt)
+                return receipt
+
+            with patch("publish.pipeline._run_adapter_in_subprocess", side_effect=browser_adapter):
+                run_publish_pipeline(
+                    project_dir,
+                    bundle,
+                    {"runMode": "default", "nowLocal": "2026-04-08T21:00:00"},
+                    character_assets,
+                    creative_package,
+                    social_post_package,
+                    execution_package,
+                    explicit_targets=[
+                        {
+                            "targetId": "bilibili_dynamic",
+                            "adapter": "bilibili_dynamic",
+                            "displayName": "Bilibili 动态",
+                            "browserProfilePersistence": "target",
+                        }
+                    ],
+                )
+
+            request_path = bundle.publish_dir / "02_01_bilibili_dynamic_request.json"
+            request_payload = read_json(request_path)
+            target = request_payload["target"]
+            self.assertTrue(target["browserSessionPersistent"])
+            self.assertIn("edge-target-profiles", target["browserSessionUserDataDir"])
+            self.assertTrue(target["browserSessionUserDataDir"].endswith("bilibili_dynamic"))
+
 
 if __name__ == "__main__":
     unittest.main()

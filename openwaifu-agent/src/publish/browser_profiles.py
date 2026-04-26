@@ -140,6 +140,17 @@ def edge_publish_sessions_root(project_dir: Path) -> Path:
     )
 
 
+def edge_publish_target_profiles_root(project_dir: Path) -> Path:
+    project_root = Path(project_dir).resolve()
+    return (
+        resolve_workspace_local_root(project_root)
+        / project_root.name
+        / "publish"
+        / "browser-auth"
+        / "edge-target-profiles"
+    )
+
+
 def _resolve_config_path_value(project_dir: Path, raw_path: str, *, fallback: Path) -> Path:
     raw_text = str(raw_path or "").strip()
     if not raw_text:
