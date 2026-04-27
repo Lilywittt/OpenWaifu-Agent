@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from io_utils import read_json, write_json
-from publish.browser_profiles import edge_publish_sessions_root, edge_publish_target_profiles_root
+from publish.browser_profiles import (
+    cleanup_stale_edge_publish_sessions,
+    edge_publish_sessions_root,
+    edge_publish_target_profiles_root,
+)
 from runtime_layout import sanitize_segment
 
 from .adapters import get_publish_adapter, is_browser_automation_adapter
@@ -25,6 +29,7 @@ PLAN_FILENAME = "01_publish_plan.json"
 PACKAGE_FILENAME = "04_publish_package.json"
 SUMMARY_FILENAME = "publish_summary.json"
 DEFAULT_BROWSER_ADAPTER_TIMEOUT_SECONDS = 90
+DEFAULT_BROWSER_SESSION_MAX_AGE_SECONDS = 6 * 60 * 60
 
 
 def _bundle_payload(bundle) -> dict[str, str]:
@@ -44,6 +49,20 @@ def _browser_adapter_timeout_seconds(target: dict[str, Any]) -> int:
     except (TypeError, ValueError):
         timeout_seconds = DEFAULT_BROWSER_ADAPTER_TIMEOUT_SECONDS
     return max(20, min(timeout_seconds, 300))
+
+
+def _browser_session_max_age_seconds(target: dict[str, Any]) -> int:
+    try:
+        max_age_seconds = int(target.get("browserSessionMaxAgeSeconds", DEFAULT_BROWSER_SESSION_MAX_AGE_SECONDS))
+    except (TypeError, ValueError):
+        max_age_seconds = DEFAULT_BROWSER_SESSION_MAX_AGE_SECONDS
+    return max(60, max_age_seconds)
+
+
+def _target_keeps_browser_open(target: dict[str, Any]) -> bool:
+    if "keepBrowserOpen" in target:
+        return bool(target.get("keepBrowserOpen"))
+    return not bool(target.get("autoSubmit", False))
 
 
 def _browser_session_user_data_dir(project_dir: Path, bundle, target_id: str, index: int) -> Path:
@@ -194,19 +213,30 @@ def run_publish_stage(
                 if browser_session_persistent
                 else _browser_session_user_data_dir(project_dir, bundle, target_id, index)
             )
+            cleanup_stale_edge_publish_sessions(
+                project_dir,
+                max_age_seconds=_browser_session_max_age_seconds(target),
+            )
             target["browserSessionUserDataDir"] = str(browser_session_user_data_dir)
             target["browserSessionPersistent"] = browser_session_persistent
             request_payload["target"] = target
         write_json(bundle.publish_dir / request_filename, request_payload)
         receipt_path = bundle.publish_dir / receipt_filename
         if browser_automation_adapter:
-            receipt = _run_adapter_in_subprocess(
-                project_dir=project_dir,
-                request_path=bundle.publish_dir / request_filename,
-                receipt_path=receipt_path,
-                timeout_seconds=_browser_adapter_timeout_seconds(target),
-                browser_session_user_data_dir=browser_session_user_data_dir,
-            )
+            try:
+                receipt = _run_adapter_in_subprocess(
+                    project_dir=project_dir,
+                    request_path=bundle.publish_dir / request_filename,
+                    receipt_path=receipt_path,
+                    timeout_seconds=_browser_adapter_timeout_seconds(target),
+                    browser_session_user_data_dir=browser_session_user_data_dir,
+                )
+            except Exception:
+                if not _target_keeps_browser_open(target):
+                    _terminate_edge_processes_for_user_data_dir(browser_session_user_data_dir)
+                raise
+            if not _target_keeps_browser_open(target):
+                _terminate_edge_processes_for_user_data_dir(browser_session_user_data_dir)
         else:
             adapter = get_publish_adapter(adapter_name)
             receipt = adapter(

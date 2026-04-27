@@ -21,6 +21,36 @@ function Get-QuickTunnelContext {
     }
 }
 
+function Find-CloudflaredProcessByCommandFragments {
+    param(
+        [string[]]$Fragments
+    )
+
+    $processes = Get-CimInstance Win32_Process -Filter "name='cloudflared.exe'" -ErrorAction SilentlyContinue
+    if (-not $processes) {
+        $processes = Get-CimInstance Win32_Process -Filter "name='cloudflared'" -ErrorAction SilentlyContinue
+    }
+
+    foreach ($process in $processes) {
+        $commandLine = [string]$process.CommandLine
+        if ([string]::IsNullOrWhiteSpace($commandLine)) {
+            continue
+        }
+        $matched = $true
+        foreach ($fragment in $Fragments) {
+            if (-not $commandLine.Contains($fragment)) {
+                $matched = $false
+                break
+            }
+        }
+        if ($matched) {
+            return $process
+        }
+    }
+
+    return $null
+}
+
 function Resolve-QuickTunnelUrlFromLogs {
     param(
         [hashtable]$Context

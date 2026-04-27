@@ -1,6 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import os
 import sys
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,6 +13,7 @@ if str(SRC) not in sys.path:
 from io_utils import read_json, write_json
 from publish.browser_profiles import (
     cleanup_edge_publish_sessions,
+    cleanup_stale_edge_publish_sessions,
     edge_publish_sessions_root,
     load_edge_publish_profile,
     read_edge_publish_profile_status,
@@ -121,6 +124,24 @@ class PublishBrowserProfileTests(unittest.TestCase):
 
         self.assertEqual(payload["removedCount"], 2)
         self.assertEqual(payload["skippedCount"], 0)
+
+    def test_cleanup_stale_edge_publish_sessions_keeps_recent_dirs(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            sessions_root = edge_publish_sessions_root(project_dir)
+            old_session = sessions_root / "old-session"
+            recent_session = sessions_root / "recent-session"
+            old_session.mkdir(parents=True, exist_ok=True)
+            recent_session.mkdir(parents=True, exist_ok=True)
+            old_time = time.time() - 7200
+            os.utime(old_session, (old_time, old_time))
+
+            payload = cleanup_stale_edge_publish_sessions(project_dir, max_age_seconds=3600)
+
+            self.assertEqual(payload["removedCount"], 1)
+            self.assertIn(str(old_session), payload["removed"])
+            self.assertFalse(old_session.exists())
+            self.assertTrue(recent_session.exists())
 
 
 if __name__ == "__main__":

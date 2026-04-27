@@ -506,3 +506,39 @@ def cleanup_edge_publish_sessions(project_dir: Path) -> dict[str, Any]:
         "removed": removed,
         "skipped": skipped,
     }
+
+
+def cleanup_stale_edge_publish_sessions(project_dir: Path, *, max_age_seconds: int) -> dict[str, Any]:
+    sessions_root = edge_publish_sessions_root(project_dir)
+    removed: list[str] = []
+    skipped: list[dict[str, str]] = []
+    if not sessions_root.exists():
+        return {
+            "browser": "edge",
+            "sessionRoot": str(sessions_root),
+            "removedCount": 0,
+            "skippedCount": 0,
+            "removed": removed,
+            "skipped": skipped,
+        }
+
+    cutoff = time.time() - max(int(max_age_seconds), 60)
+    for session_dir in sessions_root.iterdir():
+        if not session_dir.is_dir():
+            continue
+        try:
+            if session_dir.stat().st_mtime > cutoff:
+                continue
+            _terminate_edge_processes_for_path(session_dir)
+            _rmtree_best_effort(session_dir)
+            removed.append(str(session_dir))
+        except Exception as exc:
+            skipped.append({"path": str(session_dir), "error": str(exc)})
+    return {
+        "browser": "edge",
+        "sessionRoot": str(sessions_root),
+        "removedCount": len(removed),
+        "skippedCount": len(skipped),
+        "removed": removed,
+        "skipped": skipped,
+    }

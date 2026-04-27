@@ -100,6 +100,12 @@ if (Test-Path -LiteralPath $statePath) {
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
 }
 
+$orphanProcess = Find-CloudflaredProcessByCommandFragments -Fragments @("tunnel", "--url", "http://127.0.0.1:8767")
+if ($null -ne $orphanProcess) {
+    Stop-Process -Id $orphanProcess.ProcessId -Force -ErrorAction SilentlyContinue
+    Write-Output "[remote-access] stopped stale Quick Tunnel process, pid=$($orphanProcess.ProcessId)"
+}
+
 Push-Location $projectDir
 try {
     & python run_public_workbench.py --no-open-browser | Out-Null

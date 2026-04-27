@@ -13,6 +13,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from io_utils import ensure_dir
+from process_utils import is_process_alive, terminate_process_tree
 from publish.browser_profiles import (
     EDGE_PROFILE_DIRS,
     EDGE_PROFILE_FILES,
@@ -27,6 +28,12 @@ DEFAULT_BROWSER_TIMEOUT_MS = 45000
 SHORT_ACTION_TIMEOUT_MS = 5000
 
 
+def should_keep_browser_open(target_config: dict[str, Any]) -> bool:
+    if "keepBrowserOpen" in target_config:
+        return bool(target_config.get("keepBrowserOpen"))
+    return not bool(target_config.get("autoSubmit", False))
+
+
 @dataclass
 class BrowserAutomationSession:
     playwright: Any
@@ -37,11 +44,37 @@ class BrowserAutomationSession:
     remote_debugging_port: int
     user_data_dir: Path
 
-    def disconnect(self) -> None:
+    def disconnect(self, *, close_browser: bool = False) -> None:
+        if close_browser:
+            try:
+                self.browser.close()
+            except Exception:
+                pass
+            if self.process is not None:
+                try:
+                    if self.process.poll() is None:
+                        self.process.terminate()
+                except Exception:
+                    pass
+                try:
+                    self.process.wait(timeout=3)
+                except Exception:
+                    try:
+                        terminate_process_tree(int(self.process.pid))
+                    except Exception:
+                        pass
+            else:
+                _terminate_edge_processes_for_user_data_dir(self.user_data_dir)
         try:
             self.playwright.stop()
         except Exception:
             pass
+        if close_browser and self.process is not None:
+            try:
+                if is_process_alive(int(self.process.pid)):
+                    terminate_process_tree(int(self.process.pid))
+            except Exception:
+                pass
 
 
 def _free_port() -> int:
@@ -93,6 +126,29 @@ def _edge_debugging_port_for_user_data_dir(user_data_dir: Path) -> int | None:
         return int(raw_port)
     except ValueError:
         return None
+
+
+def _terminate_edge_processes_for_user_data_dir(user_data_dir: Path) -> None:
+    if os.name != "nt":
+        return
+    target = str(Path(user_data_dir).resolve())
+    escaped_target = target.replace("'", "''")
+    script = (
+        f"$target = '{escaped_target}'; "
+        "Get-CimInstance Win32_Process -Filter \"name='msedge.exe'\" | "
+        "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($target) } | "
+        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    )
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        pass
 
 
 def _create_edge_session_dir(

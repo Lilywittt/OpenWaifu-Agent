@@ -32,9 +32,11 @@ class _FakeSession:
         self.remote_debugging_port = 9222
         self.user_data_dir = Path("browser-session")
         self.disconnected = False
+        self.close_browser = False
 
-    def disconnect(self) -> None:
+    def disconnect(self, *, close_browser: bool = False) -> None:
         self.disconnected = True
+        self.close_browser = close_browser
 
 
 class _InstagramActionFakePage:
@@ -87,7 +89,7 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             ), patch(
                 "publish.adapters.instagram_browser_draft._advance_to_caption_step", return_value=True
             ), patch(
-                "publish.adapters.instagram_browser_draft.fill_first_editor_verified",
+                "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
                 return_value=(True, "demo caption"),
             ), patch(
                 "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
@@ -106,6 +108,7 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             self.assertTrue(receipt["shareReady"])
             self.assertFalse(receipt["shareClicked"])
             self.assertTrue(session.disconnected)
+            self.assertFalse(session.close_browser)
 
     def test_instagram_auto_submit_uses_scoped_share_action(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -125,7 +128,7 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             ), patch(
                 "publish.adapters.instagram_browser_draft._advance_to_caption_step", return_value=True
             ), patch(
-                "publish.adapters.instagram_browser_draft.fill_first_editor_verified",
+                "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
                 return_value=(True, "demo caption"),
             ), patch(
                 "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
@@ -146,6 +149,7 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             self.assertTrue(receipt["shareClicked"])
             share_click.assert_called_once_with(session.page)
             self.assertTrue(session.disconnected)
+            self.assertTrue(session.close_browser)
 
     def test_instagram_share_button_requires_caption_step_and_rejects_friend_share_labels(self) -> None:
         page = _InstagramActionFakePage()
@@ -156,6 +160,36 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
         self.assertEqual(page.evaluate_calls[0]["dialogSelector"], "div[role='dialog']")
         self.assertIn("好友", page.evaluate_calls[0]["wrongHints"])
         self.assertIn("Share", page.evaluate_calls[0]["labels"])
+
+    def test_instagram_manual_target_can_keep_browser_open(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://www.instagram.com/")
+
+            with patch("publish.adapters.instagram_browser_draft.open_edge_page", return_value=session), patch(
+                "publish.adapters.instagram_browser_draft._open_create_dialog", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft.set_file_input_candidates", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft._advance_to_caption_step", return_value=True
+            ), patch(
+                "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
+            ):
+                publish_to_instagram_browser_draft(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="instagram_browser_draft",
+                    target_config={"autoSubmit": False, "keepBrowserOpen": True},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertTrue(session.disconnected)
+            self.assertFalse(session.close_browser)
 
     def test_bilibili_receipt_reports_submit_ready_before_submit(self) -> None:
         with TemporaryDirectory() as temp_dir:

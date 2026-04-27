@@ -28,7 +28,9 @@
         "OpenWaifuAgent",
         "AIイラスト"
       ],
-      "autoSubmit": false
+      "autoSubmit": false,
+      "keepBrowserOpen": true,
+      "browserSessionMaxAgeSeconds": 21600
     },
     "instagram_browser_draft": {
       "adapter": "instagram_browser_draft",
@@ -37,7 +39,9 @@
       "postUrl": "https://www.instagram.com/",
       "timeoutSeconds": 120,
       "captionSuffix": "#OpenWaifuAgent #AIart",
-      "autoSubmit": true
+      "autoSubmit": true,
+      "keepBrowserOpen": false,
+      "browserSessionMaxAgeSeconds": 21600
     },
     "bilibili_dynamic": {
       "adapter": "bilibili_dynamic",
@@ -51,7 +55,9 @@
       ],
       "includeTitle": false,
       "browserProfilePersistence": "target",
-      "autoSubmit": true
+      "autoSubmit": true,
+      "keepBrowserOpen": false,
+      "browserSessionMaxAgeSeconds": 21600
     },
     "qzone_browser_draft": {
       "adapter": "qzone_browser_draft",
@@ -62,7 +68,9 @@
       "timeoutSeconds": 120,
       "authorizationWaitSeconds": 75,
       "captionSuffix": "#OpenWaifuAgent",
-      "autoSubmit": false
+      "autoSubmit": false,
+      "keepBrowserOpen": true,
+      "browserSessionMaxAgeSeconds": 21600
     }
   }
 }

@@ -13,7 +13,7 @@ from .browser_actions import (
     set_file_with_chooser,
     wait_for_any_locator,
 )
-from .browser_session import open_edge_page
+from .browser_session import open_edge_page, should_keep_browser_open
 from .publish_content import publish_caption, publish_tags, publish_title, receipt_base
 
 
@@ -417,4 +417,4 @@ def publish_to_bilibili_dynamic(
             "error": error,
         }
     finally:
-        session.disconnect()
+        session.disconnect(close_browser=not should_keep_browser_open(target_config))

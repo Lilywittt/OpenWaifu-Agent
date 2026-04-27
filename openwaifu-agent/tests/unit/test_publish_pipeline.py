@@ -10,7 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from io_utils import read_json
-from publish.pipeline import run_publish_pipeline
+from publish.pipeline import run_publish_pipeline, run_publish_stage
 from runtime_layout import create_run_bundle
 
 
@@ -248,6 +248,50 @@ class PublishPipelineTests(unittest.TestCase):
             self.assertTrue(target["browserSessionPersistent"])
             self.assertIn("edge-target-profiles", target["browserSessionUserDataDir"])
             self.assertTrue(target["browserSessionUserDataDir"].endswith("bilibili_dynamic"))
+
+    def test_auto_browser_target_terminates_owned_session_after_subprocess(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "publish-browser-auto-close")
+            image_path = bundle.output_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+
+            def browser_adapter(**kwargs):
+                receipt = {
+                    "targetId": "instagram_browser_draft",
+                    "adapter": "instagram_browser_draft",
+                    "status": "published",
+                    "publishedAt": "2026-04-08T21:00:00",
+                }
+                from io_utils import write_json
+
+                write_json(kwargs["receipt_path"], receipt)
+                return receipt
+
+            with patch("publish.pipeline._run_adapter_in_subprocess", side_effect=browser_adapter), patch(
+                "publish.pipeline._terminate_edge_processes_for_user_data_dir"
+            ) as terminate_session:
+                run_publish_stage(
+                    project_dir,
+                    bundle,
+                    {"runMode": "default", "nowLocal": "2026-04-08T21:00:00"},
+                    {
+                        "runId": bundle.run_id,
+                        "subjectDisplayNameZh": "demo",
+                        "socialPostText": "demo social post",
+                        "imagePath": str(image_path),
+                    },
+                    explicit_targets=[
+                        {
+                            "targetId": "instagram_browser_draft",
+                            "adapter": "instagram_browser_draft",
+                            "displayName": "Instagram",
+                            "autoSubmit": True,
+                        }
+                    ],
+                )
+
+            terminate_session.assert_called_once()
 
 
 if __name__ == "__main__":

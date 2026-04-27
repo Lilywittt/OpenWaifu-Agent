@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "remote_access_common.ps1")
+
 function Invoke-WithCloudflaredEnvironment {
     param(
         [scriptblock]$Action
@@ -70,6 +72,12 @@ if (Test-Path -LiteralPath $statePath) {
         exit 0
     }
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+}
+
+$orphanProcess = Find-CloudflaredProcessByCommandFragments -Fragments @("tunnel", "--config", $ConfigPath, "run")
+if ($null -ne $orphanProcess) {
+    Stop-Process -Id $orphanProcess.ProcessId -Force -ErrorAction SilentlyContinue
+    Write-Host "[remote-access] stopped stale cloudflared process, pid=$($orphanProcess.ProcessId)"
 }
 
 Push-Location $projectDir

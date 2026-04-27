@@ -7,7 +7,7 @@ from .browser_actions import (
     fill_first_locator,
     set_file_input,
 )
-from .browser_session import open_edge_page
+from .browser_session import open_edge_page, should_keep_browser_open
 from .publish_content import (
     publish_caption,
     publish_tags,
@@ -110,4 +110,4 @@ def publish_to_pixiv_browser_draft(
             "error": error,
         }
     finally:
-        session.disconnect()
+        session.disconnect(close_browser=not should_keep_browser_open(target_config))

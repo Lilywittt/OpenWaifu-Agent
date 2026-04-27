@@ -11,7 +11,7 @@ from .browser_actions import (
     set_file_input_candidates,
     wait_for_any_locator,
 )
-from .browser_session import open_edge_page
+from .browser_session import open_edge_page, should_keep_browser_open
 from .publish_content import publish_caption, receipt_base
 
 
@@ -21,26 +21,26 @@ INSTAGRAM_FILE_INPUT_SELECTORS = [
     "input[type='file']",
 ]
 INSTAGRAM_CAPTION_SELECTORS = [
-    "[contenteditable='true'][aria-label*='caption' i]",
-    "[contenteditable='true'][aria-placeholder*='caption' i]",
-    "[contenteditable='true'][aria-label*='Write a caption' i]",
-    "[contenteditable='true'][aria-label*='说明']",
-    "[contenteditable='true'][aria-label*='文案']",
-    "[contenteditable='true'][aria-label*='撰写']",
-    "textarea[aria-label*='caption' i]",
-    "textarea[placeholder*='caption' i]",
-    "textarea",
-    "[contenteditable='true']",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='Write a caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-placeholder*='caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='说明']",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='文案']",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='撰写']",
+    "div[role='dialog'] textarea[aria-label*='caption' i]",
+    "div[role='dialog'] textarea[placeholder*='caption' i]",
+    "div[role='dialog'] textarea",
+    "div[role='dialog'] [contenteditable='true']",
 ]
 INSTAGRAM_CAPTION_READY_SELECTORS = [
-    "[contenteditable='true'][aria-label*='caption' i]",
-    "[contenteditable='true'][aria-placeholder*='caption' i]",
-    "[contenteditable='true'][aria-label*='Write a caption' i]",
-    "[contenteditable='true'][aria-label*='说明']",
-    "[contenteditable='true'][aria-label*='文案']",
-    "[contenteditable='true'][aria-label*='撰写']",
-    "textarea[aria-label*='caption' i]",
-    "textarea[placeholder*='caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='Write a caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-placeholder*='caption' i]",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='说明']",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='文案']",
+    "div[role='dialog'] [contenteditable='true'][aria-label*='撰写']",
+    "div[role='dialog'] textarea[aria-label*='caption' i]",
+    "div[role='dialog'] textarea[placeholder*='caption' i]",
 ]
 INSTAGRAM_CREATE_SELECTORS = [
     "a[href='#']:has(svg[aria-label='新帖子'])",
@@ -89,6 +89,86 @@ def _caption_required_fragments(publish_input: dict, caption_text: str) -> list[
         if len("".join(line.split())) >= 8:
             return [line]
     return [caption_text]
+
+
+def _read_instagram_caption_text(page) -> str:
+    script = """
+    ({ dialogSelector }) => {
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width >= 2
+          && rect.height >= 2
+          && rect.bottom >= 0
+          && rect.right >= 0
+          && rect.top <= window.innerHeight
+          && rect.left <= window.innerWidth
+          && style.visibility !== "hidden"
+          && style.display !== "none";
+      };
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector)).filter(visible);
+      const selectors = [
+        "[contenteditable='true'][aria-label*='Write a caption' i]",
+        "[contenteditable='true'][aria-label*='caption' i]",
+        "[contenteditable='true'][aria-placeholder*='caption' i]",
+        "[contenteditable='true'][aria-label*='说明']",
+        "[contenteditable='true'][aria-label*='文案']",
+        "[contenteditable='true'][aria-label*='撰写']",
+        "textarea[aria-label*='caption' i]",
+        "textarea[placeholder*='caption' i]",
+        "textarea",
+        "[contenteditable='true']",
+      ];
+      for (const dialog of dialogs) {
+        for (const selector of selectors) {
+          const element = Array.from(dialog.querySelectorAll(selector)).find(visible);
+          if (!element) continue;
+          if ("value" in element) return element.value || "";
+          return element.innerText || element.textContent || "";
+        }
+      }
+      return "";
+    }
+    """
+    try:
+        return str(page.evaluate(script, {"dialogSelector": INSTAGRAM_DIALOG_SELECTOR}) or "")
+    except Exception:
+        return ""
+
+
+def _fill_instagram_caption_verified(page, caption_text: str, required_fragments: list[str]) -> tuple[bool, str]:
+    def compact(value: str) -> str:
+        return "".join(ch for ch in str(value or "") if not ch.isspace() and ch != "\u200b")
+
+    filled, editor_text = fill_first_editor_verified(
+        page,
+        INSTAGRAM_CAPTION_SELECTORS,
+        caption_text,
+        required_fragments=required_fragments,
+        timeout_ms=10000,
+    )
+    if not filled:
+        return False, editor_text
+
+    compact_fragments = [compact(fragment) for fragment in required_fragments if compact(fragment)]
+    deadline = time.monotonic() + 5
+    last_text = editor_text
+    while time.monotonic() < deadline:
+        current_text = _read_instagram_caption_text(page)
+        if current_text:
+            last_text = current_text
+        compact_current = compact(current_text)
+        if compact_fragments and all(fragment in compact_current for fragment in compact_fragments):
+            try:
+                page.wait_for_timeout(1200)
+            except Exception:
+                time.sleep(1.2)
+            return True, current_text
+        try:
+            page.wait_for_timeout(250)
+        except Exception:
+            time.sleep(0.25)
+    return False, last_text
 
 
 def _click_create_nav(page) -> bool:
@@ -342,11 +422,11 @@ def publish_to_instagram_browser_draft(
             uploaded = set_file_input_candidates(page, INSTAGRAM_FILE_INPUT_SELECTORS, image_path)
         caption_ready = _advance_to_caption_step(page)
         caption_text = publish_caption(publish_input, target_config)
-        caption_filled, caption_editor_text = fill_first_editor_verified(
+        required_fragments = _caption_required_fragments(publish_input, caption_text)
+        caption_filled, caption_editor_text = _fill_instagram_caption_verified(
             page,
-            INSTAGRAM_CAPTION_SELECTORS,
             caption_text,
-            required_fragments=_caption_required_fragments(publish_input, caption_text),
+            required_fragments,
         )
         share_ready = _instagram_share_ready(page) if caption_filled else False
         share_clicked = False
@@ -398,4 +478,4 @@ def publish_to_instagram_browser_draft(
             "error": error,
         }
     finally:
-        session.disconnect()
+        session.disconnect(close_browser=not should_keep_browser_open(target_config))

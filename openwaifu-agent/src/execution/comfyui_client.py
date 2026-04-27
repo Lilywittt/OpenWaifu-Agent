@@ -12,7 +12,13 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 from env import get_env_value, resolve_env_path
 from io_utils import ensure_dir, write_json
 from path_policy import resolve_workspace_local_root
-from process_utils import build_windows_background_popen_kwargs, resolve_background_python_executable
+from process_utils import (
+    build_windows_background_popen_kwargs,
+    find_tcp_listening_pid,
+    is_process_alive,
+    resolve_background_python_executable,
+    terminate_process_tree,
+)
 
 
 def _workspace_root(project_dir: Path) -> Path:
@@ -59,7 +65,7 @@ def is_endpoint_ready(endpoint: str, health_path: str, *, timeout_ms: int = 5000
         return False
 
 
-def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
+def _start_local_comfyui(project_dir: Path, endpoint: str) -> int:
     install_root = resolve_env_path(project_dir, "COMFYUI_INSTALL_ROOT", str(_default_comfyui_install_root(project_dir)))
     venv_dir = resolve_env_path(project_dir, "COMFYUI_VENV_DIR", str(_default_comfyui_venv_dir(project_dir)))
     python_path = venv_dir / "Scripts" / "python.exe"
@@ -72,7 +78,13 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
 
     parsed = urlparse(endpoint)
     host = parsed.hostname or "127.0.0.1"
-    port = str(parsed.port or 8188)
+    port = int(parsed.port or 8188)
+    listener_pid = find_tcp_listening_pid(port)
+    if listener_pid > 0 and is_process_alive(listener_pid):
+        raise RuntimeError(
+            f"ComfyUI endpoint is not healthy at {endpoint}, but TCP port {port} is already occupied by pid {listener_pid}. "
+            "Stop that process before starting a new ComfyUI instance."
+        )
 
     log_dir = resolve_env_path(project_dir, "COMFYUI_LOG_DIR", "./runtime/service_logs/comfyui")
     pid_dir = resolve_env_path(project_dir, "COMFYUI_PID_DIR", "./runtime/service_state")
@@ -85,7 +97,7 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
     stderr_handle = stderr_path.open("ab")
     try:
         process = subprocess.Popen(
-            [str(launch_python_path), str(main_py), "--listen", host, "--port", port],
+            [str(launch_python_path), str(main_py), "--listen", host, "--port", str(port)],
             cwd=str(install_root),
             stdin=subprocess.DEVNULL,
             stdout=stdout_handle,
@@ -107,17 +119,20 @@ def _start_local_comfyui(project_dir: Path, endpoint: str) -> None:
             "pythonPath": str(launch_python_path),
         },
     )
+    return int(process.pid)
 
 
 def ensure_comfyui_ready(project_dir: Path, endpoint: str, health_path: str, *, start_timeout_ms: int = 180000) -> None:
     if is_endpoint_ready(endpoint, health_path):
         return
-    _start_local_comfyui(project_dir, endpoint)
+    started_pid = _start_local_comfyui(project_dir, endpoint)
     deadline = time.time() + start_timeout_ms / 1000
     while time.time() < deadline:
         if is_endpoint_ready(endpoint, health_path):
             return
         time.sleep(3)
+    if started_pid > 0 and is_process_alive(started_pid):
+        terminate_process_tree(started_pid)
     raise RuntimeError(f"ComfyUI did not become ready at {endpoint} within {start_timeout_ms} ms.")
 
 
