@@ -336,12 +336,13 @@ class PublishServiceTests(unittest.TestCase):
             self.assertEqual(summary_payload["socialPostText"], manual_text)
             self.assertIn(manual_text, exported_text)
 
-    def test_submit_publish_run_accepts_social_post_option(self):
+    def test_submit_publish_run_uses_social_post_option_without_persisting_override(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             _write_targets_config(project_dir)
             run_id = "2026-04-24T18-41-00_publish_option_caption"
             run_dir = _write_run_artifacts(project_dir, run_id)
+            generated_text = read_json(run_dir / "social_post" / "01_social_post_package.json")["socialPostText"]
             manual_text = "One-off caption from publishing page"
 
             job = submit_publish_run(
@@ -362,8 +363,52 @@ class PublishServiceTests(unittest.TestCase):
             state = read_publish_social_post(project_dir, run_id)
             publish_input = read_json(run_dir / "publish" / "service_jobs" / job["jobId"] / "00_publish_input.json")
 
-            self.assertEqual(state["socialPostText"], manual_text)
+            self.assertEqual(state["socialPostText"], generated_text)
             self.assertEqual(publish_input["socialPostText"], manual_text)
+            self.assertFalse((run_dir / "publish" / "social_post_override.json").exists())
+
+    def test_existing_publish_request_override_is_preserved_as_manual_caption(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_targets_config(project_dir)
+            run_id = "2026-04-24T18-42-00_existing_publish_request_caption"
+            run_dir = _write_run_artifacts(project_dir, run_id)
+            summary_path = run_dir / "output" / "run_summary.json"
+            summary_payload = read_json(summary_path)
+            summary_payload["socialPostText"] = "edited caption from previous publish UI"
+            write_json(summary_path, summary_payload)
+            write_json(
+                run_dir / "publish" / "social_post_override.json",
+                {
+                    "runId": run_id,
+                    "socialPostText": "edited caption from previous publish UI",
+                    "updatedAt": "2026-04-24T18:42:00",
+                    "source": "publish_request",
+                },
+            )
+
+            state = read_publish_social_post(project_dir, run_id)
+            job = submit_publish_run(
+                project_dir,
+                {
+                    "runId": run_id,
+                    "localDirectory": "exports/stale-publish-request-caption",
+                    "options": {
+                        "socialPostText": "edited caption from previous publish UI",
+                        "localExport": {
+                            "kind": "bundle_folder",
+                            "name": "Stale Publish Request Caption",
+                        },
+                    },
+                },
+            )
+            publish_input = read_json(run_dir / "publish" / "service_jobs" / job["jobId"] / "00_publish_input.json")
+            repaired_summary = read_json(summary_path)
+
+            self.assertTrue(state["isManual"])
+            self.assertEqual(state["socialPostText"], "edited caption from previous publish UI")
+            self.assertEqual(publish_input["socialPostText"], "edited caption from previous publish UI")
+            self.assertEqual(repaired_summary["socialPostText"], "edited caption from previous publish UI")
 
     def test_browser_target_reports_setup_guidance_until_edge_sync(self):
         with TemporaryDirectory() as temp_dir:

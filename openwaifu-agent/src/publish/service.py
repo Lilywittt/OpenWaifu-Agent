@@ -17,8 +17,9 @@ from .package import build_publish_input
 from .pipeline import run_publish_stage
 from .social_post_edit import (
     apply_effective_social_post_package,
-    read_effective_social_post,
+    normalize_social_post_text,
     save_social_post_override,
+    sync_social_post_summary,
 )
 from .state import append_published_record
 from .targets import list_publish_targets as build_publish_targets_payload
@@ -54,7 +55,13 @@ def _build_publish_bundle(run_dir: Path, publish_dir: Path) -> SimpleNamespace:
     )
 
 
-def _resolve_publish_source(project_dir: Path, run_dir: Path, publish_dir: Path) -> tuple[SimpleNamespace, dict[str, Any], dict[str, Any]]:
+def _resolve_publish_source(
+    project_dir: Path,
+    run_dir: Path,
+    publish_dir: Path,
+    *,
+    social_post_text_override: Any = None,
+) -> tuple[SimpleNamespace, dict[str, Any], dict[str, Any]]:
     default_run_context = _read_optional_json(run_dir / "input" / "default_run_context.json")
     if default_run_context is None:
         default_run_context = build_default_run_context(now_local=datetime.now().isoformat(timespec="seconds"))
@@ -66,6 +73,10 @@ def _resolve_publish_source(project_dir: Path, run_dir: Path, publish_dir: Path)
         run_dir,
         read_json(run_dir / "social_post" / "01_social_post_package.json"),
     )
+    if social_post_text_override is not None:
+        social_post_text = normalize_social_post_text(social_post_text_override)
+        if social_post_text:
+            social_post_package["socialPostText"] = social_post_text
     execution_package = read_json(run_dir / "execution" / "04_execution_package.json")
     bundle = _build_publish_bundle(run_dir, publish_dir)
     publish_input = build_publish_input(
@@ -143,7 +154,7 @@ def list_publish_targets(project_dir: Path) -> dict[str, Any]:
 
 def read_publish_social_post(project_dir: Path, run_id: str) -> dict[str, Any]:
     run_dir = _resolve_run_dir(Path(project_dir).resolve(), run_id)
-    return read_effective_social_post(run_dir)
+    return sync_social_post_summary(run_dir)
 
 
 def save_publish_social_post(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -170,8 +181,6 @@ def submit_publish_run(project_dir: Path, payload: dict[str, Any]) -> dict[str, 
     request = normalize_publish_run_request(payload)
     run_dir = _resolve_run_dir(project_dir, request.run_id)
     requested_social_post_text = _request_social_post_text(request.options)
-    if requested_social_post_text is not None:
-        save_social_post_override(run_dir, requested_social_post_text, source="publish_request")
     job = build_publish_job(
         run_id=request.run_id,
         target_ids=list(request.target_ids),
@@ -183,7 +192,12 @@ def submit_publish_run(project_dir: Path, payload: dict[str, Any]) -> dict[str, 
     job["artifactsPath"] = str(artifacts_path)
     write_publish_job(project_dir, job)
     try:
-        bundle, default_run_context, publish_input = _resolve_publish_source(project_dir, run_dir, artifacts_path)
+        bundle, default_run_context, publish_input = _resolve_publish_source(
+            project_dir,
+            run_dir,
+            artifacts_path,
+            social_post_text_override=requested_social_post_text,
+        )
         resolved_targets = resolve_publish_targets_for_request(
             project_dir,
             target_ids=request.target_ids,

@@ -158,6 +158,10 @@ def _raise_if_receipt_failed(target: dict[str, Any], receipt: dict[str, Any]) ->
         raise RuntimeError(error)
 
 
+def _receipt_needs_attention(receipt: dict[str, Any]) -> bool:
+    return str(receipt.get("status", "")).strip() in {"failed", "draft_needs_attention"}
+
+
 def load_publish_targets(project_dir: Path, targets_path: Path | None = None) -> dict[str, Any]:
     return load_publish_targets_config(project_dir, targets_path)
 
@@ -235,7 +239,7 @@ def run_publish_stage(
                 if not _target_keeps_browser_open(target):
                     _terminate_edge_processes_for_user_data_dir(browser_session_user_data_dir)
                 raise
-            if not _target_keeps_browser_open(target):
+            if not _target_keeps_browser_open(target) and not _receipt_needs_attention(receipt):
                 _terminate_edge_processes_for_user_data_dir(browser_session_user_data_dir)
         else:
             adapter = get_publish_adapter(adapter_name)

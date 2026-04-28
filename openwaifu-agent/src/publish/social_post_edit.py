@@ -49,13 +49,14 @@ def read_social_post_override(run_dir: Path) -> dict[str, Any] | None:
     payload = _read_json_object(path)
     if payload is None:
         return None
+    source = str(payload.get("source", "")).strip()
     text = normalize_social_post_text(payload.get("socialPostText", ""))
     if not text:
         return None
     return {
         "socialPostText": text,
         "updatedAt": str(payload.get("updatedAt", "")).strip(),
-        "source": str(payload.get("source", "")).strip(),
+        "source": source,
         "path": str(path),
     }
 
@@ -101,6 +102,12 @@ def _update_run_summary_social_post(run_dir: Path, state: dict[str, Any]) -> Non
     summary_payload["manualSocialPostUpdatedAt"] = state["updatedAt"]
     summary_payload["manualSocialPostOverridePath"] = state["overridePath"]
     write_json(summary_path, summary_payload)
+
+
+def sync_social_post_summary(run_dir: Path) -> dict[str, Any]:
+    state = read_effective_social_post(run_dir)
+    _update_run_summary_social_post(Path(run_dir).resolve(), state)
+    return state
 
 
 def save_social_post_override(run_dir: Path, text: Any, *, source: str = "workbench") -> dict[str, Any]:

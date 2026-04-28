@@ -295,6 +295,52 @@ class PublishPipelineTests(unittest.TestCase):
 
             terminate_session.assert_called_once()
 
+    def test_auto_browser_target_keeps_failed_session_open_for_inspection(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            bundle = create_run_bundle(project_dir, "default", "publish-browser-failed-keeps-session")
+            image_path = bundle.output_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+
+            def browser_adapter(**kwargs):
+                receipt = {
+                    "targetId": "bilibili_dynamic",
+                    "adapter": "bilibili_dynamic",
+                    "status": "draft_needs_attention",
+                    "publishedAt": "2026-04-08T21:10:00",
+                    "error": "image upload failed",
+                }
+                from io_utils import write_json
+
+                write_json(kwargs["receipt_path"], receipt)
+                return receipt
+
+            with patch("publish.pipeline._run_adapter_in_subprocess", side_effect=browser_adapter), patch(
+                "publish.pipeline._terminate_edge_processes_for_user_data_dir"
+            ) as terminate_session:
+                with self.assertRaisesRegex(RuntimeError, "image upload failed"):
+                    run_publish_stage(
+                        project_dir,
+                        bundle,
+                        {"runMode": "default", "nowLocal": "2026-04-08T21:10:00"},
+                        {
+                            "runId": bundle.run_id,
+                            "subjectDisplayNameZh": "demo",
+                            "socialPostText": "demo social post",
+                            "imagePath": str(image_path),
+                        },
+                        explicit_targets=[
+                            {
+                                "targetId": "bilibili_dynamic",
+                                "adapter": "bilibili_dynamic",
+                                "displayName": "Bilibili 动态",
+                                "autoSubmit": True,
+                            }
+                        ],
+                    )
+
+            terminate_session.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

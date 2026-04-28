@@ -232,7 +232,11 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             ), patch(
                 "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=True
             ), patch(
-                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_preview", return_value=True
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
             ), patch(
                 "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
             ):
@@ -247,6 +251,8 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "draft_prepared")
             self.assertTrue(receipt["imageUploaded"])
             self.assertTrue(receipt["imagePreviewReady"])
+            self.assertTrue(receipt["captionCommitted"])
+            self.assertTrue(receipt["publishReady"])
             self.assertTrue(receipt["submitReady"])
             self.assertEqual(receipt["confirmationsClicked"], 0)
             self.assertFalse(receipt["submitClicked"])
@@ -282,7 +288,11 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             ), patch(
                 "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=True
             ), patch(
-                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_preview", return_value=True
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
             ), patch(
                 "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
             ), patch(
@@ -301,9 +311,324 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
 
             self.assertEqual(receipt["status"], "published")
             self.assertTrue(receipt["submitReady"])
+            self.assertTrue(receipt["publishReady"])
             self.assertTrue(receipt["submitClicked"])
             self.assertTrue(receipt["submitConfirmed"])
             self.assertEqual(receipt["confirmationsClicked"], 1)
+
+    def test_bilibili_auto_submit_stops_when_image_is_not_committed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_editor",
+                side_effect=[True, True],
+            ), patch(
+                "publish.adapters.bilibili_dynamic._ensure_bilibili_upload_panel", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(False, {"successCount": 0, "busyCount": 1, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._click_bilibili_submit", return_value=True
+            ) as submit_click:
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": True},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_needs_attention")
+            self.assertFalse(receipt["imagePreviewReady"])
+            self.assertFalse(receipt["publishReady"])
+            self.assertFalse(receipt["submitClicked"])
+            self.assertTrue(receipt["editorClearedBeforeFill"])
+            self.assertFalse(receipt["draftClearedOnFailure"])
+            self.assertFalse(session.close_browser)
+            submit_click.assert_not_called()
+
+    def test_bilibili_auto_submit_stops_when_caption_is_not_committed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._ensure_bilibili_upload_panel", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(False, ""),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._click_bilibili_submit", return_value=True
+            ) as submit_click:
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": True},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_needs_attention")
+            self.assertFalse(receipt["captionCommitted"])
+            self.assertFalse(receipt["publishReady"])
+            self.assertFalse(receipt["submitClicked"])
+            submit_click.assert_not_called()
+
+    def test_bilibili_uses_controlled_file_chooser_when_explicitly_enabled(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic._install_bilibili_file_input_capture", return_value=3
+            ) as capture_install, patch(
+                "publish.adapters.bilibili_dynamic.set_file_with_chooser", return_value=True
+            ) as file_chooser, patch(
+                "publish.adapters.bilibili_dynamic._bilibili_file_input_capture_seen", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
+            ):
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": False, "allowNativeFileChooserFallback": True},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_prepared")
+            self.assertTrue(receipt["imageUploaded"])
+            self.assertTrue(receipt["chooserFallbackUsed"])
+            self.assertEqual(receipt["uploadMethod"], "file_chooser")
+            self.assertEqual(receipt["captureInstallCount"], 3)
+            capture_install.assert_called_once()
+            file_chooser.assert_called_once()
+
+    def test_bilibili_sets_captured_detached_file_input_before_native_chooser(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic._install_bilibili_file_input_capture", return_value=3
+            ) as capture_install, patch(
+                "publish.adapters.bilibili_dynamic._bilibili_file_input_capture_seen", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._set_bilibili_captured_file_input", return_value=True
+            ) as captured_set, patch(
+                "publish.adapters.bilibili_dynamic.set_file_with_chooser", return_value=True
+            ) as file_chooser, patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
+            ):
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": False, "allowNativeFileChooserFallback": True},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_prepared")
+            self.assertTrue(receipt["imageUploaded"])
+            self.assertEqual(receipt["uploadMethod"], "captured_detached_input")
+            self.assertTrue(receipt["fileInputCaptured"])
+            capture_install.assert_called_once()
+            captured_set.assert_called_once()
+            file_chooser.assert_not_called()
+
+    def test_bilibili_uses_captured_file_input_when_file_chooser_is_absent(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", side_effect=[False, True]
+            ), patch(
+                "publish.adapters.bilibili_dynamic._install_bilibili_file_input_capture", return_value=True
+            ) as capture_install, patch(
+                "publish.adapters.bilibili_dynamic.set_file_with_chooser", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_file_input_capture_seen", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_image_upload_commit",
+                return_value=(True, {"successCount": 1, "busyCount": 0, "errorCount": 0, "pickerOpen": False}),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_submit_ready", return_value=True
+            ):
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": False},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_prepared")
+            self.assertTrue(receipt["imageUploaded"])
+            self.assertTrue(receipt["imagePreviewReady"])
+            self.assertTrue(receipt["chooserFallbackAllowed"])
+            self.assertTrue(receipt["chooserFallbackUsed"])
+            self.assertEqual(receipt["uploadMethod"], "captured_input")
+            self.assertTrue(receipt["fileInputCaptured"])
+            capture_install.assert_called_once()
+
+    def test_bilibili_respects_disabled_file_chooser_fallback(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            image_path = project_dir / "demo.png"
+            image_path.write_bytes(b"fake-image")
+            session = _FakeSession("https://t.bilibili.com/")
+
+            with patch("publish.adapters.bilibili_dynamic.open_edge_page", return_value=session), patch(
+                "publish.adapters.bilibili_dynamic.dismiss_common_popups"
+            ), patch(
+                "publish.adapters.bilibili_dynamic._looks_logged_out", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic.wait_for_any_locator", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic.fill_first_editor_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._ensure_bilibili_upload_panel", return_value=True
+            ), patch(
+                "publish.adapters.bilibili_dynamic._clear_bilibili_existing_images", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic._bilibili_image_preview_count", return_value=0
+            ), patch(
+                "publish.adapters.bilibili_dynamic.set_file_input_candidates", return_value=False
+            ), patch(
+                "publish.adapters.bilibili_dynamic._install_bilibili_file_input_capture", return_value=True
+            ) as capture_install, patch(
+                "publish.adapters.bilibili_dynamic._wait_for_bilibili_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.bilibili_dynamic._click_bilibili_submit", return_value=True
+            ) as submit_click:
+                receipt = publish_to_bilibili_dynamic(
+                    project_dir=project_dir,
+                    bundle=_bundle(),
+                    target_id="bilibili_dynamic",
+                    target_config={"autoSubmit": True, "allowFileChooserFallback": False},
+                    publish_input={"imagePath": str(image_path), "socialPostText": "demo caption"},
+                )
+
+            self.assertEqual(receipt["status"], "draft_needs_attention")
+            self.assertFalse(receipt["imageUploaded"])
+            self.assertFalse(receipt["chooserFallbackAllowed"])
+            self.assertFalse(receipt["chooserFallbackUsed"])
+            self.assertEqual(receipt["uploadMethod"], "")
+            capture_install.assert_not_called()
+            submit_click.assert_not_called()
 
 
 if __name__ == "__main__":
