@@ -9,7 +9,7 @@ from typing import Any
 from io_utils import write_json, write_text
 from llm import call_text_task
 from llm_schema import to_deepseek_payload
-from model_profiles import resolve_stage_model_profile
+from model_profiles import resolve_stage_llm_config
 from prompt_loader import render_prompt_text
 
 
@@ -19,11 +19,6 @@ OUTPUT_FILENAME = "00_social_post.txt"
 PACKAGE_FILENAME = "01_social_post_package.json"
 FINAL_OUTPUT_FILENAME = "social_post.txt"
 STAGE_NAME = "06_social_post"
-STAGE_CONFIG = {
-    "temperature": 1.0,
-    "top_p": 0.9,
-    "top_k": 50,
-}
 
 
 def _render_context_block(value: dict[str, Any]) -> str:
@@ -31,25 +26,13 @@ def _render_context_block(value: dict[str, Any]) -> str:
 
 
 def _system_prompt(project_dir: Path, subject_profile: dict[str, Any], scene_draft: dict[str, Any]) -> str:
-    prompt_text = render_prompt_text(
+    return render_prompt_text(
         project_dir,
         PROMPT_PATH,
         {
             "character_asset": _render_context_block(subject_profile),
             "scene_design": _render_context_block(scene_draft),
         },
-    )
-    return "\n\n".join(
-        [
-            "<任务区>",
-            prompt_text,
-            "</任务区>",
-            "<输出要求>",
-            "直接输出最终社媒文案正文。",
-            "不要输出 JSON。",
-            "不要解释规则或补充题外话。",
-            "</输出要求>",
-        ]
     )
 
 
@@ -77,14 +60,12 @@ def run_social_post_stage(
     write_json(bundle.social_post_dir / INPUT_FILENAME, social_post_input)
     result = call_text_task(
         project_dir=project_dir,
-        model_config=resolve_stage_model_profile(project_dir, "social_post.default"),
+        model_config=resolve_stage_llm_config(project_dir, "social_post.default"),
         system_prompt=_system_prompt(project_dir, social_post_input["subjectProfile"], social_post_input["sceneDraft"]),
+        stage_id="social_post.default",
         user_payload=None,
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
         trace_response_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.response.json",
-        temperature=STAGE_CONFIG["temperature"],
-        top_p=STAGE_CONFIG["top_p"],
-        top_k=STAGE_CONFIG["top_k"],
     )
     normalized_result = _normalize_social_post_text(result)
     write_text(bundle.social_post_dir / OUTPUT_FILENAME, normalized_result + "\n")

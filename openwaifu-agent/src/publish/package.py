@@ -15,6 +15,24 @@ def _detect_image_mime(image_path: Path) -> str:
     return "application/octet-stream"
 
 
+def _normalize_social_tags(raw_tags: Any) -> list[str]:
+    if not isinstance(raw_tags, list):
+        return []
+    output: list[str] = []
+    seen: set[str] = set()
+    for item in raw_tags:
+        tag = str(item or "").replace("#", "").strip()
+        tag = " ".join(tag.split())
+        key = tag.casefold()
+        if not tag or key in seen:
+            continue
+        output.append(tag[:40])
+        seen.add(key)
+        if len(output) >= 8:
+            break
+    return output
+
+
 def build_publish_input(
     *,
     bundle,
@@ -40,6 +58,7 @@ def build_publish_input(
         "scenePremiseZh": str(world_design.get("scenePremiseZh", "")).strip(),
         "sceneDraftTextZh": str(world_design.get("worldSceneZh", "")).strip(),
         "socialPostText": social_post_text,
+        "socialTags": _normalize_social_tags(social_post_package.get("socialTags", [])),
         "imagePath": str(image_path),
         "imageMime": _detect_image_mime(image_path),
         "generatedAt": str(execution_package.get("meta", {}).get("createdAt", "")).strip(),

@@ -28,7 +28,7 @@ def _write_llm_profiles(project_dir: Path) -> None:
                 }
             },
             "stages": {
-                "prompt_builder.default": "chat",
+                "prompt_builder.default": {"profile": "chat", "temperature": 0.7},
             },
         },
     )
@@ -65,7 +65,7 @@ class PromptBuilderPipelineTests(unittest.TestCase):
             with patch(
                 "prompt_builder.pipeline.call_json_task",
                 return_value={"positive": "positive prompt text", "negative": "negative prompt text"},
-            ):
+            ) as mocked_call:
                 prompt_package = run_prompt_builder_pipeline(
                     project_dir,
                     bundle,
@@ -93,6 +93,7 @@ class PromptBuilderPipelineTests(unittest.TestCase):
             self.assertEqual(package_snapshot["negativePrompt"], "negative prompt text")
             self.assertEqual(prompt_package["positivePrompt"], "positive prompt text")
             self.assertEqual(prompt_package["negativePrompt"], "negative prompt text")
+            self.assertEqual(mocked_call.call_args.kwargs["model_config"]["temperature"], 0.7)
 
 
 if __name__ == "__main__":

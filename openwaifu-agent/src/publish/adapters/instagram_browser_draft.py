@@ -29,8 +29,7 @@ INSTAGRAM_CAPTION_SELECTORS = [
     "div[role='dialog'] [contenteditable='true'][aria-label*='撰写']",
     "div[role='dialog'] textarea[aria-label*='caption' i]",
     "div[role='dialog'] textarea[placeholder*='caption' i]",
-    "div[role='dialog'] textarea",
-    "div[role='dialog'] [contenteditable='true']",
+    "div[role='dialog'] [contenteditable='true'][role='textbox']",
 ]
 INSTAGRAM_CAPTION_READY_SELECTORS = [
     "div[role='dialog'] [contenteditable='true'][aria-label*='Write a caption' i]",
@@ -92,6 +91,11 @@ def _caption_required_fragments(publish_input: dict, caption_text: str) -> list[
 
 
 def _read_instagram_caption_text(page) -> str:
+    state = _read_instagram_caption_state(page)
+    return str(state.get("text", "") or "")
+
+
+def _read_instagram_caption_state(page) -> dict:
     script = """
     ({ dialogSelector }) => {
       const visible = (element) => {
@@ -116,29 +120,253 @@ def _read_instagram_caption_text(page) -> str:
         "[contenteditable='true'][aria-label*='撰写']",
         "textarea[aria-label*='caption' i]",
         "textarea[placeholder*='caption' i]",
-        "textarea",
-        "[contenteditable='true']",
+        "[contenteditable='true'][role='textbox']",
       ];
       for (const dialog of dialogs) {
         for (const selector of selectors) {
           const element = Array.from(dialog.querySelectorAll(selector)).find(visible);
           if (!element) continue;
-          if ("value" in element) return element.value || "";
-          return element.innerText || element.textContent || "";
+          const text = "value" in element ? element.value || "" : element.innerText || element.textContent || "";
+          return {
+            text,
+            selector,
+            tagName: element.tagName || "",
+            role: element.getAttribute("role") || "",
+            ariaLabel: element.getAttribute("aria-label") || "",
+            placeholder: element.getAttribute("placeholder") || "",
+            contentEditable: element.getAttribute("contenteditable") || "",
+          };
         }
       }
-      return "";
+      return {};
     }
     """
     try:
-        return str(page.evaluate(script, {"dialogSelector": INSTAGRAM_DIALOG_SELECTOR}) or "")
+        payload = page.evaluate(script, {"dialogSelector": INSTAGRAM_DIALOG_SELECTOR}) or {}
+        return payload if isinstance(payload, dict) else {}
     except Exception:
-        return ""
+        return {}
+
+
+def _compact_caption_text(value: str) -> str:
+    return "".join(ch for ch in str(value or "") if not ch.isspace() and ch != "\u200b")
+
+
+def _caption_text_contains_fragments(text: str, required_fragments: list[str]) -> bool:
+    compact_current = _compact_caption_text(text)
+    compact_fragments = [_compact_caption_text(fragment) for fragment in required_fragments if _compact_caption_text(fragment)]
+    return bool(compact_fragments) and all(fragment in compact_current for fragment in compact_fragments)
+
+
+def _first_instagram_caption_locator(page):
+    for selector in INSTAGRAM_CAPTION_SELECTORS:
+        try:
+            locator = page.locator(selector).first
+            if int(locator.count()) <= 0:
+                continue
+            try:
+                if not locator.is_visible(timeout=800):
+                    continue
+            except Exception:
+                pass
+            return locator
+        except Exception:
+            continue
+    return None
+
+
+def _instagram_caption_field_summary(page) -> dict:
+    state = _read_instagram_caption_state(page)
+    return {
+        "selector": str(state.get("selector", "") or ""),
+        "tagName": str(state.get("tagName", "") or ""),
+        "role": str(state.get("role", "") or ""),
+        "ariaLabel": str(state.get("ariaLabel", "") or "")[:120],
+        "placeholder": str(state.get("placeholder", "") or "")[:120],
+        "contentEditable": str(state.get("contentEditable", "") or ""),
+    }
+
+
+def _instagram_caption_locator_kind(locator) -> str:
+    try:
+        tag_name = str(locator.evaluate("(element) => element.tagName || ''") or "").strip().lower()
+    except Exception:
+        tag_name = ""
+    if tag_name in {"textarea", "input"}:
+        return tag_name
+    try:
+        editable = str(locator.evaluate("(element) => element.getAttribute('contenteditable') || ''") or "").strip().lower()
+    except Exception:
+        editable = ""
+    if editable == "true":
+        return "contenteditable"
+    return "unknown"
+
+
+def _wait_for_instagram_caption_commit(page, required_fragments: list[str], *, timeout_ms: int = 8000) -> tuple[bool, str]:
+    deadline = time.monotonic() + timeout_ms / 1000
+    last_text = ""
+    stable_hits = 0
+    while time.monotonic() < deadline:
+        current_text = _read_instagram_caption_text(page)
+        if current_text:
+            last_text = current_text
+        if _caption_text_contains_fragments(current_text, required_fragments):
+            stable_hits += 1
+            if stable_hits >= 2:
+                return True, current_text
+        else:
+            stable_hits = 0
+        try:
+            page.wait_for_timeout(500)
+        except Exception:
+            time.sleep(0.5)
+    return False, last_text
+
+
+def _paste_instagram_caption(page, caption_text: str) -> bool:
+    script = """
+    ({ dialogSelector, captionText }) => {
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width >= 2
+          && rect.height >= 2
+          && rect.bottom >= 0
+          && rect.right >= 0
+          && rect.top <= window.innerHeight
+          && rect.left <= window.innerWidth
+          && style.visibility !== "hidden"
+          && style.display !== "none";
+      };
+      const selectors = [
+        "[contenteditable='true'][aria-label*='Write a caption' i]",
+        "[contenteditable='true'][aria-label*='caption' i]",
+        "[contenteditable='true'][aria-placeholder*='caption' i]",
+        "[contenteditable='true'][aria-label*='说明']",
+        "[contenteditable='true'][aria-label*='文案']",
+        "[contenteditable='true'][aria-label*='撰写']",
+        "textarea[aria-label*='caption' i]",
+        "textarea[placeholder*='caption' i]",
+        "textarea",
+        "[contenteditable='true']",
+      ];
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector)).filter(visible);
+      for (const dialog of dialogs) {
+        for (const selector of selectors) {
+          const element = Array.from(dialog.querySelectorAll(selector)).find(visible);
+          if (!element) continue;
+          element.focus();
+          const tag = element.tagName.toLowerCase();
+          if (tag === "textarea" || tag === "input") {
+            element.value = "";
+            element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "deleteContentBackward" }));
+          } else {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            document.execCommand("delete", false);
+          }
+          let pasteHandled = false;
+          try {
+            const data = new DataTransfer();
+            data.setData("text/plain", captionText);
+            const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+            pasteHandled = !element.dispatchEvent(event);
+          } catch (_) {
+            pasteHandled = false;
+          }
+          const currentText = "value" in element ? element.value || "" : element.innerText || element.textContent || "";
+          if (!pasteHandled && !currentText.includes(captionText)) {
+            document.execCommand("insertText", false, captionText);
+            element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: captionText, inputType: "insertText" }));
+          }
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+          element.dispatchEvent(new Event("blur", { bubbles: true }));
+          return true;
+        }
+      }
+      return false;
+    }
+    """
+    try:
+        return bool(page.evaluate(script, {"dialogSelector": INSTAGRAM_DIALOG_SELECTOR, "captionText": caption_text}))
+    except Exception:
+        return False
 
 
 def _fill_instagram_caption_verified(page, caption_text: str, required_fragments: list[str]) -> tuple[bool, str]:
-    def compact(value: str) -> str:
-        return "".join(ch for ch in str(value or "") if not ch.isspace() and ch != "\u200b")
+    locator = _first_instagram_caption_locator(page)
+    if locator is not None:
+        locator_kind = _instagram_caption_locator_kind(locator)
+        attempts = (
+            ("fill", "keyboard_insert", "events")
+            if locator_kind in {"textarea", "input"}
+            else ("keyboard_type", "paste", "keyboard_insert", "events")
+        )
+        for attempt in attempts:
+            try:
+                locator.click(timeout=3000)
+                if attempt == "fill":
+                    locator.fill(caption_text, timeout=5000)
+                elif attempt == "keyboard_type":
+                    page.keyboard.press("Control+A")
+                    page.keyboard.press("Backspace")
+                    try:
+                        page.keyboard.type(caption_text, delay=4)
+                    except Exception:
+                        page.keyboard.insert_text(caption_text)
+                elif attempt == "keyboard_insert":
+                    page.keyboard.press("Control+A")
+                    page.keyboard.press("Backspace")
+                    page.keyboard.insert_text(caption_text)
+                elif attempt == "paste":
+                    _paste_instagram_caption(page, caption_text)
+                else:
+                    locator.evaluate(
+                        """
+                        (element, value) => {
+                          element.focus();
+                          const tag = (element.tagName || "").toLowerCase();
+                          if (tag === "textarea" || tag === "input") {
+                            const proto = tag === "textarea" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                            const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+                            if (setter) setter.call(element, value);
+                            else element.value = value;
+                            element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+                            element.dispatchEvent(new Event("change", { bubbles: true }));
+                            return;
+                          }
+                          const selection = window.getSelection();
+                          const range = document.createRange();
+                          range.selectNodeContents(element);
+                          selection.removeAllRanges();
+                          selection.addRange(range);
+                          document.execCommand("delete", false);
+                          document.execCommand("insertText", false, value);
+                          element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+                          element.dispatchEvent(new Event("change", { bubbles: true }));
+                        }
+                        """,
+                        caption_text,
+                    )
+                try:
+                    locator.evaluate("(element) => { element.dispatchEvent(new Event('blur', { bubbles: true })); }")
+                except Exception:
+                    pass
+            except Exception:
+                continue
+            committed, current_text = _wait_for_instagram_caption_commit(page, required_fragments, timeout_ms=4500)
+            if committed:
+                try:
+                    page.wait_for_timeout(1500)
+                except Exception:
+                    time.sleep(1.5)
+                committed, current_text = _wait_for_instagram_caption_commit(page, required_fragments, timeout_ms=2500)
+                if committed:
+                    return True, current_text
 
     filled, editor_text = fill_first_editor_verified(
         page,
@@ -149,26 +377,7 @@ def _fill_instagram_caption_verified(page, caption_text: str, required_fragments
     )
     if not filled:
         return False, editor_text
-
-    compact_fragments = [compact(fragment) for fragment in required_fragments if compact(fragment)]
-    deadline = time.monotonic() + 5
-    last_text = editor_text
-    while time.monotonic() < deadline:
-        current_text = _read_instagram_caption_text(page)
-        if current_text:
-            last_text = current_text
-        compact_current = compact(current_text)
-        if compact_fragments and all(fragment in compact_current for fragment in compact_fragments):
-            try:
-                page.wait_for_timeout(1200)
-            except Exception:
-                time.sleep(1.2)
-            return True, current_text
-        try:
-            page.wait_for_timeout(250)
-        except Exception:
-            time.sleep(0.25)
-    return False, last_text
+    return _wait_for_instagram_caption_commit(page, required_fragments, timeout_ms=6000)
 
 
 def _click_create_nav(page) -> bool:
@@ -348,9 +557,13 @@ def _instagram_share_ready(page) -> bool:
     return wait_for_any_locator(page, selectors, timeout_ms=2000)
 
 
-def _click_instagram_share_button(page) -> bool:
+def _click_instagram_share_button(page, required_fragments: list[str] | None = None) -> bool:
     if not _caption_ready(page):
         return False
+    if required_fragments is not None:
+        committed, _ = _wait_for_instagram_caption_commit(page, required_fragments, timeout_ms=5000)
+        if not committed:
+            return False
     return _click_instagram_dialog_action(page, INSTAGRAM_SHARE_TEXTS, timeout_ms=12000)
 
 
@@ -421,6 +634,7 @@ def publish_to_instagram_browser_draft(
         if create_opened:
             uploaded = set_file_input_candidates(page, INSTAGRAM_FILE_INPUT_SELECTORS, image_path)
         caption_ready = _advance_to_caption_step(page)
+        caption_field = _instagram_caption_field_summary(page)
         caption_text = publish_caption(publish_input, target_config)
         required_fragments = _caption_required_fragments(publish_input, caption_text)
         caption_filled, caption_editor_text = _fill_instagram_caption_verified(
@@ -428,11 +642,18 @@ def publish_to_instagram_browser_draft(
             caption_text,
             required_fragments,
         )
-        share_ready = _instagram_share_ready(page) if caption_filled else False
+        caption_committed, committed_caption_text = (
+            _wait_for_instagram_caption_commit(page, required_fragments, timeout_ms=5000)
+            if caption_filled
+            else (False, "")
+        )
+        if committed_caption_text:
+            caption_editor_text = committed_caption_text
+        share_ready = _instagram_share_ready(page) if caption_committed else False
         share_clicked = False
         submit_confirmed = False
-        if bool(target_config.get("autoSubmit", False)) and caption_filled and share_ready:
-            share_clicked = _click_instagram_share_button(page)
+        if bool(target_config.get("autoSubmit", False)) and caption_committed and share_ready:
+            share_clicked = _click_instagram_share_button(page, required_fragments)
             submit_confirmed = _wait_for_instagram_share_result(page) if share_clicked else False
         auto_submit = bool(target_config.get("autoSubmit", False))
         trust_share_click = bool(target_config.get("trustShareClick", False))
@@ -447,6 +668,9 @@ def publish_to_instagram_browser_draft(
         elif not caption_filled:
             status = "draft_needs_attention"
             error = "Instagram 草稿已打开，但正文没有写入平台编辑器，已停止自动分享。"
+        elif not caption_committed:
+            status = "draft_needs_attention"
+            error = "Instagram 正文没有稳定保留在平台编辑器内，已停止自动分享。"
         elif auto_submit and not share_ready:
             status = "draft_needs_attention"
             error = "Instagram 正文已写入，但分享按钮没有进入可用状态，已停止自动分享。"
@@ -468,7 +692,9 @@ def publish_to_instagram_browser_draft(
             "createOpened": create_opened,
             "imageUploaded": uploaded,
             "captionReady": caption_ready,
+            "captionField": caption_field,
             "captionFilled": caption_filled,
+            "captionCommitted": caption_committed,
             "captionTextLength": len(caption_editor_text),
             "shareReady": share_ready,
             "shareClicked": share_clicked,

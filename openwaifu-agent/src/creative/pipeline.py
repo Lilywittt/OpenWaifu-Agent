@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,7 +8,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json, write_text
 from llm import call_json_task, call_text_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
-from model_profiles import resolve_stage_model_profile
+from model_profiles import resolve_stage_llm_config
 from prompt_loader import load_prompt_text
 
 from .contracts import scene_draft_contract, social_signal_filter_contract
@@ -19,25 +18,18 @@ from .social_trends import collect_social_trend_sample
 STAGE_CONFIGS = {
     "social_signal_filter": {
         "prompt_path": "prompts/creative/social_signal_filter.md",
-        "temperature": 0.2,
     },
     "world_design": {
         "prompt_path": "prompts/creative/world_design.md",
-        "temperature": 0.8,
-        "top_p": 0.9,
-        "top_k": 50,
     },
     "environment_design": {
         "prompt_path": "prompts/creative/environment_design.md",
-        "temperature": 0.7,
     },
     "styling_design": {
         "prompt_path": "prompts/creative/styling_design.md",
-        "temperature": 0.7,
     },
     "action_design": {
         "prompt_path": "prompts/creative/action_design.md",
-        "temperature": 0.7,
     },
 }
 
@@ -67,36 +59,12 @@ def build_default_run_context(*, now_local: str) -> dict[str, Any]:
     }
 
 
-def _json_system_prompt(project_dir: Path, prompt_path: str, output_contract: dict[str, Any]) -> str:
-    prompt_text = load_prompt_text(project_dir, prompt_path)
-    output_schema = json.dumps(to_deepseek_payload(output_contract), ensure_ascii=False, indent=2)
-    return "\n\n".join(
-        [
-            "<任务区>",
-            prompt_text,
-            "</任务区>",
-            "<返回格式>",
-            "请只返回符合下列骨架的合法 JSON。",
-            output_schema,
-            "</返回格式>",
-        ]
-    )
+def _json_system_prompt(project_dir: Path, prompt_path: str) -> str:
+    return load_prompt_text(project_dir, prompt_path)
 
 
 def _text_system_prompt(project_dir: Path, prompt_path: str) -> str:
-    prompt_text = load_prompt_text(project_dir, prompt_path)
-    return "\n\n".join(
-        [
-            "<任务区>",
-            prompt_text,
-            "</任务区>",
-            "<输出要求>",
-            "直接输出最终设计稿正文。",
-            "不要输出 JSON。",
-            "不要解释规则或补充题外话。",
-            "</输出要求>",
-        ]
-    )
+    return load_prompt_text(project_dir, prompt_path)
 
 
 def _run_json_stage(
@@ -112,14 +80,13 @@ def _run_json_stage(
     stage_config = STAGE_CONFIGS[stage_key]
     result = call_json_task(
         project_dir=project_dir,
-        model_config=resolve_stage_model_profile(project_dir, f"creative.{stage_key}"),
-        system_prompt=_json_system_prompt(project_dir, stage_config["prompt_path"], output_contract),
+        model_config=resolve_stage_llm_config(project_dir, f"creative.{stage_key}"),
+        system_prompt=_json_system_prompt(project_dir, stage_config["prompt_path"]),
+        stage_id=f"creative.{stage_key}",
+        output_contract=output_contract,
         user_payload=to_deepseek_payload(user_payload),
         trace_request_path=trace_dir / f"{stage_name}.request.json",
         trace_response_path=trace_dir / f"{stage_name}.response.json",
-        temperature=stage_config.get("temperature"),
-        top_p=stage_config.get("top_p"),
-        top_k=stage_config.get("top_k"),
     )
     normalized_result = from_deepseek_payload(result)
     write_json(bundle.creative_dir / f"{stage_name}.json", normalized_result)
@@ -146,14 +113,12 @@ def _run_text_stage(
     stage_config = STAGE_CONFIGS[stage_key]
     result = call_text_task(
         project_dir=project_dir,
-        model_config=resolve_stage_model_profile(project_dir, f"creative.{stage_key}"),
+        model_config=resolve_stage_llm_config(project_dir, f"creative.{stage_key}"),
         system_prompt=_text_system_prompt(project_dir, stage_config["prompt_path"]),
+        stage_id=f"creative.{stage_key}",
         user_payload=to_deepseek_payload(user_payload),
         trace_request_path=trace_dir / f"{stage_name}.request.json",
         trace_response_path=trace_dir / f"{stage_name}.response.json",
-        temperature=stage_config.get("temperature"),
-        top_p=stage_config.get("top_p"),
-        top_k=stage_config.get("top_k"),
     )
     normalized_result = _normalize_text_output(result, stage_name=stage_name)
     write_text(bundle.creative_dir / output_filename, normalized_result + "\n")

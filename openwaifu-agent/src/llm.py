@@ -8,7 +8,10 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
+from contract_validation import validate_contract_shape
 from env import require_env_value
+from llm_schema import to_deepseek_payload
+from stage_protocols import build_stage_system_prompt
 
 
 def extract_json_block(raw: str) -> str:
@@ -273,6 +276,8 @@ def call_json_task(
     project_dir: Path,
     model_config: dict[str, Any],
     system_prompt: str,
+    stage_id: str | None = None,
+    output_contract: dict[str, Any] | None = None,
     user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
@@ -281,6 +286,16 @@ def call_json_task(
     top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> Any:
+    effective_system_prompt = system_prompt
+    translated_contract = None
+    if stage_id is not None:
+        effective_system_prompt = build_stage_system_prompt(
+            stage_id=stage_id,
+            prompt_text=system_prompt,
+            output_contract=output_contract,
+        )
+    if output_contract is not None:
+        translated_contract = to_deepseek_payload(output_contract)
     parse_retry_attempts = max(int(model_config.get("parseRetryAttempts", 1)), 1)
     parse_retry_delay_ms = max(int(model_config.get("parseRetryDelayMs", 0)), 0)
     last_error: Exception | None = None
@@ -289,7 +304,7 @@ def call_json_task(
             _, payload = _call_model(
                 project_dir=project_dir,
                 model_config=model_config,
-                system_prompt=system_prompt,
+                system_prompt=effective_system_prompt,
                 user_payload=user_payload,
                 trace_request_path=_attempt_path(trace_request_path, parse_attempt),
                 trace_response_path=_attempt_path(trace_response_path, parse_attempt),
@@ -300,20 +315,23 @@ def call_json_task(
             )
             raw_text = _extract_response_text(payload)
             try:
-                return json.loads(extract_json_block(raw_text))
+                parsed = json.loads(extract_json_block(raw_text))
             except Exception as parse_error:
                 _write_parse_error_trace(
                     _parse_error_trace_path(trace_response_path, parse_attempt),
                     raw_text=raw_text,
                     error=parse_error,
                 )
-                return _repair_json_text_via_model(
+                parsed = _repair_json_text_via_model(
                     project_dir=project_dir,
                     model_config=model_config,
                     broken_text=raw_text,
                     trace_request_path=_repair_trace_path(trace_request_path, parse_attempt),
                     trace_response_path=_repair_trace_path(trace_response_path, parse_attempt),
                 )
+            if translated_contract is not None:
+                validate_contract_shape(parsed, translated_contract, stage_id or "model output")
+            return parsed
         except Exception as error:
             last_error = error
             if parse_attempt >= parse_retry_attempts:
@@ -328,6 +346,7 @@ def call_text_task(
     project_dir: Path,
     model_config: dict[str, Any],
     system_prompt: str,
+    stage_id: str | None = None,
     user_payload: dict[str, Any] | None,
     trace_request_path: Path,
     trace_response_path: Path,
@@ -336,10 +355,13 @@ def call_text_task(
     top_k: int | None = None,
     max_tokens: int | None = None,
 ) -> str:
+    effective_system_prompt = system_prompt
+    if stage_id is not None:
+        effective_system_prompt = build_stage_system_prompt(stage_id=stage_id, prompt_text=system_prompt)
     _, payload = _call_model(
         project_dir=project_dir,
         model_config=model_config,
-        system_prompt=system_prompt,
+        system_prompt=effective_system_prompt,
         user_payload=user_payload,
         trace_request_path=trace_request_path,
         trace_response_path=trace_response_path,

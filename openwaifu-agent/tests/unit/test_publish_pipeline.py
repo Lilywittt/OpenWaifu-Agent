@@ -62,6 +62,7 @@ class PublishPipelineTests(unittest.TestCase):
             }
             social_post_package = {
                 "socialPostText": "demo social post",
+                "socialTags": ["雨夜", "便利店"],
             }
             execution_package = {
                 "meta": {
@@ -91,6 +92,7 @@ class PublishPipelineTests(unittest.TestCase):
             self.assertEqual(publish_input["subjectId"], "tsukimi_rion")
             self.assertEqual(publish_input["scenePremiseZh"], "demo premise")
             self.assertEqual(publish_input["socialPostText"], "demo social post")
+            self.assertEqual(publish_input["socialTags"], ["雨夜", "便利店"])
             self.assertEqual(publish_input["imageMime"], "image/png")
             self.assertEqual(publish_plan["targets"][0]["targetId"], "local_archive")
             self.assertEqual(publish_snapshot["receipts"][0]["adapter"], "local_archive")
@@ -154,7 +156,7 @@ class PublishPipelineTests(unittest.TestCase):
                     "worldSceneZh": "demo scene",
                 }
             }
-            social_post_package = {"socialPostText": "demo social post"}
+            social_post_package = {"socialPostText": "demo social post", "socialTags": ["舞台"]}
             execution_package = {
                 "meta": {"createdAt": "2026-04-08T20:00:00"},
                 "imagePath": str(image_path),
@@ -204,7 +206,7 @@ class PublishPipelineTests(unittest.TestCase):
                     "worldSceneZh": "demo scene",
                 }
             }
-            social_post_package = {"socialPostText": "demo social post"}
+            social_post_package = {"socialPostText": "demo social post", "socialTags": ["舞台"]}
             execution_package = {
                 "meta": {"createdAt": "2026-04-08T21:00:00"},
                 "imagePath": str(image_path),

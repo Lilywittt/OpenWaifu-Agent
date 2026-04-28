@@ -35,11 +35,11 @@ def _write_llm_profiles(project_dir: Path) -> None:
                 },
             },
             "stages": {
-                "creative.social_signal_filter": "chat",
-                "creative.world_design": "reasoner",
-                "creative.environment_design": "chat",
-                "creative.styling_design": "chat",
-                "creative.action_design": "chat",
+                "creative.social_signal_filter": {"profile": "chat", "temperature": 0.2},
+                "creative.world_design": {"profile": "reasoner", "temperature": 0.8, "topP": 0.9, "topK": 50},
+                "creative.environment_design": {"profile": "chat", "temperature": 0.7},
+                "creative.styling_design": {"profile": "chat", "temperature": 0.7},
+                "creative.action_design": {"profile": "chat", "temperature": 0.7},
             },
         },
     )
@@ -175,9 +175,10 @@ class CreativePipelineTests(unittest.TestCase):
                 )
 
             world_design_call = call_json_task_mock.call_args_list[1]
-            self.assertEqual(world_design_call.kwargs["temperature"], 0.8)
-            self.assertEqual(world_design_call.kwargs["top_p"], 0.9)
-            self.assertEqual(world_design_call.kwargs["top_k"], 50)
+            model_config = world_design_call.kwargs["model_config"]
+            self.assertEqual(model_config["temperature"], 0.8)
+            self.assertEqual(model_config["topP"], 0.9)
+            self.assertEqual(model_config["topK"], 50)
 
     def test_creative_pipeline_surfaces_clear_social_sampling_error(self):
         with TemporaryDirectory() as temp_dir:

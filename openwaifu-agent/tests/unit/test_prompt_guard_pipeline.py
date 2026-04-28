@@ -28,7 +28,7 @@ def _write_llm_profiles(project_dir: Path) -> None:
                 }
             },
             "stages": {
-                "prompt_guard.default": "reasoner",
+                "prompt_guard.default": {"profile": "reasoner", "temperature": 0.35},
             },
         },
     )
@@ -103,7 +103,7 @@ class PromptGuardPipelineTests(unittest.TestCase):
                     "positivePrompt": "solo girl, bookstore, one hand reaching to shelf, balanced standing pose",
                     "negativePrompt": "bad hands, extra fingers",
                 },
-            ):
+            ) as mocked_call:
                 final_prompt_package = run_prompt_guard_pipeline(
                     project_dir,
                     bundle,
@@ -128,6 +128,7 @@ class PromptGuardPipelineTests(unittest.TestCase):
             final_prompt_package["positivePrompt"],
             "solo girl, bookstore, one hand reaching to shelf, balanced standing pose",
         )
+        self.assertEqual(mocked_call.call_args.kwargs["model_config"]["temperature"], 0.35)
 
 
 if __name__ == "__main__":

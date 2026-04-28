@@ -18,12 +18,15 @@ from runtime_layout import runs_root
 from studio.content_workbench_store import (
     append_run_index_record,
     build_content_workbench_snapshot,
+    content_workbench_state_root,
     delete_workbench_run,
     generate_cleanup_report,
     migrate_legacy_content_workbench_state,
     normalize_stale_workbench_status,
+    request_workbench_stop,
     reconcile_workbench_runtime_state,
     toggle_workbench_favorite,
+    write_active_request,
     write_active_worker,
     workbench_inventory_paths,
     write_last_request,
@@ -545,6 +548,29 @@ class ContentWorkbenchStoreTests(unittest.TestCase):
             self.assertTrue(migrated)
             self.assertTrue((current_root / "latest_status.json").exists())
             self.assertFalse(legacy_root.exists())
+
+    def test_state_json_files_are_written_with_utf8_bom(self):
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            write_workbench_status(project_dir, {"status": "running", "stage": "测试中"})
+            write_last_request(project_dir, {"label": "private"})
+            write_last_request(project_dir, {"label": "public"}, owner_id="public-viewer")
+            write_active_request(project_dir, {"runId": "run-active"})
+            write_active_worker(project_dir, {"pid": 43210, "startedAt": "2026-04-11T20:20:00"})
+            request_workbench_stop(project_dir)
+
+            state_root = content_workbench_state_root(project_dir)
+            for filename in (
+                "latest_status.json",
+                "last_request.json",
+                "last_requests.json",
+                "active_request.json",
+                "active_worker.json",
+                "stop_requested.json",
+            ):
+                raw = (state_root / filename).read_bytes()
+                self.assertTrue(raw.startswith(b"\xef\xbb\xbf"), filename)
+                self.assertIsInstance(json.loads(raw.decode("utf-8-sig")), dict)
 
     def test_snapshot_supports_favorites_filter_for_run(self):
         with TemporaryDirectory() as temp_dir:

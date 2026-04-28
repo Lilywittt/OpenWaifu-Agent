@@ -37,13 +37,41 @@
     }
   },
   "stages": {
-    "creative.social_signal_filter": "deepseek_chat",
-    "creative.world_design": "deepseek_chat",
-    "creative.environment_design": "deepseek_chat",
-    "creative.styling_design": "deepseek_chat",
-    "creative.action_design": "deepseek_chat",
-    "social_post.default": "deepseek_chat",
-    "prompt_builder.default": "deepseek_chat",
-    "prompt_guard.default": "deepseek_chat"
+    "creative.social_signal_filter": {
+      "profile": "deepseek_chat",
+      "temperature": 0.2
+    },
+    "creative.world_design": {
+      "profile": "deepseek_chat",
+      "temperature": 0.8,
+      "topP": 0.9,
+      "topK": 50
+    },
+    "creative.environment_design": {
+      "profile": "deepseek_chat",
+      "temperature": 0.7
+    },
+    "creative.styling_design": {
+      "profile": "deepseek_chat",
+      "temperature": 0.7
+    },
+    "creative.action_design": {
+      "profile": "deepseek_chat",
+      "temperature": 0.7
+    },
+    "social_post.default": {
+      "profile": "deepseek_chat",
+      "temperature": 1.0,
+      "topP": 0.9,
+      "topK": 50
+    },
+    "prompt_builder.default": {
+      "profile": "deepseek_chat",
+      "temperature": 0.7
+    },
+    "prompt_guard.default": {
+      "profile": "deepseek_chat",
+      "temperature": 0.35
+    }
   }
 }

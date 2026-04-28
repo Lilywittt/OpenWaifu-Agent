@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
 
 from io_utils import read_json, read_text, write_json
 from runtime_layout import create_run_bundle
-from social_post.pipeline import STAGE_CONFIG, run_social_post_pipeline
+from social_post.pipeline import run_social_post_pipeline
 
 
 def _subject_profile() -> dict:
@@ -42,7 +42,12 @@ def _write_llm_profiles(project_dir: Path) -> None:
                 }
             },
             "stages": {
-                "social_post.default": "chat",
+                "social_post.default": {
+                    "profile": "chat",
+                    "temperature": 1.0,
+                    "topP": 0.9,
+                    "topK": 50,
+                },
             },
         },
     )
@@ -98,9 +103,9 @@ class SocialPostPipelineTests(unittest.TestCase):
             self.assertNotIn("{{character_asset}}", call_kwargs["system_prompt"])
             self.assertNotIn("{{scene_design}}", call_kwargs["system_prompt"])
             self.assertIsNone(call_kwargs["user_payload"])
-            self.assertEqual(call_kwargs["temperature"], STAGE_CONFIG["temperature"])
-            self.assertEqual(call_kwargs["top_p"], STAGE_CONFIG["top_p"])
-            self.assertEqual(call_kwargs["top_k"], STAGE_CONFIG["top_k"])
+            self.assertEqual(call_kwargs["model_config"]["temperature"], 1.0)
+            self.assertEqual(call_kwargs["model_config"]["topP"], 0.9)
+            self.assertEqual(call_kwargs["model_config"]["topK"], 50)
 
 
 if __name__ == "__main__":

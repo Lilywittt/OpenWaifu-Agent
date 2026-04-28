@@ -86,6 +86,8 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
                 base_url = f"http://127.0.0.1:{server.server_address[1]}"
                 with urlopen(base_url + "/", timeout=2) as response:
                     html = response.read().decode("utf-8")
+                with urlopen(base_url + "/lab", timeout=2) as response:
+                    lab_html = response.read().decode("utf-8")
                 with urlopen(base_url + "/api/healthz", timeout=2) as response:
                     health_payload = json.loads(response.read().decode("utf-8"))
                 with urlopen(base_url + "/api/snapshot", timeout=2) as response:
@@ -110,6 +112,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
                 thread.join(timeout=2)
 
         self.assertIn("内容测试工作台", html)
+        self.assertIn("前端实验", lab_html)
         self.assertTrue(health_payload["ok"])
         self.assertEqual(health_payload["service"], "content_workbench")
         self.assertIn("identity", snapshot_payload)
@@ -452,9 +455,7 @@ class ContentWorkbenchServiceTests(unittest.TestCase):
                             "sceneDraftText": "便利店夜景",
                         }
                     )
-            status_payload = json.loads(
-                (content_workbench_state_root(project_dir) / "latest_status.json").read_text(encoding="utf-8")
-            )
+            status_payload = read_workbench_status(project_dir) or {}
 
         self.assertEqual(status_payload["status"], "failed")
         self.assertEqual(status_payload["error"], "worker failed")

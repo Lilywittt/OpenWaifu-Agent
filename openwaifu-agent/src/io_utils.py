@@ -25,12 +25,12 @@ def read_json(path: Path) -> Any:
     return json.loads(read_text(path))
 
 
-def write_json(path: Path, value: Any) -> None:
+def _write_json(path: Path, value: Any, *, encoding: str) -> None:
     ensure_dir(path.parent)
     content = json.dumps(value, ensure_ascii=False, indent=2)
     with tempfile.NamedTemporaryFile(
         mode="w",
-        encoding="utf-8",
+        encoding=encoding,
         dir=path.parent,
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -41,6 +41,14 @@ def write_json(path: Path, value: Any) -> None:
         os.fsync(handle.fileno())
         temp_path = Path(handle.name)
     os.replace(temp_path, path)
+
+
+def write_json(path: Path, value: Any) -> None:
+    _write_json(path, value, encoding="utf-8")
+
+
+def write_json_utf8_sig(path: Path, value: Any) -> None:
+    _write_json(path, value, encoding="utf-8-sig")
 
 
 def normalize_spaces(value: str) -> str:

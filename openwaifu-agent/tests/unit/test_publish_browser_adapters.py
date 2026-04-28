@@ -92,6 +92,9 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
                 "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
                 return_value=(True, "demo caption"),
             ), patch(
+                "publish.adapters.instagram_browser_draft._wait_for_instagram_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
                 "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
             ):
                 receipt = publish_to_instagram_browser_draft(
@@ -105,6 +108,7 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "draft_prepared")
             self.assertTrue(receipt["captionReady"])
             self.assertTrue(receipt["captionFilled"])
+            self.assertTrue(receipt["captionCommitted"])
             self.assertTrue(receipt["shareReady"])
             self.assertFalse(receipt["shareClicked"])
             self.assertTrue(session.disconnected)
@@ -131,6 +135,9 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
                 "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
                 return_value=(True, "demo caption"),
             ), patch(
+                "publish.adapters.instagram_browser_draft._wait_for_instagram_caption_commit",
+                return_value=(True, "demo caption"),
+            ), patch(
                 "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True
             ), patch(
                 "publish.adapters.instagram_browser_draft._click_instagram_share_button", return_value=True
@@ -146,8 +153,9 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
                 )
 
             self.assertEqual(receipt["status"], "published")
+            self.assertTrue(receipt["captionCommitted"])
             self.assertTrue(receipt["shareClicked"])
-            share_click.assert_called_once_with(session.page)
+            share_click.assert_called_once_with(session.page, ["demo caption"])
             self.assertTrue(session.disconnected)
             self.assertTrue(session.close_browser)
 
@@ -176,6 +184,9 @@ class PublishBrowserAdaptersTests(unittest.TestCase):
                 "publish.adapters.instagram_browser_draft._advance_to_caption_step", return_value=True
             ), patch(
                 "publish.adapters.instagram_browser_draft._fill_instagram_caption_verified",
+                return_value=(True, "demo caption"),
+            ), patch(
+                "publish.adapters.instagram_browser_draft._wait_for_instagram_caption_commit",
                 return_value=(True, "demo caption"),
             ), patch(
                 "publish.adapters.instagram_browser_draft._instagram_share_ready", return_value=True

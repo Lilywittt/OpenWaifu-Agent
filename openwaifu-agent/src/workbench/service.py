@@ -61,6 +61,7 @@ from .store import (
     write_workbench_status,
 )
 from .views import render_content_workbench_html
+from .views_lab import render_content_workbench_lab_html
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -402,7 +403,7 @@ def _make_handler(
         def do_GET(self) -> None:  # noqa: N802
             viewer = self._viewer()
             parsed = urlparse(self.path)
-            if parsed.path in ("/", "/index.html"):
+            if parsed.path in ("/", "/index.html", "/lab", "/lab/index.html"):
                 snapshot = build_content_workbench_snapshot(
                     project_dir,
                     history_limit=history_limit,
@@ -410,7 +411,12 @@ def _make_handler(
                     profile=profile,
                 )
                 title = str(snapshot.get("identity", {}).get("workbenchTitle", "")).strip() or f"{project_dir.name} {profile.title}"
-                html = render_content_workbench_html(project_name=title, refresh_seconds=refresh_seconds)
+                renderer = (
+                    render_content_workbench_lab_html
+                    if parsed.path in ("/lab", "/lab/index.html")
+                    else render_content_workbench_html
+                )
+                html = renderer(project_name=title, refresh_seconds=refresh_seconds)
                 self._send_response(body=html.encode("utf-8"), content_type="text/html; charset=utf-8")
                 return
             if parsed.path == "/api/snapshot":

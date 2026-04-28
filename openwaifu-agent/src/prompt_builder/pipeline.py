@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,7 +8,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json
 from llm import call_json_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
-from model_profiles import resolve_stage_model_profile
+from model_profiles import resolve_stage_llm_config
 from prompt_loader import load_prompt_text
 
 from .contracts import image_prompt_contract
@@ -23,19 +22,7 @@ STAGE_NAME = "07_image_prompt"
 
 
 def _system_prompt(project_dir: Path) -> str:
-    prompt_text = load_prompt_text(project_dir, PROMPT_PATH)
-    output_schema = json.dumps(to_deepseek_payload(image_prompt_contract()), ensure_ascii=False, indent=2)
-    return "\n\n".join(
-        [
-            "<任务区>",
-            prompt_text,
-            "</任务区>",
-            "<返回格式>",
-            "请只返回符合下列骨架的合法JSON。",
-            output_schema,
-            "</返回格式>",
-        ]
-    )
+    return load_prompt_text(project_dir, PROMPT_PATH)
 
 
 def _normalize_prompt_output(raw_payload: dict[str, Any]) -> dict[str, str]:
@@ -71,12 +58,13 @@ def run_image_prompt_stage(
     write_json(bundle.prompt_builder_dir / INPUT_FILENAME, image_prompt_input)
     result = call_json_task(
         project_dir=project_dir,
-        model_config=resolve_stage_model_profile(project_dir, "prompt_builder.default"),
+        model_config=resolve_stage_llm_config(project_dir, "prompt_builder.default"),
         system_prompt=_system_prompt(project_dir),
+        stage_id="prompt_builder.default",
+        output_contract=image_prompt_contract(),
         user_payload=to_deepseek_payload({"imagePromptInput": image_prompt_input}),
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
         trace_response_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.response.json",
-        temperature=0.7,
     )
     normalized_result = _normalize_prompt_output(result)
     write_json(bundle.prompt_builder_dir / OUTPUT_FILENAME, normalized_result)

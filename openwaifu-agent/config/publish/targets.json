@@ -24,10 +24,6 @@
       "description": "使用 Edge 登录态打开 Pixiv 投稿页并填好草稿。",
       "postUrl": "https://www.pixiv.net/illustration/create",
       "timeoutSeconds": 90,
-      "tags": [
-        "OpenWaifuAgent",
-        "AIイラスト"
-      ],
       "autoSubmit": false,
       "keepBrowserOpen": true,
       "browserSessionMaxAgeSeconds": 21600
@@ -38,7 +34,7 @@
       "description": "使用 Edge 登录态打开 Instagram 创建帖子页，上传图片、填写正文并自动分享。",
       "postUrl": "https://www.instagram.com/",
       "timeoutSeconds": 120,
-      "captionSuffix": "#OpenWaifuAgent #AIart",
+      "includeSocialTagsInCaption": true,
       "autoSubmit": true,
       "keepBrowserOpen": false,
       "browserSessionMaxAgeSeconds": 21600
@@ -49,10 +45,6 @@
       "description": "使用 Edge 登录态打开 Bilibili 动态页，上传图片、填写正文并自动发布。",
       "postUrl": "https://t.bilibili.com/",
       "timeoutSeconds": 120,
-      "tags": [
-        "OpenWaifuAgent",
-        "AI绘画"
-      ],
       "includeTitle": false,
       "browserProfilePersistence": "target",
       "autoSubmit": true,
@@ -67,7 +59,6 @@
       "userIdEnvName": "QZONE_USER_ID",
       "timeoutSeconds": 120,
       "authorizationWaitSeconds": 75,
-      "captionSuffix": "#OpenWaifuAgent",
       "autoSubmit": false,
       "keepBrowserOpen": true,
       "browserSessionMaxAgeSeconds": 21600

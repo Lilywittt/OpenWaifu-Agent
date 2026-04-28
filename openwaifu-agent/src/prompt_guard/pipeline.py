@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,7 +8,7 @@ from typing import Any
 from io_utils import normalize_spaces, write_json
 from llm import call_json_task
 from llm_schema import from_deepseek_payload, to_deepseek_payload
-from model_profiles import resolve_stage_model_profile
+from model_profiles import resolve_stage_llm_config
 from prompt_loader import load_prompt_text
 
 from .contracts import prompt_guard_contract
@@ -24,19 +23,7 @@ ALLOWED_STATUSES = {"approved", "revised"}
 
 
 def _system_prompt(project_dir: Path) -> str:
-    prompt_text = load_prompt_text(project_dir, PROMPT_PATH)
-    output_schema = json.dumps(to_deepseek_payload(prompt_guard_contract()), ensure_ascii=False, indent=2)
-    return "\n\n".join(
-        [
-            "<任务区>",
-            prompt_text,
-            "</任务区>",
-            "<返回格式>",
-            "请只返回符合下列骨架的合法JSON。",
-            output_schema,
-            "</返回格式>",
-        ]
-    )
+    return load_prompt_text(project_dir, PROMPT_PATH)
 
 
 def build_prompt_guard_input(
@@ -104,12 +91,13 @@ def run_prompt_guard_pipeline(
     write_json(bundle.prompt_guard_dir / INPUT_FILENAME, prompt_guard_input)
     result = call_json_task(
         project_dir=project_dir,
-        model_config=resolve_stage_model_profile(project_dir, "prompt_guard.default"),
+        model_config=resolve_stage_llm_config(project_dir, "prompt_guard.default"),
         system_prompt=_system_prompt(project_dir),
+        stage_id="prompt_guard.default",
+        output_contract=prompt_guard_contract(),
         user_payload=to_deepseek_payload({"promptGuardInput": prompt_guard_input}),
         trace_request_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.request.json",
         trace_response_path=bundle.trace_dir / "llm" / f"{STAGE_NAME}.response.json",
-        temperature=0.35,
     )
     review_report = _normalize_guard_output(result, prompt_package)
     write_json(bundle.prompt_guard_dir / REPORT_FILENAME, review_report)

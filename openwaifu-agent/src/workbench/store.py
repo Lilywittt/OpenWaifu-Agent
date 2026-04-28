@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from generation_slot import read_generation_slot
-from io_utils import ensure_dir, normalize_spaces, write_json
+from io_utils import ensure_dir, normalize_spaces, write_json, write_json_utf8_sig
 from process_utils import is_process_alive
 from review_favorites import (
     FAVORITE_KIND_PATH,
@@ -267,7 +267,7 @@ def write_workbench_status(project_dir: Path, payload: dict[str, Any]) -> Path:
         "updatedAt": datetime.now().isoformat(timespec="seconds"),
     }
     path = _status_path(project_dir)
-    write_json(path, normalized_payload)
+    write_json_utf8_sig(path, normalized_payload)
     return path
 
 
@@ -282,7 +282,7 @@ def _read_last_request_registry(project_dir: Path) -> dict[str, Any]:
 
 def _write_last_request_registry(project_dir: Path, payload: dict[str, Any]) -> Path:
     path = _last_requests_path(project_dir)
-    write_json(path, payload)
+    write_json_utf8_sig(path, payload)
     return path
 
 
@@ -304,7 +304,7 @@ def write_last_request(project_dir: Path, payload: dict[str, Any], *, owner_id: 
     _write_last_request_registry(project_dir, registry)
     path = _last_request_path(project_dir)
     if owner_key == "private":
-        write_json(path, payload)
+        write_json_utf8_sig(path, payload)
         return path
     return _last_requests_path(project_dir)
 
@@ -315,7 +315,7 @@ def read_active_request(project_dir: Path) -> dict[str, Any] | None:
 
 def write_active_request(project_dir: Path, payload: dict[str, Any]) -> Path:
     path = _active_request_path(project_dir)
-    write_json(path, payload)
+    write_json_utf8_sig(path, payload)
     return path
 
 
@@ -340,7 +340,7 @@ def read_active_worker(project_dir: Path, *, cleanup_stale: bool = True) -> dict
 
 def write_active_worker(project_dir: Path, payload: dict[str, Any]) -> Path:
     path = _active_worker_path(project_dir)
-    write_json(path, payload)
+    write_json_utf8_sig(path, payload)
     return path
 
 
@@ -354,7 +354,7 @@ def clear_active_worker(project_dir: Path) -> None:
 
 def request_workbench_stop(project_dir: Path) -> Path:
     path = _stop_request_path(project_dir)
-    write_json(path, {"requestedAt": datetime.now().isoformat(timespec="seconds")})
+    write_json_utf8_sig(path, {"requestedAt": datetime.now().isoformat(timespec="seconds")})
     return path
 
 
