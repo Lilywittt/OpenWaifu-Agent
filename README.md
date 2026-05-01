@@ -2,6 +2,10 @@
 
 这个总仓库里，主产品在 [`openwaifu-agent/`](./openwaifu-agent/)。
 
+## 项目架构
+
+![OpenWaifu-Agent 架构图](./openwaifu-agent-architecture.png)
+
 主产品当前包含这些核心能力：
 
 - QQ 生成链路与私聊服务
