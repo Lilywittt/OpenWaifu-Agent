@@ -6,6 +6,10 @@
 
 ![OpenWaifu-Agent 架构图](./openwaifu-agent-architecture.png)
 
+## ComfyUI 后续方向
+
+![OpenWaifu-Agent ComfyUI 后续方向图](./openwaifu-agent-comfyui-roadmap.png)
+
 主产品当前包含这些核心能力：
 
 - QQ 生成链路与私聊服务
