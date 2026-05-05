@@ -3,6 +3,8 @@ from __future__ import annotations
 import html
 import json
 
+from .views_split_layout import apply_workbench_split_layout
+
 
 def render_content_workbench_html(*, project_name: str, refresh_seconds: int) -> str:
     refresh_ms = max(int(refresh_seconds), 2) * 1000
@@ -10,7 +12,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     title_text = str(project_name).strip() or "内容工作台"
     title_text_html = html.escape(title_text, quote=True)
     title_text_js = json.dumps(title_text, ensure_ascii=False)
-    return f"""<!doctype html>
+    page_html = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -136,6 +138,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     .span-5 {{ grid-column: span 5; }}
     .span-7 {{ grid-column: span 7; }}
     .span-8 {{ grid-column: span 8; }}
+    .span-12 {{ grid-column: 1 / -1; }}
     .card h2 {{
       margin: 0 0 12px;
       font-size: 16px;
@@ -288,12 +291,38 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }}
+    .history-group-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }}
     .history-toolbar {{
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
+    }}
+    .history-ops {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .history-manage-bar {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8f3eb;
+    }}
+    .history-manage-bar[hidden] {{
+      display: none;
     }}
     .history-filters {{
       display: flex;
@@ -327,14 +356,32 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       display: grid;
       gap: 10px;
       cursor: pointer;
+      transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, opacity 120ms ease;
     }}
     .history-item.active {{
       border-color: rgba(143, 90, 42, 0.52);
       box-shadow: inset 0 0 0 1px rgba(143, 90, 42, 0.18);
       background: #fff8f1;
     }}
+    .history-item.pinned-item {{
+      border-color: rgba(143, 90, 42, 0.34);
+      background: #fffaf4;
+    }}
+    .history-item.manage-selected {{
+      border-color: rgba(47, 111, 99, 0.44);
+      box-shadow: inset 0 0 0 1px rgba(47, 111, 99, 0.16);
+    }}
     .history-item.deleted {{
       opacity: 0.7;
+    }}
+    .history-item.dragging {{
+      opacity: 0.62;
+    }}
+    .history-item.drop-before {{
+      box-shadow: inset 0 3px 0 var(--accent);
+    }}
+    .history-item.drop-after {{
+      box-shadow: inset 0 -3px 0 var(--accent);
     }}
     .history-main {{
       display: grid;
@@ -363,6 +410,13 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       align-items: flex-start;
       flex-wrap: wrap;
     }}
+    .history-card-actions {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }}
     .history-title {{
       font-weight: 700;
       line-height: 1.5;
@@ -385,6 +439,84 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       color: var(--accent-strong);
       padding: 8px 12px;
       font-size: 12px;
+    }}
+    .history-pin-btn,
+    .history-drag-handle {{
+      border: 1px solid var(--line);
+      background: #f7f2ea;
+      color: var(--accent-strong);
+      padding: 8px 12px;
+      font-size: 12px;
+      box-shadow: none;
+    }}
+    .history-pin-btn.active {{
+      background: var(--accent);
+      color: #fffaf6;
+      border-color: rgba(143, 90, 42, 0.48);
+    }}
+    .history-drag-handle {{
+      cursor: grab;
+    }}
+    .history-drag-handle:active {{
+      cursor: grabbing;
+    }}
+    .history-check-wrap {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .history-check {{
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      margin: 0;
+      cursor: pointer;
+    }}
+    .audit-panel {{
+      display: grid;
+      gap: 12px;
+    }}
+    .audit-note {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }}
+    .audit-list {{
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }}
+    .audit-item {{
+      display: grid;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.8);
+    }}
+    .audit-top {{
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }}
+    .audit-title {{
+      font-weight: 700;
+      line-height: 1.5;
+    }}
+    .audit-meta {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
     }}
     .detail-actions {{
       display: flex;
@@ -929,14 +1061,37 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
               <button type="button" class="filter-chip" id="history-filter-all">全部</button>
               <button type="button" class="filter-chip" id="history-filter-deleted">已删除</button>
             </div>
-            <button type="button" class="filter-chip" id="history-load-more" hidden>加载更多</button>
+            <div class="history-ops">
+              <button type="button" class="filter-chip" id="history-manage-toggle">整理置顶</button>
+              <button type="button" class="filter-chip" id="history-load-more" hidden>加载更多</button>
+            </div>
+          </div>
+          <div class="history-manage-bar" id="history-manage-bar" hidden>
+            <div class="muted" id="history-manage-summary">未选择任务</div>
+            <button type="button" class="history-pin-btn" id="history-pin-selected" disabled>置顶所选</button>
+            <button type="button" class="history-pin-btn" id="history-unpin-selected" disabled>取消置顶</button>
+            <button type="button" class="history-pin-btn" id="history-clear-selection" disabled>清空选择</button>
           </div>
           <div class="history-group" id="current-run-group" hidden>
-            <div class="history-group-title">当前运行</div>
+            <div class="history-group-head">
+              <div class="history-group-title">当前运行</div>
+            </div>
             <ul class="history-list" id="current-run-list"></ul>
           </div>
+          <div class="history-group" id="pinned-history-group" hidden>
+            <div class="history-group-head">
+              <div class="history-group-title">置顶</div>
+              <div class="muted" id="pinned-history-summary">-</div>
+            </div>
+            <ul class="history-list" id="pinned-history-list">
+              <li class="empty">当前没有置顶任务。</li>
+            </ul>
+          </div>
           <div class="history-group">
-            <div class="history-group-title">最近任务</div>
+            <div class="history-group-head">
+              <div class="history-group-title">最近任务</div>
+              <div class="muted" id="regular-history-summary">-</div>
+            </div>
           <ul class="history-list" id="history-list">
             <li class="empty">还没有任务记录。</li>
           </ul>
@@ -953,6 +1108,20 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           </div>
         </div>
         <div id="detail-root" class="empty">开始一轮任务后，这里会实时展开它的中间产物和最终产物。</div>
+      </section>
+
+      <section class="card span-12" id="trigger-audit-card" hidden>
+        <div class="audit-panel">
+          <div class="card-head" style="margin-bottom: 0;">
+            <h2>任务触发记录</h2>
+            <div class="muted" id="trigger-audit-summary">-</div>
+          </div>
+          <div class="audit-note">这里会连续记录每一次任务触发请求，受理和拒绝都会保留。</div>
+          <div class="mono muted" id="trigger-audit-paths"></div>
+          <ul class="audit-list" id="trigger-audit-list">
+            <li class="empty">最近还没有触发记录。</li>
+          </ul>
+        </div>
       </section>
     </div>
   </div>
@@ -974,8 +1143,12 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     let initializedForm = false;
     let expandedRawKeys = new Set();
     let detailSuspendUntil = 0;
+    let historyManageMode = false;
+    let selectedHistoryKeys = new Set();
+    let draggedPinnedHistoryKey = "";
     let lastHistoryListRenderKey = "";
     let lastDetailRenderKey = "";
+    let lastTriggerAuditRenderKey = "";
     const LOCAL_EXPORT_KIND_IMAGE_ONLY = "image_only";
     const LOCAL_EXPORT_KIND_BUNDLE_FOLDER = "bundle_folder";
     const LOCAL_EXPORT_DEFAULT_KIND = LOCAL_EXPORT_KIND_BUNDLE_FOLDER;
@@ -2354,11 +2527,142 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       document.querySelector(".review-toolbar").hidden = !permissions.allowReviewPath;
     }}
 
+    function historyOrderedGroups(snapshot) {{
+      const groups = snapshot?.historyGroups || {{}};
+      const pinned = Array.isArray(groups.pinned) ? groups.pinned : [];
+      const regular = Array.isArray(groups.regular) ? groups.regular : [];
+      if (pinned.length || regular.length) {{
+        return {{ pinned, regular }};
+      }}
+      const history = Array.isArray(snapshot?.history) ? snapshot.history : [];
+      return {{
+        pinned: history.filter((item) => Boolean(item?.pinned)),
+        regular: history.filter((item) => !item?.pinned),
+      }};
+    }}
+
+    function historySurfaceId(snapshot = currentSnapshot) {{
+      return normalizeText(snapshot?.config?.ordering?.historySurfaceId) || "workbench_history";
+    }}
+
+    function historySurfaceItemId(item) {{
+      return normalizeText(item?.surfaceItemId || item?.selectionKey || item?.runId);
+    }}
+
+    function canPinHistoryItem(item) {{
+      return Boolean(currentPermissions().allowHistoryPinManagement)
+        && Boolean(item?.pinEligible)
+        && !Boolean(item?.deleted)
+        && historySurfaceItemId(item)
+        && normalizeText(item?.selectionKey || item?.runId) !== "__active__";
+    }}
+
+    function sanitizeSelectedHistoryKeys(snapshot = currentSnapshot) {{
+      const validKeys = new Set(
+        historySelectionList(snapshot)
+          .map((item) => normalizeText(item?.selectionKey || item?.runId))
+          .filter(Boolean),
+      );
+      selectedHistoryKeys = new Set(
+        Array.from(selectedHistoryKeys).filter((item) => validKeys.has(normalizeText(item))),
+      );
+    }}
+
+    function rerenderHistoryFromState() {{
+      if (!currentSnapshot) {{
+        return;
+      }}
+      sanitizeSelectedHistoryKeys(currentSnapshot);
+      lastHistoryListRenderKey = "";
+      renderHistory(currentSnapshot);
+    }}
+
+    function setHistoryManageMode(enabled) {{
+      historyManageMode = Boolean(enabled);
+      if (!historyManageMode) {{
+        selectedHistoryKeys = new Set();
+        draggedPinnedHistoryKey = "";
+      }}
+      rerenderHistoryFromState();
+    }}
+
+    function toggleHistorySelection(selectionKey) {{
+      const normalizedKey = normalizeText(selectionKey);
+      if (!normalizedKey) {{
+        return;
+      }}
+      if (selectedHistoryKeys.has(normalizedKey)) {{
+        selectedHistoryKeys.delete(normalizedKey);
+      }} else {{
+        selectedHistoryKeys.add(normalizedKey);
+      }}
+      rerenderHistoryFromState();
+    }}
+
+    async function updateHistoryPinnedState(itemIds, pinned) {{
+      const normalizedItemIds = Array.from(new Set((itemIds || []).map((item) => normalizeText(item)).filter(Boolean)));
+      if (!normalizedItemIds.length) {{
+        return;
+      }}
+      await submitJson("/api/display-order/pin", {{
+        surfaceId: historySurfaceId(currentSnapshot),
+        itemIds: normalizedItemIds,
+        pinned: Boolean(pinned),
+      }});
+      selectedHistoryKeys = new Set();
+      await fetchSnapshot({{ forceDetail: true }});
+    }}
+
+    function orderedPinnedHistoryIds(snapshot = currentSnapshot) {{
+      return historyOrderedGroups(snapshot).pinned
+        .map((item) => historySurfaceItemId(item))
+        .filter(Boolean);
+    }}
+
+    async function reorderPinnedHistory(itemIds) {{
+      const normalizedItemIds = Array.from(new Set((itemIds || []).map((item) => normalizeText(item)).filter(Boolean)));
+      if (!normalizedItemIds.length) {{
+        return;
+      }}
+      await submitJson("/api/display-order/reorder", {{
+        surfaceId: historySurfaceId(currentSnapshot),
+        orderedItemIds: normalizedItemIds,
+      }});
+      await fetchSnapshot({{ forceDetail: true }});
+    }}
+
+    function reorderIdsByDrop(itemIds, draggedId, targetId, position) {{
+      const orderedIds = Array.from(itemIds || []).map((item) => normalizeText(item)).filter(Boolean);
+      const normalizedDraggedId = normalizeText(draggedId);
+      const normalizedTargetId = normalizeText(targetId);
+      if (!normalizedDraggedId || !normalizedTargetId || normalizedDraggedId === normalizedTargetId) {{
+        return orderedIds;
+      }}
+      const draggedIndex = orderedIds.indexOf(normalizedDraggedId);
+      const targetIndex = orderedIds.indexOf(normalizedTargetId);
+      if (draggedIndex < 0 || targetIndex < 0) {{
+        return orderedIds;
+      }}
+      orderedIds.splice(draggedIndex, 1);
+      const insertionIndex = position === "after"
+        ? (targetIndex >= draggedIndex ? targetIndex : targetIndex + 1)
+        : (targetIndex >= draggedIndex ? targetIndex - 1 : targetIndex);
+      const safeIndex = Math.min(Math.max(insertionIndex, 0), orderedIds.length);
+      orderedIds.splice(safeIndex, 0, normalizedDraggedId);
+      return orderedIds;
+    }}
+
+    function clearPinnedHistoryDropIndicators() {{
+      document.querySelectorAll("[data-history-drag-item]").forEach((element) => {{
+        element.classList.remove("dragging", "drop-before", "drop-after");
+      }});
+    }}
+
     function historySelectionList(snapshot) {{
       const items = [];
       const seen = new Set();
       const currentRunItem = snapshot?.currentRunItem;
-      const history = Array.isArray(snapshot?.history) ? snapshot.history : [];
+      const groups = historyOrderedGroups(snapshot);
       if (currentRunItem && !currentRunItem.deleted) {{
         const currentKey = normalizeText(currentRunItem.selectionKey || currentRunItem.runId);
         if (currentKey) {{
@@ -2366,13 +2670,57 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           seen.add(currentKey);
         }}
       }}
-      history.forEach((item) => {{
+      [...groups.pinned, ...groups.regular].forEach((item) => {{
         const key = normalizeText(item.selectionKey || item.runId);
         if (!key || seen.has(key)) return;
         items.push(item);
         seen.add(key);
       }});
       return items;
+    }}
+
+    function decorateClientIp(snapshot) {{
+      const request = snapshot?.status?.request || {{}};
+      const requestClientIp = normalizeText(request.clientIp);
+      const statusRunId = document.getElementById("status-run-id");
+      if (statusRunId) {{
+        const runId = normalizeText(snapshot?.status?.runId) || "-";
+        statusRunId.textContent = requestClientIp ? `runId: ${{runId}} | IP: ${{requestClientIp}}` : `runId: ${{runId}}`;
+      }}
+
+      const historyItems = historySelectionList(snapshot);
+      const historyMap = new Map(
+        historyItems.map((item) => [normalizeText(item.selectionKey || item.runId), normalizeText(item.clientIp)]),
+      );
+      document.querySelectorAll("[data-history-select]").forEach((element) => {{
+        element.querySelectorAll("[data-client-ip-row='1']").forEach((row) => row.remove());
+        const clientIp = historyMap.get(normalizeText(element.getAttribute("data-history-select"))) || "";
+        if (!clientIp) {{
+          return;
+        }}
+        const meta = element.querySelector(".history-meta");
+        if (!meta) {{
+          return;
+        }}
+        const row = document.createElement("div");
+        row.className = "mono muted";
+        row.setAttribute("data-client-ip-row", "1");
+        row.textContent = `IP: ${{clientIp}}`;
+        meta.appendChild(row);
+      }});
+
+      const detail = reviewedPathDetail || snapshot?.selectedRunDetail;
+      const detailClientIp = normalizeText(detail?.clientIp);
+      const detailMeta = document.querySelector("#detail-root .summary-meta");
+      if (detailMeta) {{
+        detailMeta.querySelectorAll("[data-detail-client-ip='1']").forEach((row) => row.remove());
+        if (detailClientIp) {{
+          const row = document.createElement("span");
+          row.setAttribute("data-detail-client-ip", "1");
+          row.textContent = `IP: ${{detailClientIp}}`;
+          detailMeta.appendChild(row);
+        }}
+      }}
     }}
 
     function activeSelectionKey(snapshot) {{
@@ -2441,20 +2789,25 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
     function renderHistorySummary(snapshot) {{
       const stats = snapshot?.historyStats || {{}};
       const page = snapshot?.historyPage || {{}};
+      const groups = historyOrderedGroups(snapshot);
       const showFavorites = hasHistoryFilter(snapshot, "favorites");
       const showDeleted = hasHistoryFilter(snapshot, "deleted");
       const running = Number(stats.running || 0);
       const active = Number(stats.active || 0);
       const deleted = Number(stats.deleted || 0);
+      const pinned = Number(stats.pinned || groups.pinned.length || 0);
       const total = Number(stats.total || 0);
       const loaded = Number(page.loaded || 0);
       const totalFiltered = Number(page.totalFiltered || 0);
-      const summaryParts = [`当前 ${{running}}`, `有效 ${{active}}`];
-      if (showDeleted) {{
-        summaryParts.push(`已删除 ${{deleted}}`);
+      const summaryParts = [`\u5f53\u524d ${{running}}`, `\u6709\u6548 ${{active}}`];
+      if (!showDeleted) {{
+        summaryParts.push(`\u7f6e\u9876 ${{pinned}}`);
       }}
-      summaryParts.push(`总计 ${{total}}`, `已载入 ${{loaded}}/${{totalFiltered}}`);
-      document.getElementById("history-summary").textContent = summaryParts.join(" · ");
+      if (showDeleted) {{
+        summaryParts.push(`\u5df2\u5220\u9664 ${{deleted}}`);
+      }}
+      summaryParts.push(`\u603b\u8ba1 ${{total}}`, `\u5df2\u8f7d\u5165 ${{loaded}}/${{totalFiltered}}`);
+      document.getElementById("history-summary").textContent = summaryParts.join(" / ");
       document.getElementById("history-filter-active").classList.toggle("active", historyFilter === "active");
       document.getElementById("history-filter-favorites").classList.toggle("active", historyFilter === "favorites");
       document.getElementById("history-filter-all").classList.toggle("active", historyFilter === "all");
@@ -2465,18 +2818,49 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       const hasMore = Boolean(page.hasMore);
       loadMoreButton.hidden = !hasMore;
       loadMoreButton.disabled = !hasMore;
-      loadMoreButton.textContent = hasMore ? `加载更多（${{loaded}}/${{totalFiltered}}）` : "已全部载入";
+      loadMoreButton.textContent = hasMore ? `\u52a0\u8f7d\u66f4\u591a\uff1a${{loaded}}/${{totalFiltered}}` : "\u5df2\u5168\u90e8\u8f7d\u5165";
+      const allowHistoryPinManagement = Boolean(currentPermissions(snapshot).allowHistoryPinManagement);
+      const manageToggle = document.getElementById("history-manage-toggle");
+      if (!allowHistoryPinManagement && historyManageMode) {{
+        historyManageMode = false;
+        selectedHistoryKeys = new Set();
+      }}
+      manageToggle.textContent = historyManageMode ? "\u7ed3\u675f\u6574\u7406" : "\u6574\u7406\u7f6e\u9876";
+      manageToggle.hidden = !allowHistoryPinManagement;
+      document.getElementById("pinned-history-summary").textContent = groups.pinned.length
+        ? `\u5171 ${{groups.pinned.length}} \u9879\uff0c\u53ef\u62d6\u52a8\u6392\u5e8f`
+        : "\u5f53\u524d\u6ca1\u6709\u7f6e\u9876\u9879";
+      document.getElementById("regular-history-summary").textContent = `\u5f53\u524d\u663e\u793a ${{groups.regular.length}} \u9879`;
+      const manageBar = document.getElementById("history-manage-bar");
+      manageBar.hidden = !allowHistoryPinManagement || !historyManageMode;
+      sanitizeSelectedHistoryKeys(snapshot);
+      const selectedKeys = Array.from(selectedHistoryKeys);
+      const selectedItems = historySelectionList(snapshot).filter((item) => selectedKeys.includes(normalizeText(item?.selectionKey || item?.runId)));
+      const selectableItems = selectedItems.filter((item) => canPinHistoryItem(item));
+      const selectedPinned = selectableItems.filter((item) => Boolean(item?.pinned));
+      const selectedRegular = selectableItems.filter((item) => !item?.pinned);
+      document.getElementById("history-manage-summary").textContent = selectableItems.length
+        ? `\u5df2\u9009 ${{selectableItems.length}} \u9879`
+        : "\u672a\u9009\u62e9\u4efb\u52a1";
+      document.getElementById("history-pin-selected").disabled = !selectedRegular.length;
+      document.getElementById("history-unpin-selected").disabled = !selectedPinned.length;
+      document.getElementById("history-clear-selection").disabled = !selectedKeys.length;
     }}
 
     function historyListRenderKey(snapshot, history) {{
       return stableJson({{
         selectedRunId: normalizeText(snapshot?.selectedRunId),
+        manageMode: historyManageMode,
+        selectedHistoryKeys: Array.from(selectedHistoryKeys).sort(),
         items: (history || []).map((item) => ({{
           selectionKey: normalizeText(item.selectionKey || item.runId),
           runId: normalizeText(item.runId),
           status: normalizeText(item.status),
           deleted: Boolean(item.deleted),
           favorite: Boolean(item.favorite),
+          pinned: Boolean(item.pinned),
+          pinEligible: Boolean(item.pinEligible),
+          surfaceItemId: historySurfaceItemId(item),
           sourceKind: normalizeText(item.sourceKind),
           endStage: normalizeText(item.endStage),
           displayTime: normalizeText(item.displayTime),
@@ -2490,19 +2874,26 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
 
     function renderHistory(snapshot) {{
       renderHistorySummary(snapshot);
+      sanitizeSelectedHistoryKeys(snapshot);
       const historyRoot = document.getElementById("history-list");
-      const history = historySelectionList(snapshot);
-      const renderKey = historyListRenderKey(snapshot, history);
+      const currentRoot = document.getElementById("current-run-list");
+      const currentGroup = document.getElementById("current-run-group");
+      const pinnedRoot = document.getElementById("pinned-history-list");
+      const pinnedGroup = document.getElementById("pinned-history-group");
+      const groups = historyOrderedGroups(snapshot);
+      const combinedHistory = historySelectionList(snapshot);
+      const renderKey = historyListRenderKey(snapshot, combinedHistory);
       if (renderKey === lastHistoryListRenderKey) {{
         return;
       }}
       lastHistoryListRenderKey = renderKey;
 
-      const renderItems = (items) => items.map((item) => {{
-        const selectionKey = item.selectionKey || item.runId || "";
+      const renderItems = (items, options = {{}}) => items.map((item) => {{
+        const selectionKey = normalizeText(item.selectionKey || item.runId);
+        const surfaceItemId = historySurfaceItemId(item);
         const isActive = selectionKey && selectionKey === snapshot.selectedRunId;
-        const title = item.sceneDraftPremiseZh || item.label || "未命名任务";
-        const secondary = `${{decorateSourceKindLabel(item.sourceKind, item.sourceKindLabel || item.sourceKind || "-", snapshot)}} → ${{item.endStageLabel || item.endStage || "-"}}`;
+        const title = item.sceneDraftPremiseZh || item.label || "\u672a\u547d\u540d\u4efb\u52a1";
+        const secondary = `${{decorateSourceKindLabel(item.sourceKind, item.sourceKindLabel || item.sourceKind || "-", snapshot)}} \u2192 ${{item.endStageLabel || item.endStage || "-"}}`;
         const errorSignal = normalizeErrorSignal(item.errorSignal || {{}}, item.error);
         const errorLine = errorSignal ? `
           <div class="history-error">
@@ -2511,13 +2902,50 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           </div>
         ` : "";
         const runIdLine = item.runId ? `<div class="mono muted">runId：${{item.runId}}</div>` : "";
-        const timeLabel = item.deleted ? "删除时间" : "记录时间";
+        const timeLabel = item.deleted ? "\u5220\u9664\u65f6\u95f4" : "\u8bb0\u5f55\u65f6\u95f4";
         const thumb = item.imageRoute && !item.deleted
           ? `<img class="history-thumb" src="${{item.imageRoute}}" alt="${{title}}" loading="lazy" />`
-          : `<div class="history-thumb empty">${{item.deleted ? "已删" : "暂无图"}}</div>`;
-        const favoriteBadge = item.favorite ? '<span class="badge">收藏</span>' : "";
+          : `<div class="history-thumb empty">${{item.deleted ? "\u5df2\u5220" : "\u6682\u65e0\u56fe"}}</div>`;
+        const favoriteBadge = item.favorite ? '<span class="badge">\u6536\u85cf</span>' : "";
+        const canPin = canPinHistoryItem(item);
+        const isSelected = historyManageMode && selectedHistoryKeys.has(selectionKey);
+        const pinButton = canPin ? `
+          <button
+            type="button"
+            class="history-pin-btn${{item.pinned ? " active" : ""}}"
+            data-history-action-stop="1"
+            data-history-pin-toggle="${{escapeHtml(surfaceItemId)}}"
+          >${{item.pinned ? "\u53d6\u6d88\u7f6e\u9876" : "\u7f6e\u9876"}}</button>
+        ` : "";
+        const checkBox = historyManageMode && canPin ? `
+          <label class="history-check-wrap" data-history-action-stop="1">
+            <input
+              type="checkbox"
+              class="history-check"
+              data-history-check="${{escapeHtml(selectionKey)}}"
+              ${{isSelected ? "checked" : ""}}
+            >
+            \u9009\u62e9
+          </label>
+        ` : "";
+        const dragHandle = options.pinnedSection && historyManageMode ? `
+          <button
+            type="button"
+            class="history-drag-handle"
+            data-history-action-stop="1"
+            data-history-drag-handle="${{escapeHtml(surfaceItemId)}}"
+            title="\u62d6\u52a8\u8c03\u6574\u7f6e\u9876\u987a\u5e8f"
+          >\u62d6\u52a8\u6392\u5e8f</button>
+        ` : "";
+        const dragAttrs = options.pinnedSection && historyManageMode
+          ? ` data-history-drag-item="${{escapeHtml(surfaceItemId)}}" draggable="true"`
+          : "";
         return `
-          <li class="history-item${{isActive ? " active" : ""}}${{item.deleted ? " deleted" : ""}}" data-history-select="${{selectionKey}}" tabindex="0">
+          <li
+            class="history-item${{isActive ? " active" : ""}}${{item.deleted ? " deleted" : ""}}${{item.pinned ? " pinned-item" : ""}}${{isSelected ? " manage-selected" : ""}}"
+            data-history-select="${{selectionKey}}"
+            tabindex="0"${{dragAttrs}}
+          >
             <div class="history-main">
               <div>
                 <div class="history-top">
@@ -2525,7 +2953,13 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
                     <div class="history-title">${{title}}</div>
                     <div class="muted">${{secondary}}</div>
                   </div>
-                  <span class="badge ${{statusClass(item.status)}}">${{item.statusLabel || item.status || "未知"}}</span>
+                  <div class="history-card-actions">
+                    ${{favoriteBadge}}
+                    ${{checkBox}}
+                    ${{dragHandle}}
+                    ${{pinButton}}
+                    <span class="badge ${{statusClass(item.status)}}">${{item.statusLabel || item.status || "\u672a\u77e5"}}</span>
+                  </div>
                 </div>
                 <div class="history-meta">
                   <div>${{timeLabel}}：${{item.displayTime || "-"}}</div>
@@ -2536,20 +2970,32 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
               <div>${{thumb}}</div>
             </div>
             <div class="history-foot">
-              <div class="muted">${{item.deleted ? "目录已删除，索引保留供回看。" : "点击卡片即可切换详情。"}}</div>
+              <div class="muted">${{item.deleted ? "\u76ee\u5f55\u5df2\u5220\u9664\uff0c\u7d22\u5f15\u4fdd\u7559\u4f9b\u56de\u770b\u3002" : "\u70b9\u51fb\u5361\u7247\u5373\u53ef\u5207\u6362\u8be6\u60c5\u3002"}}</div>
             </div>
           </li>
         `;
       }}).join("");
 
-      if (!history.length) {{
-        historyRoot.innerHTML = '<li class="empty">当前筛选下没有任务记录。</li>';
-      }} else {{
-        historyRoot.innerHTML = renderItems(history);
-      }}
+      const currentRunItem = snapshot?.currentRunItem && !snapshot?.currentRunItem?.deleted
+        ? snapshot.currentRunItem
+        : null;
+      currentGroup.hidden = !currentRunItem;
+      currentRoot.innerHTML = currentRunItem
+        ? renderItems([currentRunItem])
+        : '<li class="empty">\u5f53\u524d\u6ca1\u6709\u8fd0\u884c\u4e2d\u7684\u4efb\u52a1\u3002</li>';
+      pinnedGroup.hidden = !groups.pinned.length;
+      pinnedRoot.innerHTML = groups.pinned.length
+        ? renderItems(groups.pinned, {{ pinnedSection: true }})
+        : '<li class="empty">\u5f53\u524d\u6ca1\u6709\u7f6e\u9876\u4efb\u52a1\u3002</li>';
+      historyRoot.innerHTML = groups.regular.length
+        ? renderItems(groups.regular)
+        : '<li class="empty">\u5f53\u524d\u7b5b\u9009\u4e0b\u6ca1\u6709\u4efb\u52a1\u8bb0\u5f55\u3002</li>';
 
       document.querySelectorAll("[data-history-select]").forEach((element) => {{
         element.addEventListener("click", (event) => {{
+          if (event.target.closest("[data-history-action-stop='1']")) {{
+            return;
+          }}
           const key = normalizeText(element.getAttribute("data-history-select"));
           if (!key) return;
           event.preventDefault();
@@ -2562,6 +3008,9 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
         }});
         element.addEventListener("keydown", (event) => {{
           if (event.key !== "Enter" && event.key !== " ") return;
+          if (event.target.closest("[data-history-action-stop='1']")) {{
+            return;
+          }}
           const key = normalizeText(element.getAttribute("data-history-select"));
           if (!key) return;
           event.preventDefault();
@@ -2572,6 +3021,190 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
           fetchSnapshot({{ forceDetail: true }});
         }});
       }});
+      document.querySelectorAll("[data-history-check]").forEach((input) => {{
+        input.addEventListener("click", (event) => {{
+          event.stopPropagation();
+        }});
+        input.addEventListener("change", () => {{
+          toggleHistorySelection(input.getAttribute("data-history-check"));
+        }});
+      }});
+      document.querySelectorAll("[data-history-pin-toggle]").forEach((button) => {{
+        button.addEventListener("click", async (event) => {{
+          event.preventDefault();
+          event.stopPropagation();
+          const itemId = normalizeText(button.getAttribute("data-history-pin-toggle"));
+          if (!itemId) {{
+            return;
+          }}
+          const nextPinned = !button.classList.contains("active");
+          try {{
+            button.disabled = true;
+            await updateHistoryPinnedState([itemId], nextPinned);
+            applyActionMessage(nextPinned ? "\u5df2\u52a0\u5165\u7f6e\u9876\u3002" : "\u5df2\u53d6\u6d88\u7f6e\u9876\u3002", "success");
+          }} catch (error) {{
+            applyActionMessage(error.message || "\u66f4\u65b0\u7f6e\u9876\u72b6\u6001\u5931\u8d25\u3002", "error");
+          }} finally {{
+            button.disabled = false;
+          }}
+        }});
+      }});
+      document.querySelectorAll("[data-history-drag-item]").forEach((element) => {{
+        element.addEventListener("dragstart", (event) => {{
+          const itemId = normalizeText(element.getAttribute("data-history-drag-item"));
+          if (!itemId) {{
+            event.preventDefault();
+            return;
+          }}
+          draggedPinnedHistoryKey = itemId;
+          clearPinnedHistoryDropIndicators();
+          element.classList.add("dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", itemId);
+        }});
+        element.addEventListener("dragend", () => {{
+          draggedPinnedHistoryKey = "";
+          clearPinnedHistoryDropIndicators();
+        }});
+        element.addEventListener("dragover", (event) => {{
+          const targetId = normalizeText(element.getAttribute("data-history-drag-item"));
+          if (!draggedPinnedHistoryKey || !targetId || draggedPinnedHistoryKey === targetId) {{
+            return;
+          }}
+          event.preventDefault();
+          clearPinnedHistoryDropIndicators();
+          const rect = element.getBoundingClientRect();
+          const position = event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
+          element.classList.add(position === "after" ? "drop-after" : "drop-before");
+        }});
+        element.addEventListener("drop", async (event) => {{
+          event.preventDefault();
+          const targetId = normalizeText(element.getAttribute("data-history-drag-item"));
+          if (!draggedPinnedHistoryKey || !targetId || draggedPinnedHistoryKey === targetId) {{
+            clearPinnedHistoryDropIndicators();
+            return;
+          }}
+          const rect = element.getBoundingClientRect();
+          const position = event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
+          const nextOrder = reorderIdsByDrop(orderedPinnedHistoryIds(snapshot), draggedPinnedHistoryKey, targetId, position);
+          draggedPinnedHistoryKey = "";
+          clearPinnedHistoryDropIndicators();
+          try {{
+            await reorderPinnedHistory(nextOrder);
+            applyActionMessage("\u7f6e\u9876\u987a\u5e8f\u5df2\u66f4\u65b0\u3002", "success");
+          }} catch (error) {{
+            applyActionMessage(error.message || "\u66f4\u65b0\u7f6e\u9876\u987a\u5e8f\u5931\u8d25\u3002", "error");
+          }}
+        }});
+      }});
+    }}
+
+    function triggerAuditRenderKey(snapshot, entries) {{
+      return stableJson({{
+        allowTriggerAudit: Boolean(currentPermissions(snapshot).allowTriggerAudit),
+        entries: (entries || []).map((entry) => ({{
+          recordedAt: normalizeText(entry.recordedAt),
+          outcome: normalizeText(entry.outcome),
+          requestId: normalizeText(entry.requestId),
+          clientIp: normalizeText(entry.clientIp),
+          locationText: normalizeText(entry.locationText),
+          sourceKind: normalizeText(entry.sourceKind),
+          endStage: normalizeText(entry.endStage),
+          label: normalizeText(entry.label),
+          error: normalizeText(entry.error),
+        }})),
+        page: snapshot?.taskTriggerAudit?.page || {{}},
+        paths: snapshot?.taskTriggerAudit?.paths || {{}},
+      }});
+    }}
+
+    function renderTriggerAudit(snapshot) {{
+      const card = document.getElementById("trigger-audit-card");
+      const list = document.getElementById("trigger-audit-list");
+      const summary = document.getElementById("trigger-audit-summary");
+      const paths = document.getElementById("trigger-audit-paths");
+      if (!card || !list || !summary || !paths) {{
+        return;
+      }}
+      if (!currentPermissions(snapshot).allowTriggerAudit) {{
+        card.hidden = true;
+        lastTriggerAuditRenderKey = "";
+        return;
+      }}
+      card.hidden = false;
+      const audit = snapshot?.taskTriggerAudit || {{}};
+      const entries = Array.isArray(audit.entries) ? audit.entries : [];
+      const page = audit.page || {{}};
+      const renderKey = triggerAuditRenderKey(snapshot, entries);
+      if (renderKey === lastTriggerAuditRenderKey) {{
+        return;
+      }}
+      lastTriggerAuditRenderKey = renderKey;
+      summary.textContent = `最近 ${{
+        Number(page.loaded || entries.length || 0)
+      }} / ${{
+        Number(page.total || entries.length || 0)
+      }} 条`;
+      const jsonlPath = normalizeText(audit?.paths?.jsonlPath);
+      const csvPath = normalizeText(audit?.paths?.csvPath);
+      const pathParts = [];
+      if (jsonlPath) pathParts.push(`JSONL：${{jsonlPath}}`);
+      if (csvPath) pathParts.push(`CSV：${{csvPath}}`);
+      paths.textContent = pathParts.join("    ");
+      if (!entries.length) {{
+        list.innerHTML = '<li class="empty">最近还没有触发记录。</li>';
+        return;
+      }}
+      list.innerHTML = entries.map((entry) => {{
+        const title = normalizeText(entry.clientIp) || "未识别 IP";
+        const requestLabel = normalizeText(entry.label) || "未命名任务";
+        const sourceKindLabel = decorateSourceKindLabel(
+          entry.sourceKind,
+          entry.sourceKindLabel || entry.sourceKind || "-",
+          snapshot
+        );
+        const endStageLabel = normalizeText(entry.endStageLabel || entry.endStage) || "-";
+        const locationText = normalizeText(entry.locationText);
+        const requestId = normalizeText(entry.requestId) || "-";
+        const cfRay = normalizeText(entry.cfRay) || "-";
+        const forwardedProto = normalizeText(entry.forwardedProto);
+        const host = normalizeText(entry.host);
+        const userAgent = normalizeText(entry.userAgent);
+        const errorLine = normalizeText(entry.error)
+          ? `<div class="history-error"><div class="history-error-title">结果说明</div><div class="history-error-raw">${{escapeHtml(entry.error)}}</div></div>`
+          : "";
+        const addressMeta = [
+          `<span>来源：${{escapeHtml(requestLabel)}}</span>`,
+          `<span>流程：${{escapeHtml(sourceKindLabel)}} → ${{escapeHtml(endStageLabel)}}</span>`,
+          locationText ? `<span>位置：${{escapeHtml(locationText)}}</span>` : "",
+        ].join("");
+        const requestMeta = [
+          `<span>入口：${{escapeHtml(normalizeText(entry.method) || "POST")}} ${{escapeHtml(normalizeText(entry.path) || "/api/start")}}</span>`,
+          `<span>请求：${{escapeHtml(requestId)}}</span>`,
+          `<span>CF-Ray：${{escapeHtml(cfRay)}}</span>`,
+          host ? `<span>Host：${{escapeHtml(host)}}</span>` : "",
+          forwardedProto ? `<span>协议：${{escapeHtml(forwardedProto)}}</span>` : "",
+        ].join("");
+        const viewerMeta = [
+          normalizeText(entry.ownerDisplay) ? `<span>访客：${{escapeHtml(entry.ownerDisplay)}}</span>` : "",
+          userAgent ? `<span>UA：${{escapeHtml(userAgent)}}</span>` : "",
+        ].join("");
+        return `
+          <li class="audit-item">
+            <div class="audit-top">
+              <div class="audit-title">${{escapeHtml(title)}}</div>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span class="badge">${{escapeHtml(entry.outcomeLabel || entry.outcome || "未知")}}</span>
+                <span class="muted">${{escapeHtml(normalizeText(entry.recordedAt) || "-")}}</span>
+              </div>
+            </div>
+            <div class="audit-meta">${{addressMeta}}</div>
+            <div class="audit-meta">${{requestMeta}}</div>
+            ${{viewerMeta ? `<div class="audit-meta">${{viewerMeta}}</div>` : ""}}
+            ${{errorLine}}
+          </li>
+        `;
+      }}).join("");
     }}
 
     function escapeHtml(value) {{
@@ -3007,9 +3640,11 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       }}
       renderStatus(snapshot);
       renderHistory(snapshot);
+      renderTriggerAudit(snapshot);
       if (detailWasRendered) {{
         renderDetail(snapshot);
       }}
+      decorateClientIp(snapshot);
       }})();
       snapshotFetchPromise = fetchTask;
       try {{
@@ -3089,6 +3724,45 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
       detailSuspendUntil = 0;
       await fetchSnapshot({{ forceDetail: true }});
     }});
+    document.getElementById("history-manage-toggle").addEventListener("click", () => {{
+      setHistoryManageMode(!historyManageMode);
+    }});
+    document.getElementById("history-pin-selected").addEventListener("click", async () => {{
+      const itemIds = historySelectionList(currentSnapshot)
+        .filter((item) => selectedHistoryKeys.has(normalizeText(item?.selectionKey || item?.runId)))
+        .filter((item) => canPinHistoryItem(item) && !item?.pinned)
+        .map((item) => historySurfaceItemId(item))
+        .filter(Boolean);
+      if (!itemIds.length) {{
+        return;
+      }}
+      try {{
+        await updateHistoryPinnedState(itemIds, true);
+        applyActionMessage("已将所选任务加入置顶。", "success");
+      }} catch (error) {{
+        applyActionMessage(error.message || "批量置顶失败。", "error");
+      }}
+    }});
+    document.getElementById("history-unpin-selected").addEventListener("click", async () => {{
+      const itemIds = historySelectionList(currentSnapshot)
+        .filter((item) => selectedHistoryKeys.has(normalizeText(item?.selectionKey || item?.runId)))
+        .filter((item) => canPinHistoryItem(item) && item?.pinned)
+        .map((item) => historySurfaceItemId(item))
+        .filter(Boolean);
+      if (!itemIds.length) {{
+        return;
+      }}
+      try {{
+        await updateHistoryPinnedState(itemIds, false);
+        applyActionMessage("已取消所选任务的置顶。", "success");
+      }} catch (error) {{
+        applyActionMessage(error.message || "批量取消置顶失败。", "error");
+      }}
+    }});
+    document.getElementById("history-clear-selection").addEventListener("click", () => {{
+      selectedHistoryKeys = new Set();
+      rerenderHistoryFromState();
+    }});
     document.getElementById("fill-last-btn").addEventListener("click", () => {{
       applyRequestToForm(currentSnapshot?.lastRequest || {{}});
       applyActionMessage("已载入上一次请求。", "success");
@@ -3164,3 +3838,7 @@ def render_content_workbench_html(*, project_name: str, refresh_seconds: int) ->
   </script>
 </body>
 </html>"""
+    return apply_workbench_split_layout(
+        page_html,
+        body_attributes=('data-workbench-view="split-scroll"',),
+    )

@@ -205,6 +205,9 @@ def validate_workbench_request(project_dir: Path, payload: dict[str, Any]) -> di
     owner_display = _normalize_text(payload.get("ownerDisplay"))
     if owner_display:
         normalized["ownerDisplay"] = owner_display
+    client_ip = _normalize_text(payload.get("clientIp"))
+    if client_ip:
+        normalized["clientIp"] = client_ip
     if source_kind == SOURCE_KIND_SCENE_DRAFT_TEXT:
         scene_draft_text = str(payload.get("sceneDraftText", "")).strip()
         if not scene_draft_text:
@@ -424,6 +427,7 @@ def _write_summary(
         "endStage": request["endStage"],
         "endStageLabel": END_STAGE_LABELS[request["endStage"]],
         "label": request["label"],
+        "clientIp": str(request.get("clientIp", "")).strip(),
         "sourceMeta": source_meta,
         "creativePackagePath": str(bundle.creative_dir / "05_creative_package.json") if (bundle.creative_dir / "05_creative_package.json").exists() else "",
         "socialPostPackagePath": str(bundle.social_post_dir / "01_social_post_package.json") if (bundle.social_post_dir / "01_social_post_package.json").exists() else "",

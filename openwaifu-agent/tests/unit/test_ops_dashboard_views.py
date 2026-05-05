@@ -21,6 +21,11 @@ class OpsDashboardViewsTests(unittest.TestCase):
         self.assertIn("preview-image", html)
         self.assertIn("recent-runs", html)
         self.assertIn("events", html)
+        self.assertIn("/api/display-order/pin", html)
+        self.assertIn("/api/display-order/reorder", html)
+        self.assertIn("data-pin-run", html)
+        self.assertIn("data-recent-run-drag-item", html)
+        self.assertIn("置顶结果", html)
 
     def test_render_run_detail_html_contains_detail_panel_elements(self):
         html = render_run_detail_html(

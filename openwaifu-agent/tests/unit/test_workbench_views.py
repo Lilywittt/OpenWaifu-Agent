@@ -8,6 +8,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from workbench.views import render_content_workbench_html
+from workbench.views_lab import render_content_workbench_lab_html
 
 
 class WorkbenchViewsTests(unittest.TestCase):
@@ -24,6 +25,39 @@ class WorkbenchViewsTests(unittest.TestCase):
             'snapshot?.identity?.workbenchTitle || "<img src=x onerror=1>\\"quoted\\"";',
             html,
         )
+
+    def test_render_workbench_html_contains_display_order_controls(self):
+        html = render_content_workbench_html(
+            project_name="OpenWaifu Agent",
+            refresh_seconds=5,
+        )
+
+        self.assertIn('id="history-manage-toggle"', html)
+        self.assertIn('id="history-manage-bar"', html)
+        self.assertIn("/api/display-order/pin", html)
+        self.assertIn("/api/display-order/reorder", html)
+        self.assertIn("data-history-pin-toggle", html)
+        self.assertIn("data-history-drag-item", html)
+        self.assertIn('data-workbench-view="split-scroll"', html)
+        self.assertIn('data-workbench-workspace', html)
+        self.assertIn('setAttribute("data-workbench-pane", "left")', html)
+        self.assertIn('setAttribute("data-workbench-pane", "right")', html)
+        self.assertIn("__OPENWAIFU_WORKBENCH_SPLIT_READY__", html)
+
+    def test_render_workbench_lab_html_wraps_production_view_with_split_scroll_experiment(self):
+        html = render_content_workbench_lab_html(
+            project_name="OpenWaifu Agent",
+            refresh_seconds=5,
+        )
+
+        self.assertIn('data-lab-view="split-scroll"', html)
+        self.assertIn('data-workbench-view="split-scroll"', html)
+        self.assertIn('data-workbench-workspace', html)
+        self.assertIn('setAttribute("data-workbench-pane", "left")', html)
+        self.assertIn('setAttribute("data-workbench-pane", "right")', html)
+        self.assertIn("body.workbench-split-root", html)
+        self.assertIn("__OPENWAIFU_WORKBENCH_SPLIT_READY__", html)
+        self.assertIn('id="history-manage-toggle"', html)
 
 
 if __name__ == "__main__":

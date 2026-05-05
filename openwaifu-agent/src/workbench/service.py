@@ -35,10 +35,17 @@ from run_detail_store import (
 )
 from sidecar_control import sidecar_logs_root
 from test_pipeline import validate_workbench_request
-from workbench.identity import WorkbenchViewer, resolve_workbench_viewer
+from workbench.identity import (
+    WorkbenchRequestContext,
+    WorkbenchViewer,
+    resolve_workbench_request_context,
+    resolve_workbench_viewer,
+)
 from workbench.profile import PRIVATE_PROFILE, WorkbenchProfile
 from .store import (
     DEFAULT_HISTORY_LIMIT,
+    append_task_trigger_audit_record,
+    build_task_trigger_audit_snapshot,
     record_terminal_workbench_payload,
     build_content_workbench_snapshot,
     can_access_workbench_run,
@@ -48,11 +55,13 @@ from .store import (
     delete_workbench_run,
     finalize_workbench_runtime,
     migrate_legacy_content_workbench_state,
+    pin_workbench_surface_items,
     read_active_request,
     read_active_worker,
     read_last_request,
     read_workbench_status,
     reconcile_workbench_runtime_state,
+    reorder_workbench_surface_pins,
     request_workbench_stop,
     toggle_workbench_favorite,
     write_active_request,
@@ -214,6 +223,7 @@ class WorkbenchManager:
             "requestId": uuid4().hex,
             "ownerId": viewer.owner_id,
             "ownerDisplay": viewer.display_name,
+            "clientIp": viewer.client_ip,
         }
         self._assert_public_source_allowed(normalized_request)
         last_request = {key: value for key, value in normalized_request.items() if key != "requestId"}
@@ -335,11 +345,19 @@ def _make_handler(
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
             return
 
-        def _viewer(self) -> WorkbenchViewer:
+        def _request_context(self) -> WorkbenchRequestContext:
+            return resolve_workbench_request_context(
+                headers=self.headers,
+                client_address=self.client_address[0] if self.client_address else "",
+            )
+
+        def _viewer(self, request_context: WorkbenchRequestContext | None = None) -> WorkbenchViewer:
+            context = request_context or self._request_context()
             return resolve_workbench_viewer(
                 profile,
                 headers=self.headers,
                 client_address=self.client_address[0] if self.client_address else "",
+                request_context=context,
             )
 
         def _send_response(self, *, body: bytes, content_type: str, status: int = HTTPStatus.OK) -> None:
@@ -401,7 +419,8 @@ def _make_handler(
                 self.rfile.read(content_length)
 
         def do_GET(self) -> None:  # noqa: N802
-            viewer = self._viewer()
+            request_context = self._request_context()
+            viewer = self._viewer(request_context)
             parsed = urlparse(self.path)
             if parsed.path in ("/", "/index.html", "/lab", "/lab/index.html"):
                 snapshot = build_content_workbench_snapshot(
@@ -482,6 +501,27 @@ def _make_handler(
                     }
                 )
                 return
+            if parsed.path == "/api/task-trigger-audit":
+                if not profile.allow_trigger_audit:
+                    _send_permission_error(self, "当前模式不提供触发审计记录。")
+                    return
+                query = parse_qs(parsed.query)
+                limit_raw = str((query.get("limit") or ["50"])[0])
+                try:
+                    limit_value = int(limit_raw)
+                except (TypeError, ValueError):
+                    limit_value = 50
+                self._send_json(
+                    {
+                        "ok": True,
+                        **build_task_trigger_audit_snapshot(
+                            project_dir,
+                            limit=limit_value,
+                            profile=profile,
+                        ),
+                    }
+                )
+                return
             if parsed.path == "/api/publish/targets":
                 if not profile.allow_publish:
                     _send_permission_error(self, "当前模式不提供发布能力。")
@@ -528,17 +568,38 @@ def _make_handler(
             self._send_json({"ok": False, "error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
         def do_POST(self) -> None:  # noqa: N802
-            viewer = self._viewer()
+            request_context = self._request_context()
+            viewer = self._viewer(request_context)
             parsed = urlparse(self.path)
             if parsed.path == "/api/start":
+                payload: dict[str, Any] = {}
                 try:
                     payload = self._read_json_body()
                     normalized_request = manager.start_task(payload, viewer=viewer)
                 except RuntimeError as exc:
                     message = normalize_spaces(str(exc)) or "无法启动内容生成任务。"
                     status = HTTPStatus.CONFLICT if "正在进行" in message or "执行位" in message else HTTPStatus.BAD_REQUEST
+                    append_task_trigger_audit_record(
+                        project_dir,
+                        viewer=viewer,
+                        request_context=request_context,
+                        request_payload=payload,
+                        outcome="rejected",
+                        error=message,
+                        method="POST",
+                        path=parsed.path,
+                    )
                     self._send_json({"ok": False, "error": message}, status=status)
                     return
+                append_task_trigger_audit_record(
+                    project_dir,
+                    viewer=viewer,
+                    request_context=request_context,
+                    request_payload=normalized_request,
+                    outcome="accepted",
+                    method="POST",
+                    path=parsed.path,
+                )
                 self._send_json({"ok": True, "request": normalized_request})
                 return
             if parsed.path == "/api/stop":
@@ -667,6 +728,40 @@ def _make_handler(
                         "path": review_path,
                     }
                 )
+                return
+            if parsed.path == "/api/display-order/pin":
+                try:
+                    payload = self._read_json_body()
+                    result = pin_workbench_surface_items(
+                        project_dir,
+                        payload,
+                        viewer=viewer,
+                        profile=profile,
+                    )
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "无法更新置顶状态。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, **result})
+                return
+            if parsed.path == "/api/display-order/reorder":
+                try:
+                    payload = self._read_json_body()
+                    result = reorder_workbench_surface_pins(
+                        project_dir,
+                        payload,
+                        viewer=viewer,
+                        profile=profile,
+                    )
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": normalize_spaces(str(exc)) or "无法更新置顶顺序。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, **result})
                 return
             if parsed.path == "/api/toggle-favorite":
                 if not profile.allow_favorites:

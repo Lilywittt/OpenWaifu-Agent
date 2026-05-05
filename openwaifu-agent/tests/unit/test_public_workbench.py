@@ -88,7 +88,7 @@ class PublicWorkbenchTests(unittest.TestCase):
                     }
                 )
 
-    def test_public_snapshot_only_returns_current_owner_history(self):
+    def test_public_snapshot_returns_shared_history(self):
         with TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             run_a = runs_root(project_dir) / "2026-04-21T20-00-00_public_a"
@@ -140,11 +140,26 @@ class PublicWorkbenchTests(unittest.TestCase):
                 ),
                 profile=PUBLIC_PROFILE,
             )
+            selected_other_snapshot = build_content_workbench_snapshot(
+                project_dir,
+                selected_run_id=run_b.name,
+                viewer=WorkbenchViewer(
+                    owner_id="access:me",
+                    display_name="me@example.com",
+                    email="me@example.com",
+                    authenticated=True,
+                    public=True,
+                ),
+                profile=PUBLIC_PROFILE,
+            )
 
-        self.assertEqual([item["runId"] for item in snapshot["history"]], [run_a.name])
+        self.assertEqual([item["runId"] for item in snapshot["history"]], [run_a.name, run_b.name])
         self.assertEqual([item["id"] for item in snapshot["config"]["historyFilters"]], ["active", "all"])
         self.assertFalse(snapshot["config"]["permissions"]["allowFavorites"])
         self.assertFalse(snapshot["config"]["permissions"]["allowDeleteRun"])
+        self.assertTrue(snapshot["config"]["permissions"]["shareHistoryAcrossViewers"])
+        self.assertIsNotNone(selected_other_snapshot["selectedRunDetail"])
+        self.assertEqual(selected_other_snapshot["selectedRunDetail"]["runId"], run_b.name)
 
     def test_public_snapshot_masks_running_task_from_other_owner(self):
         with TemporaryDirectory() as temp_dir:

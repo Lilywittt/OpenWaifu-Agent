@@ -530,6 +530,7 @@ def _build_run_detail_snapshot_from_run_dir(
         "runRoot": str(run_dir),
         "detailTitle": detail_title,
         "summaryPath": str(run_dir / "output" / "run_summary.json"),
+        "clientIp": normalize_spaces(str(summary_payload.get("clientIp", ""))),
         "sceneDraftPremiseZh": normalize_spaces(str(summary_payload.get("sceneDraftPremiseZh", ""))),
         "socialPostPreview": normalize_spaces(social_post_text),
         "generatedImagePath": str(resolved_image_path) if resolved_image_path else "",

@@ -218,6 +218,58 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
       background: var(--accent-soft);
       color: var(--accent);
     }}
+    .list-group {{
+      display: grid;
+      gap: 10px;
+    }}
+    .list-group + .list-group {{
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }}
+    .list-group-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }}
+    .run-card-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }}
+    .pin-btn,
+    .drag-btn {{
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .pin-btn.active {{
+      background: var(--accent);
+      color: #f7faf9;
+    }}
+    .drag-btn {{
+      background: rgba(47, 111, 99, 0.1);
+      color: var(--accent);
+      cursor: grab;
+    }}
+    .list-item.pinned-item {{
+      border-color: rgba(47, 111, 99, 0.34);
+      background: rgba(216, 236, 231, 0.42);
+    }}
+    .list-item.dragging {{
+      opacity: 0.66;
+    }}
+    .list-item.drop-before {{
+      box-shadow: inset 0 3px 0 var(--accent);
+    }}
+    .list-item.drop-after {{
+      box-shadow: inset 0 -3px 0 var(--accent);
+    }}
     @media (max-width: 1100px) {{
       .span-3, .span-4, .span-6, .span-8 {{ grid-column: span 12; }}
     }}
@@ -329,6 +381,8 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
 
   <script>
     const REFRESH_MS = {refresh_ms};
+    let currentDashboardSnapshot = null;
+    let draggedRecentRunId = "";
 
     function escapeHtml(value) {{
       return String(value ?? "")
@@ -397,7 +451,247 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
       return "status-warn";
     }}
 
+    function reportDashboardAction(message, tone = "status-ok") {{
+      const pill = document.getElementById("service-pill");
+      pill.textContent = text(message);
+      pill.className = `pill ${{tone}}`;
+    }}
+
+    function recentRunsSurfaceId(data = currentDashboardSnapshot) {{
+      return text(data?.ordering?.recentRunsSurfaceId, "ops_recent_runs");
+    }}
+
+    function recentRunGroups(data) {{
+      const recentRuns = Array.isArray(data?.recentRuns) ? data.recentRuns : [];
+      return {{
+        pinned: recentRuns.filter((item) => Boolean(item?.pinned)),
+        regular: recentRuns.filter((item) => !Boolean(item?.pinned)),
+      }};
+    }}
+
+    function clearRecentRunDropIndicators() {{
+      document.querySelectorAll("[data-recent-run-drag-item]").forEach((element) => {{
+        element.classList.remove("dragging", "drop-before", "drop-after");
+      }});
+    }}
+
+    function reorderIdsByDrop(itemIds, draggedId, targetId, position) {{
+      const orderedIds = Array.from(itemIds || []).map((item) => text(item, "")).filter(Boolean);
+      const normalizedDraggedId = text(draggedId, "");
+      const normalizedTargetId = text(targetId, "");
+      if (!normalizedDraggedId || !normalizedTargetId || normalizedDraggedId === normalizedTargetId) {{
+        return orderedIds;
+      }}
+      const draggedIndex = orderedIds.indexOf(normalizedDraggedId);
+      const targetIndex = orderedIds.indexOf(normalizedTargetId);
+      if (draggedIndex < 0 || targetIndex < 0) {{
+        return orderedIds;
+      }}
+      orderedIds.splice(draggedIndex, 1);
+      const insertionIndex = position === "after"
+        ? (targetIndex >= draggedIndex ? targetIndex : targetIndex + 1)
+        : (targetIndex >= draggedIndex ? targetIndex - 1 : targetIndex);
+      const safeIndex = Math.min(Math.max(insertionIndex, 0), orderedIds.length);
+      orderedIds.splice(safeIndex, 0, normalizedDraggedId);
+      return orderedIds;
+    }}
+
+    async function updateRecentRunPinnedState(itemIds, pinned) {{
+      const normalizedItemIds = Array.from(new Set((itemIds || []).map((item) => text(item, "")).filter(Boolean)));
+      if (!normalizedItemIds.length) {{
+        return;
+      }}
+      await submitJson("/api/display-order/pin", {{
+        surfaceId: recentRunsSurfaceId(),
+        itemIds: normalizedItemIds,
+        pinned: Boolean(pinned),
+      }});
+      await loadSnapshot();
+    }}
+
+    async function reorderRecentRuns(itemIds) {{
+      const normalizedItemIds = Array.from(new Set((itemIds || []).map((item) => text(item, "")).filter(Boolean)));
+      if (!normalizedItemIds.length) {{
+        return;
+      }}
+      await submitJson("/api/display-order/reorder", {{
+        surfaceId: recentRunsSurfaceId(),
+        orderedItemIds: normalizedItemIds,
+      }});
+      await loadSnapshot();
+    }}
+
+    function renderRecentRuns(data) {{
+      const container = document.getElementById("recent-runs");
+      const groups = recentRunGroups(data);
+      const allItems = [...groups.pinned, ...groups.regular];
+      if (!allItems.length) {{
+        container.innerHTML = '<div class="empty">最近没有成功产物。</div>';
+        return;
+      }}
+
+      const renderItems = (items, options = {{}}) => items.map((item) => {{
+        const runId = text(item.runId, "");
+        const title = text(item.sceneDraftPremiseZh, runId || "未命名结果");
+        const pinButtonLabel = item.pinned ? "取消置顶" : "置顶";
+        const dragHandle = options.pinnedSection ? `
+          <button
+            type="button"
+            class="drag-btn"
+            data-recent-run-action-stop="1"
+            title="拖动调整置顶顺序"
+          >拖动排序</button>
+        ` : "";
+        const dragAttrs = options.pinnedSection
+          ? ` data-recent-run-drag-item="${{escapeHtml(runId)}}" draggable="true"`
+          : "";
+        return `
+          <li class="list-item${{item.pinned ? " pinned-item" : ""}}"${{dragAttrs}}>
+            ${{
+              item.generatedImagePath
+                ? `<a class="preview-link" href="${{escapeHtml(text(item.imageRoute))}}" target="_blank" rel="noreferrer">
+                     <img class="preview-image" src="${{escapeHtml(text(item.imageRoute))}}" alt="${{escapeHtml(title)}}" loading="lazy">
+                     <strong>${{escapeHtml(title)}}</strong>
+                   </a>`
+                : `<strong>${{escapeHtml(title)}}</strong>`
+            }}
+            <div class="mono">${{escapeHtml(runId)}}</div>
+            <div>${{escapeHtml(text(item.socialPostPreview, "无社媒文案预览"))}}</div>
+            <div class="muted">发布时间：${{escapeHtml(text(item.publishedAt, "未记录"))}}</div>
+            <div class="run-card-actions">
+              ${{item.favorite ? '<span class="badge">收藏</span>' : ""}}
+              ${{dragHandle}}
+              <button
+                type="button"
+                class="pin-btn${{item.pinned ? " active" : ""}}"
+                data-recent-run-action-stop="1"
+                data-pin-run="${{escapeHtml(runId)}}"
+              >${{pinButtonLabel}}</button>
+              <button
+                type="button"
+                data-recent-run-action-stop="1"
+                data-toggle-favorite-run="${{escapeHtml(runId)}}"
+                data-run-root="${{escapeHtml(text(item.runRoot))}}"
+                data-scene-title="${{escapeHtml(text(item.sceneDraftPremiseZh))}}"
+              >${{item.favorite ? "取消收藏" : "加入收藏"}}</button>
+              <a class="action-link" href="${{escapeHtml(text(item.detailRoute, '#'))}}">查看内容详情</a>
+            </div>
+          </li>
+        `;
+      }}).join("");
+
+      const pinnedSection = `
+        <section class="list-group">
+          <div class="list-group-head">
+            <strong>置顶结果</strong>
+            <span>${{groups.pinned.length ? `共 ${{groups.pinned.length}} 项，可拖动排序` : "当前没有置顶结果"}}</span>
+          </div>
+          ${{groups.pinned.length ? `<ul class="list">${{renderItems(groups.pinned, {{ pinnedSection: true }})}}</ul>` : '<div class="empty">当前没有置顶结果。</div>'}}
+        </section>
+      `;
+      const regularSection = `
+        <section class="list-group">
+          <div class="list-group-head">
+            <strong>最近结果</strong>
+            <span>当前显示 ${{groups.regular.length}} 项</span>
+          </div>
+          ${{groups.regular.length ? `<ul class="list">${{renderItems(groups.regular)}}</ul>` : '<div class="empty">当前没有未置顶结果。</div>'}}
+        </section>
+      `;
+      container.innerHTML = pinnedSection + regularSection;
+
+      document.querySelectorAll("[data-toggle-favorite-run]").forEach((button) => {{
+        button.addEventListener("click", async () => {{
+          button.disabled = true;
+          try {{
+            await toggleFavorite({{
+              kind: "run",
+              runId: text(button.getAttribute("data-toggle-favorite-run"), ""),
+              runRoot: text(button.getAttribute("data-run-root"), ""),
+              label: text(button.getAttribute("data-scene-title"), ""),
+              sceneDraftPremiseZh: text(button.getAttribute("data-scene-title"), ""),
+            }});
+            reportDashboardAction("收藏状态已更新。", "status-ok");
+          }} catch (error) {{
+            button.disabled = false;
+            reportDashboardAction(error.message || "更新收藏失败。", "status-danger");
+          }}
+        }});
+      }});
+
+      document.querySelectorAll("[data-pin-run]").forEach((button) => {{
+        button.addEventListener("click", async () => {{
+          const runId = text(button.getAttribute("data-pin-run"), "");
+          if (!runId) {{
+            return;
+          }}
+          const nextPinned = !button.classList.contains("active");
+          button.disabled = true;
+          try {{
+            await updateRecentRunPinnedState([runId], nextPinned);
+            reportDashboardAction(nextPinned ? "已加入置顶。" : "已取消置顶。", "status-ok");
+          }} catch (error) {{
+            button.disabled = false;
+            reportDashboardAction(error.message || "更新置顶状态失败。", "status-danger");
+          }}
+        }});
+      }});
+
+      document.querySelectorAll("[data-recent-run-drag-item]").forEach((element) => {{
+        element.addEventListener("dragstart", (event) => {{
+          const runId = text(element.getAttribute("data-recent-run-drag-item"), "");
+          if (!runId) {{
+            event.preventDefault();
+            return;
+          }}
+          draggedRecentRunId = runId;
+          clearRecentRunDropIndicators();
+          element.classList.add("dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", runId);
+        }});
+        element.addEventListener("dragend", () => {{
+          draggedRecentRunId = "";
+          clearRecentRunDropIndicators();
+        }});
+        element.addEventListener("dragover", (event) => {{
+          const targetId = text(element.getAttribute("data-recent-run-drag-item"), "");
+          if (!draggedRecentRunId || !targetId || draggedRecentRunId === targetId) {{
+            return;
+          }}
+          event.preventDefault();
+          clearRecentRunDropIndicators();
+          const rect = element.getBoundingClientRect();
+          const position = event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
+          element.classList.add(position === "after" ? "drop-after" : "drop-before");
+        }});
+        element.addEventListener("drop", async (event) => {{
+          event.preventDefault();
+          const targetId = text(element.getAttribute("data-recent-run-drag-item"), "");
+          if (!draggedRecentRunId || !targetId || draggedRecentRunId === targetId) {{
+            clearRecentRunDropIndicators();
+            return;
+          }}
+          const rect = element.getBoundingClientRect();
+          const position = event.clientY >= rect.top + rect.height / 2 ? "after" : "before";
+          const orderedIds = recentRunGroups(currentDashboardSnapshot).pinned
+            .map((item) => text(item.runId, ""))
+            .filter(Boolean);
+          const nextOrder = reorderIdsByDrop(orderedIds, draggedRecentRunId, targetId, position);
+          draggedRecentRunId = "";
+          clearRecentRunDropIndicators();
+          try {{
+            await reorderRecentRuns(nextOrder);
+            reportDashboardAction("置顶顺序已更新。", "status-ok");
+          }} catch (error) {{
+            reportDashboardAction(error.message || "更新置顶顺序失败。", "status-danger");
+          }}
+        }});
+      }});
+    }}
+
     function renderSnapshot(data) {{
+      currentDashboardSnapshot = data;
       const service = data.service || {{}};
       const queue = data.queue || {{}};
       const sampling = data.sampling || {{}};
@@ -484,52 +778,7 @@ def render_dashboard_html(*, project_name: str, refresh_seconds: int) -> str:
         "最近还没有已完成或失败的任务记录。",
       );
 
-      renderSimpleList(
-        "recent-runs",
-        data.recentRuns || [],
-        (item) => `
-          <li class="list-item">
-            ${{
-              item.generatedImagePath
-                ? `<a class="preview-link" href="${{escapeHtml(text(item.imageRoute))}}" target="_blank" rel="noreferrer">
-                     <img class="preview-image" src="${{escapeHtml(text(item.imageRoute))}}" alt="${{escapeHtml(text(item.sceneDraftPremiseZh, item.runId))}}" loading="lazy">
-                     <strong>${{escapeHtml(text(item.sceneDraftPremiseZh, item.runId))}}</strong>
-                   </a>`
-                : `<strong>${{escapeHtml(text(item.sceneDraftPremiseZh, item.runId))}}</strong>`
-            }}
-            <div class="mono">${{escapeHtml(text(item.runId))}}</div>
-            <div>${{escapeHtml(text(item.socialPostPreview, "无社媒文案预览"))}}</div>
-            <div class="muted">发布时间：${{escapeHtml(text(item.publishedAt, "未记录"))}}</div>
-            <div>${{item.favorite ? '<span class="badge">收藏</span>' : ""}}</div>
-            <button
-              type="button"
-              data-toggle-favorite-run="${{escapeHtml(text(item.runId))}}"
-              data-run-root="${{escapeHtml(text(item.runRoot))}}"
-              data-scene-title="${{escapeHtml(text(item.sceneDraftPremiseZh))}}">
-              ${{item.favorite ? "取消收藏" : "加入收藏"}}
-            </button>
-            <a class="action-link" href="${{escapeHtml(text(item.detailRoute, '#'))}}">查看内容详情</a>
-          </li>
-        `,
-        "最近没有成功产物。",
-      );
-      document.querySelectorAll("[data-toggle-favorite-run]").forEach((button) => {{
-        button.addEventListener("click", async () => {{
-          button.disabled = true;
-          try {{
-            await toggleFavorite({{
-              kind: "run",
-              runId: text(button.getAttribute("data-toggle-favorite-run"), ""),
-              runRoot: text(button.getAttribute("data-run-root"), ""),
-              label: text(button.getAttribute("data-scene-title"), ""),
-              sceneDraftPremiseZh: text(button.getAttribute("data-scene-title"), ""),
-            }});
-          }} catch (error) {{
-            button.disabled = false;
-            throw error;
-          }}
-        }});
-      }});
+      renderRecentRuns(data);
 
       renderSimpleList(
         "events",

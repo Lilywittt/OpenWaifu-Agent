@@ -9,6 +9,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from display_order import (
+    SCOPE_GLOBAL,
+    SURFACE_OPS_RECENT_RUNS,
+    apply_surface_order,
+    pin_surface_items,
+    reorder_surface_pins,
+)
 from io_utils import normalize_spaces
 from review_favorites import (
     FAVORITE_KIND_RUN,
@@ -527,7 +534,16 @@ def _read_recent_runs(
         )
         if len(recent) >= max(int(run_limit), 1):
             break
-    return recent
+    ordered = apply_surface_order(
+        project_dir,
+        recent,
+        surface_id=SURFACE_OPS_RECENT_RUNS,
+        scope_kind=SCOPE_GLOBAL,
+        scope_id="ops_dashboard",
+        item_kind="run",
+        item_id_getter=lambda item: item.get("runId", ""),
+    )
+    return ordered["items"]
 
 
 def _runs_root_signature(root: Path) -> int:
@@ -593,6 +609,39 @@ def toggle_dashboard_favorite(project_dir: Path, payload: dict[str, Any]) -> dic
     return toggle_review_favorite(Path(project_dir).resolve(), payload)
 
 
+def pin_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    raw_values = payload.get("itemIds", [])
+    item_ids = raw_values if isinstance(raw_values, list) else [raw_values]
+    normalized_item_ids = [normalize_spaces(str(value)) for value in item_ids if normalize_spaces(str(value))]
+    if not normalized_item_ids:
+        raise RuntimeError("itemIds 不能为空。")
+    return pin_surface_items(
+        Path(project_dir).resolve(),
+        surface_id=SURFACE_OPS_RECENT_RUNS,
+        scope_kind=SCOPE_GLOBAL,
+        scope_id="ops_dashboard",
+        item_kind="run",
+        item_ids=normalized_item_ids,
+        pinned=bool(payload.get("pinned", False)),
+    )
+
+
+def reorder_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    raw_values = payload.get("orderedItemIds", [])
+    item_ids = raw_values if isinstance(raw_values, list) else [raw_values]
+    normalized_item_ids = [normalize_spaces(str(value)) for value in item_ids if normalize_spaces(str(value))]
+    if not normalized_item_ids:
+        raise RuntimeError("orderedItemIds 不能为空。")
+    return reorder_surface_pins(
+        Path(project_dir).resolve(),
+        surface_id=SURFACE_OPS_RECENT_RUNS,
+        scope_kind=SCOPE_GLOBAL,
+        scope_id="ops_dashboard",
+        item_kind="run",
+        ordered_item_ids=normalized_item_ids,
+    )
+
+
 def build_dashboard_snapshot(
     project_dir: Path,
     *,
@@ -632,6 +681,9 @@ def build_dashboard_snapshot(
             events_snapshot=events,
             run_limit=max(int(run_limit), 1),
         ),
+        "ordering": {
+            "recentRunsSurfaceId": SURFACE_OPS_RECENT_RUNS,
+        },
         "commands": {
             "dashboardStart": "python run_ops_dashboard.py",
             "dashboardStatus": "python run_ops_dashboard.py status",

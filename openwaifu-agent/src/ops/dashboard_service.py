@@ -21,6 +21,8 @@ from .dashboard_store import (
     DEFAULT_RUN_LIMIT,
     build_dashboard_run_detail_snapshot,
     build_dashboard_snapshot,
+    pin_dashboard_recent_runs,
+    reorder_dashboard_recent_runs,
     resolve_dashboard_generated_image_artifact,
     toggle_dashboard_favorite,
 )
@@ -184,6 +186,30 @@ def _make_handler(
 
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
+            if parsed.path == "/api/display-order/pin":
+                try:
+                    payload = self._read_json_body()
+                    result = pin_dashboard_recent_runs(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": str(exc).strip() or "无法更新置顶状态。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, **result})
+                return
+            if parsed.path == "/api/display-order/reorder":
+                try:
+                    payload = self._read_json_body()
+                    result = reorder_dashboard_recent_runs(project_dir, payload)
+                except RuntimeError as exc:
+                    self._send_json(
+                        {"ok": False, "error": str(exc).strip() or "无法更新置顶顺序。"},
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
+                    return
+                self._send_json({"ok": True, **result})
+                return
             if parsed.path == "/api/toggle-favorite":
                 try:
                     payload = self._read_json_body()

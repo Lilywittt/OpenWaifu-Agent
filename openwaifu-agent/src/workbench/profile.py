@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Any
 
 from io_utils import normalize_spaces
 from test_pipeline import (
@@ -26,6 +25,9 @@ PUBLIC_SOURCE_KINDS = (
     SOURCE_KIND_PROMPT_PACKAGE_TEXT,
 )
 
+_PRIVATE_TITLE = "\u5185\u5bb9\u6d4b\u8bd5\u5de5\u4f5c\u53f0"
+_PUBLIC_TITLE = "\u5185\u5bb9\u4f53\u9a8c\u5de5\u4f5c\u53f0"
+
 
 @dataclass(frozen=True)
 class WorkbenchProfile:
@@ -33,6 +35,9 @@ class WorkbenchProfile:
     sidecar_id: str
     title: str
     public: bool
+    share_history_across_viewers: bool
+    allow_history_pin_management: bool
+    allow_trigger_audit: bool
     allow_publish: bool
     allow_review_path: bool
     allow_favorites: bool
@@ -62,8 +67,11 @@ class WorkbenchRuntimeSettings:
 PRIVATE_PROFILE = WorkbenchProfile(
     profile_id=PROFILE_PRIVATE,
     sidecar_id="content_workbench",
-    title="内容测试工作台",
+    title=_PRIVATE_TITLE,
     public=False,
+    share_history_across_viewers=True,
+    allow_history_pin_management=True,
+    allow_trigger_audit=True,
     allow_publish=True,
     allow_review_path=True,
     allow_favorites=True,
@@ -78,8 +86,11 @@ PRIVATE_PROFILE = WorkbenchProfile(
 PUBLIC_PROFILE = WorkbenchProfile(
     profile_id=PROFILE_PUBLIC,
     sidecar_id="public_workbench",
-    title="内容体验工作台",
+    title=_PUBLIC_TITLE,
     public=True,
+    share_history_across_viewers=True,
+    allow_history_pin_management=False,
+    allow_trigger_audit=False,
     allow_publish=False,
     allow_review_path=False,
     allow_favorites=False,
