@@ -12,7 +12,7 @@
   "assetTypeId": "event_cg",
   "titleZh": "放课后教室事件 CG",
   "status": "draft",
-  "characterIds": ["shan_xiaoyi"],
+  "characterIds": ["character_alpha"],
   "workflowPresetId": "candidate_simple",
   "exportPresetId": "event_cg_1920x1080",
   "createdAt": "2026-05-16T00:00:00+08:00",
@@ -36,7 +36,7 @@
 
 ```json
 {
-  "characterId": "shan_xiaoyi",
+  "characterId": "character_alpha",
   "outfitId": "school_uniform_summer",
   "expressionId": "shy_smile",
   "poseBriefZh": "半身正面，双手抱书，视线略微偏向一侧。",
