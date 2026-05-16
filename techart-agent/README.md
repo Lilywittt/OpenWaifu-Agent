@@ -28,6 +28,7 @@ techart-agent/
   projects/    项目资产根目录，本地项目数据默认本地管理
   runtime/     本地运行态、缓存和临时产物
   src/         后续产品代码
+  skills/      Codex skill 对接说明与入口约定
   tools/       检查、导入、导出和维护脚本
 ```
 
@@ -39,4 +40,5 @@ techart-agent/
 - [任务契约](./docs/task_contract.md)
 - [工作流契约](./docs/workflow_contract.md)
 - [Prompt 治理](./docs/prompt_governance.md)
+- [客户端与 Handoff](./docs/client_handoff_architecture.md)
 - [审图反馈](./docs/review_feedback.md)

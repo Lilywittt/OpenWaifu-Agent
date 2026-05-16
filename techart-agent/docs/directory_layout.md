@@ -12,6 +12,7 @@ techart-agent/
   projects/
   runtime/
   src/
+  skills/
   tools/
 ```
 
@@ -26,6 +27,8 @@ techart-agent/
 `runtime/` 保存缓存、临时图、队列状态和生成过程文件。
 
 `src/` 保存产品代码，按资产、任务、工作流、审图、导出和反馈分层。
+
+`skills/` 保存 Codex skill 对接说明和入口约定。Skill 通过公开 API 或命令调用产品能力。
 
 `tools/` 保存检查、导入、导出和维护脚本。
 
