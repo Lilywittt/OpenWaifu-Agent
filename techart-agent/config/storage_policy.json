@@ -3,6 +3,8 @@
   "trackedRoots": [
     "config",
     "docs",
+    "prompts",
+    "skills",
     "src",
     "tools"
   ],

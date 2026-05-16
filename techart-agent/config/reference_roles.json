@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "referenceRoles": [
+    {
+      "id": "face_identity",
+      "displayNameZh": "面部身份",
+      "purposeZh": "维持脸型、眼型、瞳色、刘海和脸部气质。",
+      "assetSources": ["character.model_sheets", "character.detail_sheets", "character.quality.approved_examples"]
+    },
+    {
+      "id": "body_turnaround",
+      "displayNameZh": "三视图与体型",
+      "purposeZh": "维持头身比例、身体轮廓、发型体块和背面结构。",
+      "assetSources": ["character.model_sheets"]
+    },
+    {
+      "id": "detail_anchor",
+      "displayNameZh": "细节锚点",
+      "purposeZh": "维持眼睛、发饰、纹样、袖口、发尾和专属配饰。",
+      "assetSources": ["character.detail_sheets", "character.accessories"]
+    },
+    {
+      "id": "outfit_design",
+      "displayNameZh": "服装设定",
+      "purposeZh": "维持本次任务指定服装的版型、层级、颜色、材质和细节。",
+      "assetSources": ["character.outfits"]
+    },
+    {
+      "id": "pose_control",
+      "displayNameZh": "姿态控制",
+      "purposeZh": "提供姿态、动作、身体重心和镜头关系的控制图或参考图。",
+      "assetSources": ["character.pose_sheets", "task.inputs"]
+    },
+    {
+      "id": "composition_control",
+      "displayNameZh": "构图控制",
+      "purposeZh": "提供草图、线稿、深度图、边缘图或已有候选图提取出的构图约束。",
+      "assetSources": ["task.inputs", "task.candidates", "task.refinements"]
+    },
+    {
+      "id": "style_reference",
+      "displayNameZh": "画风参考",
+      "purposeZh": "维持项目画风、线条、上色、光影和完成度。",
+      "assetSources": ["project.art_style", "character.quality.approved_examples"]
+    }
+  ]
+}

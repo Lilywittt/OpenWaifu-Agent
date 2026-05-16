@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "bindings": [
+    {
+      "workflowPresetId": "candidate_simple",
+      "assetRoles": [
+        {"role": "face_identity", "required": true, "maxItems": 2, "lane": "reference"},
+        {"role": "body_turnaround", "required": true, "maxItems": 2, "lane": "reference"},
+        {"role": "outfit_design", "required": true, "maxItems": 2, "lane": "reference"},
+        {"role": "style_reference", "required": false, "maxItems": 1, "lane": "reference"}
+      ]
+    },
+    {
+      "workflowPresetId": "candidate_controlled",
+      "assetRoles": [
+        {"role": "face_identity", "required": true, "maxItems": 2, "lane": "identity_adapter"},
+        {"role": "body_turnaround", "required": true, "maxItems": 2, "lane": "reference"},
+        {"role": "outfit_design", "required": true, "maxItems": 2, "lane": "reference"},
+        {"role": "pose_control", "required": true, "maxItems": 1, "lane": "controlnet_pose"},
+        {"role": "composition_control", "required": false, "maxItems": 1, "lane": "controlnet_line_or_depth"},
+        {"role": "style_reference", "required": false, "maxItems": 1, "lane": "style_adapter"}
+      ]
+    },
+    {
+      "workflowPresetId": "refine_selected",
+      "assetRoles": [
+        {"role": "face_identity", "required": true, "maxItems": 1, "lane": "identity_adapter"},
+        {"role": "outfit_design", "required": true, "maxItems": 1, "lane": "reference"},
+        {"role": "composition_control", "required": true, "maxItems": 1, "lane": "img2img_source"},
+        {"role": "detail_anchor", "required": false, "maxItems": 2, "lane": "reference"}
+      ]
+    },
+    {
+      "workflowPresetId": "inpaint_region",
+      "assetRoles": [
+        {"role": "composition_control", "required": true, "maxItems": 1, "lane": "inpaint_source"},
+        {"role": "face_identity", "required": false, "maxItems": 1, "lane": "identity_adapter"},
+        {"role": "outfit_design", "required": false, "maxItems": 1, "lane": "reference"},
+        {"role": "detail_anchor", "required": false, "maxItems": 2, "lane": "reference"}
+      ]
+    },
+    {
+      "workflowPresetId": "export_upscale",
+      "assetRoles": [
+        {"role": "composition_control", "required": true, "maxItems": 1, "lane": "upscale_source"},
+        {"role": "style_reference", "required": false, "maxItems": 1, "lane": "style_reference"}
+      ]
+    }
+  ]
+}

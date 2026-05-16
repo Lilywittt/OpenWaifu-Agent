@@ -40,5 +40,5 @@ techart-agent/
 - [任务契约](./docs/task_contract.md)
 - [工作流契约](./docs/workflow_contract.md)
 - [Prompt 治理](./docs/prompt_governance.md)
-- [客户端与 Handoff](./docs/client_handoff_architecture.md)
+- [本地工作流架构](./docs/local_workflow_architecture.md)
 - [审图反馈](./docs/review_feedback.md)

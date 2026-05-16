@@ -62,6 +62,7 @@ projects/<project_id>/
 tasks/<task_id>/
   task.json
   inputs/
+  production/
   runs/
   candidates/
   refinements/
@@ -73,6 +74,8 @@ tasks/<task_id>/
 `task.json` 保存任务目标、资产类型、角色、画面需求、工作流预设和导出规格。
 
 `inputs/` 保存参考图、草图、遮罩和人工上传材料。
+
+`production/` 保存每次本地工作流运行的生产包，包括资产选择结果、workflow input、控制图副本和运行日志。
 
 `runs/` 保存工作流运行记录。
 

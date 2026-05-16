@@ -11,6 +11,8 @@
       "supports": [
         "text_to_image",
         "image_to_image",
+        "reference_image",
+        "controlnet",
         "inpaint",
         "upscale"
       ]
