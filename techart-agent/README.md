@@ -24,6 +24,7 @@
 techart-agent/
   config/      产品配置、资产类型、导出规格、工作流预设
   docs/        架构说明、数据契约和实施计划
+  prompts/     业务 Prompt 文件，由项目负责人维护正文
   projects/    项目资产根目录，本地项目数据默认本地管理
   runtime/     本地运行态、缓存和临时产物
   src/         后续产品代码
@@ -37,4 +38,5 @@ techart-agent/
 - [角色资产库](./docs/character_asset_library.md)
 - [任务契约](./docs/task_contract.md)
 - [工作流契约](./docs/workflow_contract.md)
+- [Prompt 治理](./docs/prompt_governance.md)
 - [审图反馈](./docs/review_feedback.md)

@@ -8,6 +8,7 @@
 techart-agent/
   config/
   docs/
+  prompts/
   projects/
   runtime/
   src/
@@ -17,6 +18,8 @@ techart-agent/
 `config/` 保存产品配置、资产类型、导出规格、工作流预设、模型后端和审图标签。
 
 `docs/` 保存产品架构、数据契约和实施说明。
+
+`prompts/` 保存业务 Prompt 文件。Prompt 正文由项目负责人维护，代码只负责加载、校验、版本记录和占位符填充。
 
 `projects/` 保存本地项目资产。项目里通常会有图片、模型和人工资料，默认本地管理。
 
