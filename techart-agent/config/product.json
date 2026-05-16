@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "productId": "techart-agent",
+  "displayNameZh": "TechArt Agent",
+  "defaultProjectRoot": "projects",
+  "runtimeRoot": "runtime",
+  "defaultAssetTypeId": "event_cg",
+  "defaultWorkflowPresetId": "candidate_simple",
+  "defaultExportPresetId": "event_cg_1920x1080",
+  "locale": "zh-CN",
+  "encoding": "utf-8"
+}

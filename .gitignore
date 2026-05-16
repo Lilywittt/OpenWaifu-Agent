@@ -10,3 +10,8 @@ openwaifu-agent/runtime/service_state/
 openwaifu-agent/runtime/service_logs/
 openwaifu-agent/runtime/test_batches/
 openwaifu-agent/*.xlsx
+
+techart-agent/runtime/*
+!techart-agent/runtime/.gitignore
+techart-agent/projects/*
+!techart-agent/projects/README.md

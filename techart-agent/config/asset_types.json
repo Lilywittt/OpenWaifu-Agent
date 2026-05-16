@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "assetTypes": [
+    {
+      "id": "event_cg",
+      "displayNameZh": "事件 CG",
+      "purposeZh": "用于剧情关键瞬间、章节高潮、角色互动和宣传图基础稿。",
+      "requiredInputs": [
+        "projectId",
+        "characterIds",
+        "sceneBriefZh",
+        "cameraBriefZh",
+        "moodZh"
+      ],
+      "reviewFocusZh": [
+        "角色识别度",
+        "画面叙事",
+        "角色关系",
+        "情绪表达",
+        "构图",
+        "脸手稳定",
+        "服装正确",
+        "背景层次"
+      ],
+      "defaultExportPresetId": "event_cg_1920x1080"
+    },
+    {
+      "id": "standing",
+      "displayNameZh": "角色立绘",
+      "purposeZh": "用于游戏内常驻展示、角色介绍、服装差分和表情差分基础稿。",
+      "requiredInputs": [
+        "projectId",
+        "characterId",
+        "outfitId",
+        "expressionId",
+        "poseBriefZh"
+      ],
+      "reviewFocusZh": [
+        "角色识别度",
+        "脸型稳定",
+        "发型稳定",
+        "服装结构",
+        "表情清晰",
+        "边缘干净",
+        "透明背景"
+      ],
+      "defaultExportPresetId": "standing_transparent_png"
+    },
+    {
+      "id": "background",
+      "displayNameZh": "背景",
+      "purposeZh": "用于场景底图、章节氛围图和对话场景环境。",
+      "requiredInputs": [
+        "projectId",
+        "locationId",
+        "timeOfDayZh",
+        "lightingZh",
+        "layoutBriefZh"
+      ],
+      "reviewFocusZh": [
+        "空间关系",
+        "光线",
+        "画风统一",
+        "立绘承载",
+        "UI 留白"
+      ],
+      "defaultExportPresetId": "background_1920x1080"
+    },
+    {
+      "id": "prop",
+      "displayNameZh": "道具",
+      "purposeZh": "用于关键物品、UI 展示物、剧情线索物和宣传素材小物件。",
+      "requiredInputs": [
+        "projectId",
+        "propNameZh",
+        "shapeBriefZh",
+        "materialBriefZh",
+        "usageSceneZh"
+      ],
+      "reviewFocusZh": [
+        "轮廓清晰",
+        "材质正确",
+        "剧情识别度",
+        "透明背景",
+        "缩略图可读"
+      ],
+      "defaultExportPresetId": "prop_transparent_png"
+    }
+  ]
+}

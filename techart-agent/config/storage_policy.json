@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "trackedRoots": [
+    "config",
+    "docs",
+    "src",
+    "tools"
+  ],
+  "localOnlyRoots": [
+    "projects",
+    "runtime"
+  ],
+  "artifactRetentionDays": 30,
+  "largeAssetExtensions": [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".psd",
+    ".clip",
+    ".safetensors",
+    ".ckpt"
+  ]
+}

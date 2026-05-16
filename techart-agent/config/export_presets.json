@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "exportPresets": [
+    {
+      "id": "event_cg_1920x1080",
+      "displayNameZh": "事件 CG 1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "format": "png",
+      "transparent": false
+    },
+    {
+      "id": "event_cg_2560x1440",
+      "displayNameZh": "事件 CG 2560x1440",
+      "width": 2560,
+      "height": 1440,
+      "format": "png",
+      "transparent": false
+    },
+    {
+      "id": "standing_transparent_png",
+      "displayNameZh": "角色立绘透明 PNG",
+      "height": 3000,
+      "format": "png",
+      "transparent": true
+    },
+    {
+      "id": "background_1920x1080",
+      "displayNameZh": "背景 1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "format": "png",
+      "transparent": false
+    },
+    {
+      "id": "prop_transparent_png",
+      "displayNameZh": "道具透明 PNG",
+      "height": 1600,
+      "format": "png",
+      "transparent": true
+    },
+    {
+      "id": "social_preview_4_5",
+      "displayNameZh": "社媒预览 4:5",
+      "width": 1080,
+      "height": 1350,
+      "format": "jpg",
+      "transparent": false
+    }
+  ]
+}

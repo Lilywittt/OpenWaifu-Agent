@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "workflowPresets": [
+    {
+      "id": "candidate_simple",
+      "displayNameZh": "候选图快速生成",
+      "stage": "candidate",
+      "purposeZh": "一次生成多张低成本草案，用于选择构图、表情和画面方向。",
+      "defaultBatchSize": 4,
+      "requiresSelectedImage": false,
+      "requiresMask": false
+    },
+    {
+      "id": "candidate_controlled",
+      "displayNameZh": "参考约束候选图",
+      "stage": "candidate",
+      "purposeZh": "基于角色参考图、姿态参考或构图草图生成候选图。",
+      "defaultBatchSize": 4,
+      "requiresSelectedImage": false,
+      "requiresMask": false
+    },
+    {
+      "id": "refine_selected",
+      "displayNameZh": "选中图精修",
+      "stage": "refine",
+      "purposeZh": "保留候选图方向，提高脸、手、服装边缘、光影和背景细节。",
+      "defaultBatchSize": 2,
+      "requiresSelectedImage": true,
+      "requiresMask": false
+    },
+    {
+      "id": "inpaint_region",
+      "displayNameZh": "局部修复",
+      "stage": "inpaint",
+      "purposeZh": "根据用户框选区域修复明确问题。",
+      "defaultBatchSize": 4,
+      "requiresSelectedImage": true,
+      "requiresMask": true
+    },
+    {
+      "id": "export_upscale",
+      "displayNameZh": "高清导出",
+      "stage": "export",
+      "purposeZh": "把完成图转换为项目交付规格。",
+      "defaultBatchSize": 1,
+      "requiresSelectedImage": true,
+      "requiresMask": false
+    }
+  ]
+}

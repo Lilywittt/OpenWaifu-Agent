@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "activeBackendId": "comfyui_local",
+  "backends": [
+    {
+      "id": "comfyui_local",
+      "displayNameZh": "本地 ComfyUI",
+      "kind": "comfyui",
+      "endpointEnvName": "COMFYUI_ENDPOINT",
+      "defaultEndpoint": "http://127.0.0.1:8188",
+      "supports": [
+        "text_to_image",
+        "image_to_image",
+        "inpaint",
+        "upscale"
+      ]
+    }
+  ]
+}

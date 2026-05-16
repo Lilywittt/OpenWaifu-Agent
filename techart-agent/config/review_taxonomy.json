@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reviewLabels": [
+    {
+      "id": "accepted",
+      "displayNameZh": "入库",
+      "meaningZh": "图片可作为正式素材或高质量参考资产。"
+    },
+    {
+      "id": "favorite",
+      "displayNameZh": "收藏",
+      "meaningZh": "图片具有继续加工、参考或训练数据价值。"
+    },
+    {
+      "id": "needs_refine",
+      "displayNameZh": "需要精修",
+      "meaningZh": "整体方向成立，局部完成度需要提高。"
+    },
+    {
+      "id": "needs_inpaint",
+      "displayNameZh": "需要局部修复",
+      "meaningZh": "明确区域存在问题，可通过框选修复继续推进。"
+    },
+    {
+      "id": "rejected",
+      "displayNameZh": "弃用",
+      "meaningZh": "图片方向、角色一致性或完成度不适合继续加工。"
+    }
+  ],
+  "issueTypes": [
+    "face_drift",
+    "hair_drift",
+    "body_ratio_drift",
+    "outfit_error",
+    "missing_accessory",
+    "bad_hands",
+    "bad_expression",
+    "composition_mismatch",
+    "background_noise",
+    "style_mismatch",
+    "low_resolution",
+    "transparent_background_failed"
+  ]
+}
