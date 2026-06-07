@@ -10,6 +10,12 @@
 
 ![OpenWaifu-Agent ComfyUI 后续方向图](./openwaifu-agent-comfyui-roadmap.png)
 
+## 作品展示
+
+完整作品说明见 [`SHOWCASE.md`](./SHOWCASE.md)。其中包含产品定位、完整 Agent 链路、真实工作台截图、单次 run 的阶段产物和收藏成功图。
+
+HTML 展示页位于 [`docs/showcase/index.html`](./docs/showcase/index.html)，配套图片资产位于 [`docs/showcase/assets/`](./docs/showcase/assets/)。
+
 主产品当前包含这些核心能力：
 
 - QQ 生成链路与私聊服务

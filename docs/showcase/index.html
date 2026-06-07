@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenWaifu-Agent 作品展示页</title>
+  <style>
+    :root {
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      color: #1f2937;
+      background: #eef2f6;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.18), transparent 34%),
+        radial-gradient(circle at 100% 18%, rgba(20, 184, 166, 0.14), transparent 30%),
+        #eef2f6;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    figure,
+    blockquote {
+      margin: 0;
+    }
+
+    h1 {
+      color: #0f172a;
+      font-size: 44px;
+      line-height: 1.16;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      color: #0f172a;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      color: #111827;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .hero,
+    .section {
+      border: 1px solid #dbe4ef;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(420px, 0.82fr);
+      gap: 28px;
+      min-height: 660px;
+      padding: 34px;
+    }
+
+    .copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 12px;
+      padding: 6px 9px;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      color: #1d4ed8;
+      background: #eff6ff;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .lead {
+      margin-top: 18px;
+      color: #475569;
+      font-size: 17px;
+      line-height: 1.82;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .links a,
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .links a {
+      color: #ffffff;
+      background: #1d4ed8;
+    }
+
+    .pill {
+      border: 1px solid #d8dee8;
+      color: #334155;
+      background: #ffffff;
+    }
+
+    .asset-level {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 26px;
+    }
+
+    .asset-level span {
+      padding: 7px 9px;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #f8fafc;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .hero-art {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) 176px;
+      gap: 12px;
+    }
+
+    .image-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #d8dee8;
+      border-radius: 12px;
+      background: #0f172a;
+    }
+
+    .image-card img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .image-card .caption {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: grid;
+      gap: 2px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      color: #f8fafc;
+      background: rgba(15, 23, 42, 0.78);
+      font-size: 13px;
+    }
+
+    .caption strong {
+      font-size: 14px;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 0.8fr 1fr;
+      gap: 12px;
+    }
+
+    .section {
+      margin-top: 18px;
+      padding: 24px;
+    }
+
+    .section-intro {
+      margin-top: 8px;
+      color: #64748b;
+      line-height: 1.72;
+    }
+
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .screenshot-card,
+    .artifact,
+    .sample,
+    .info-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .screenshot-card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      object-fit: cover;
+      object-position: top left;
+      background: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .screenshot-card div,
+    .sample div {
+      padding: 13px;
+    }
+
+    .screenshot-card p,
+    .sample span {
+      margin-top: 6px;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.62;
+    }
+
+    .case-layout {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.72fr) minmax(0, 1fr);
+      gap: 18px;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    .case-image {
+      display: grid;
+      gap: 12px;
+    }
+
+    .case-image img {
+      width: 100%;
+      border: 1px solid #d8dee8;
+      border-radius: 12px;
+      background: #0f172a;
+    }
+
+    .case-note {
+      padding: 14px;
+      border: 1px solid #d8dee8;
+      border-radius: 10px;
+      background: #f8fafc;
+      color: #475569;
+      line-height: 1.68;
+    }
+
+    .artifact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .artifact {
+      padding: 15px;
+    }
+
+    .artifact h3 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .artifact h3 span {
+      color: #1d4ed8;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .artifact blockquote,
+    .artifact p {
+      margin-top: 9px;
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.68;
+    }
+
+    .artifact blockquote {
+      padding-left: 12px;
+      border-left: 3px solid #bfdbfe;
+    }
+
+    .artifact code {
+      display: block;
+      max-height: 122px;
+      overflow: auto;
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e5e7eb;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.58;
+      white-space: pre-wrap;
+    }
+
+    .full-flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .flow-card {
+      min-height: 188px;
+      padding: 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .flow-card .num {
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+
+    .flow-card h3 {
+      margin-top: 10px;
+    }
+
+    .flow-card p {
+      margin-top: 8px;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.64;
+    }
+
+    .samples {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .sample img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      object-fit: cover;
+      background: #0f172a;
+    }
+
+    .sample .wide {
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      padding: 10px;
+    }
+
+    .sample strong {
+      display: block;
+      color: #111827;
+      font-size: 14px;
+    }
+
+    .sample span {
+      display: block;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .info-box {
+      padding: 16px;
+    }
+
+    .info-box ul {
+      margin: 12px 0 0;
+      padding-left: 20px;
+      color: #475569;
+      line-height: 1.72;
+    }
+
+    .footer {
+      margin-top: 18px;
+      padding: 18px;
+      color: #64748b;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    @media (max-width: 1120px) {
+      .hero,
+      .screenshot-grid,
+      .case-layout,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .hero-art {
+        min-height: 620px;
+      }
+
+      .full-flow,
+      .artifact-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .samples {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        padding: 14px;
+      }
+
+      .hero,
+      .section {
+        padding: 18px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .full-flow,
+      .artifact-grid,
+      .samples {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-art {
+        grid-template-rows: 420px 160px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="copy">
+        <span class="tag">作品展示页</span>
+        <h1>OpenWaifu-Agent：面向游戏开发者的角色美术资产生产工具</h1>
+        <p class="lead">
+          本作品展示一个真实 Agent 工作流：用户从角色和任务目标进入，系统可以采样外部灵感，生成世界场景稿、环境光影设计稿、服装造型设计稿、动作姿态设计稿、社媒文案、提示词和审查报告，最后交给本地 ComfyUI / TechArt 执行层生成图片并归档。
+        </p>
+        <div class="links">
+          <a href="#screenshots">看真实界面</a>
+          <a href="#case-run">看单次完整 run</a>
+          <a href="#samples">看作品样例</a>
+          <a href="https://github.com/Lilywittt/OpenWaifu-Agent">GitHub</a>
+          <a href="https://openwaifu-agent.uk/">快速体验</a>
+        </div>
+        <div class="asset-level" aria-label="资产存储层级">
+          <span>项目</span>
+          <span>角色</span>
+          <span>资产类型</span>
+          <span>生成任务</span>
+          <span>版本</span>
+        </div>
+      </div>
+
+      <div class="hero-art">
+        <figure class="image-card">
+          <img src="assets/case-rooftop-final.png" alt="OpenWaifu-Agent 成功案例成品图">
+          <figcaption class="caption">
+            <strong>案例成品图：放学后的天台少女</strong>
+            <span>由一次真实 OpenWaifu-Agent run 生成，并进入收藏基准</span>
+          </figcaption>
+        </figure>
+        <div class="mini-grid">
+          <figure class="image-card">
+            <img src="assets/screenshot-openwaifu-workbench.png" alt="OpenWaifu-Agent 工作台截图">
+            <figcaption class="caption">
+              <strong>OpenWaifu-Agent 工作台</strong>
+            </figcaption>
+          </figure>
+          <figure class="image-card">
+            <img src="assets/screenshot-techart-client.png" alt="TechArt-Agent 客户端截图">
+            <figcaption class="caption">
+              <strong>TechArt-Agent 客户端</strong>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="screenshots">
+      <span class="tag">真实界面截图</span>
+      <h2>用户在这些界面里和 Agent 交互</h2>
+      <p class="section-intro">
+        OpenWaifu-Agent 负责从任务入口、采样、设计稿、审阅、复跑和发布组织完整内容链路；TechArt-Agent 负责本地技术美术执行，管理角色、设定图、姿态图、成品插画和模型设置。
+      </p>
+      <div class="screenshot-grid">
+        <article class="screenshot-card">
+          <img src="assets/screenshot-openwaifu-workbench.png" alt="OpenWaifu-Agent 内容测试工作台">
+          <div>
+            <h3>OpenWaifu-Agent 内容测试工作台</h3>
+            <p>左侧发起任务，用户选择任务起点和终点，也可以直接输入场景稿或 run 目录。右侧用于审阅当前任务详情，能展开采样、设计稿、prompt、图片、发布记录等中间产物。</p>
+          </div>
+        </article>
+        <article class="screenshot-card">
+          <img src="assets/screenshot-techart-client.png" alt="TechArt-Agent 本地客户端">
+          <div>
+            <h3>TechArt-Agent 本地客户端</h3>
+            <p>左侧按功能组织角色、设定图、姿态图、成品插画和设置。用户在这里维护本地技术美术资产，并把上游设计稿接入 ComfyUI 生成任务。</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <span class="tag">OpenWaifu-Agent 主链路</span>
+      <h2>Agent 工作流的阶段关系</h2>
+      <div class="full-flow">
+        <article class="flow-card">
+          <span class="num">01</span>
+          <h3>用户目标</h3>
+          <p>用户选择角色、输入场景，或让系统从实时采样开始。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">02</span>
+          <h3>采样与场景稿</h3>
+          <p>Agent 从采样文本中提取灵感，结合角色档案生成世界场景稿。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">03</span>
+          <h3>三份设计稿</h3>
+          <p>环境光影、服装造型、动作姿态分别描述画面的空间、角色视觉和身体结构。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">04</span>
+          <h3>文案与提示词</h3>
+          <p>系统生成社媒文案，Prompt Builder 编译生图 prompt，Prompt Guard 审查冲突。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">05</span>
+          <h3>本地执行层</h3>
+          <p>TechArt-Agent / ComfyUI 加载模型、LoRA、ControlNet 和工作流模板生成图片。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">06</span>
+          <h3>结果归档</h3>
+          <p>保存图片、提示词、审查报告、执行参数和发布记录，支持复跑和继续修改。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">07</span>
+          <h3>用户回调</h3>
+          <p>用户指出角色一致性、姿态、构图、风格或文案问题，进入下一轮生产。</p>
+        </article>
+        <article class="flow-card">
+          <span class="num">08</span>
+          <h3>长期资产库</h3>
+          <p>收藏图、姿态图、设定图和运行记录沉淀为后续角色资产。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="case-run">
+      <span class="tag">真实 run 全链路</span>
+      <h2>案例：放学后的天台少女</h2>
+      <p class="section-intro">
+        下面展示一次真实运行的阶段产物。运行目录为 `2026-04-28T15-38-30_run`，最终图被导入为 OpenWaifu-Agent 收藏成功基准。
+      </p>
+      <div class="case-layout">
+        <div class="case-image">
+          <img src="assets/case-rooftop-final.png" alt="放学后的天台少女成品图">
+          <div class="case-note">
+            最终生成结果：角色坐在天台边缘，夕阳、风、课本、手机和樱花瓣共同构成剧情瞬间。该图用于后续 TechArt-Agent 的画质基准和姿态控制验证。
+          </div>
+        </div>
+        <div class="artifact-grid">
+          <article class="artifact">
+            <h3>采样原始内容 <span>live sampling</span></h3>
+            <blockquote>Reddit / teenagers：帖子里出现 “sidequest maxing” 这个表达，讨论恋爱、家庭催促和青春期生活的荒诞感。</blockquote>
+            <p>Agent 从这段外部语境里抓住“支线任务”和“青春期自我调侃”，把它转化为角色独处时的心理活动。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>世界场景稿 <span>world scene</span></h3>
+            <blockquote>放学后的校园安静下来，单小伊独自坐在教学楼天台的边缘，双腿悬在空中轻轻晃荡。她刚看完手机里那条关于恋爱烦恼的帖子，忍不住轻轻笑了。</blockquote>
+            <p>这一阶段已经确定地点、人物动作、情绪、手机线索、天台空间和夕阳时间。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>环境光影设计稿 <span>environment</span></h3>
+            <blockquote>午后五点半的暮光初现，主光从画面左侧斜斜打入。天空由低空的橘橙向头顶的浅靛蓝自然渐变，人物位于画面右侧三分之一处。</blockquote>
+            <p>这一阶段明确主光源、前中背景、天空颜色、镜头景别和低角度构图。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>服装造型设计稿 <span>styling</span></h3>
+            <blockquote>黑色齐肩披肩细发在傍晚的风中被吹得微乱，白色短袖制服衬衫下摆在腰侧打结，深绀色校服百褶裙因坐姿和微风产生褶皱。</blockquote>
+            <p>这一阶段把角色发型、校服、配饰、创可贴、手机和数学竞赛习题集写成视觉细节。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>动作姿态设计稿 <span>pose</span></h3>
+            <blockquote>她坐在天台边缘，双腿悬空，膝盖并拢，上半身放松后倾，双臂伸直，双手手掌撑在身后两侧的水泥台面上。</blockquote>
+            <p>这一阶段描述身体重心、手脚位置、视线方向和道具关系，给后续 prompt 与姿态控制提供依据。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>社媒文案 <span>social post</span></h3>
+            <blockquote>放课后 (￣▽￣*)</blockquote>
+            <p>运行记录中保留了自动生成文案和手动编辑后的最终文案。最终发布层使用的是用户确认后的版本。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>Prompt Builder <span>prompt</span></h3>
+            <code>1girl, shan_xiaoyi, sitting, legs dangling, knees together, leaning back, arms straight, hands planted on ground, looking up, sky, sunset, warm lighting, school uniform, rooftop, cherry blossom petals...</code>
+            <p>Prompt Builder 将三份设计稿压缩成模型可执行的正向提示词和负向提示词。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>Prompt Guard <span>review</span></h3>
+            <blockquote>审查状态：approved。审查报告调整提示词顺序，强调悬腿、撑手、仰头等核心动作，并添加避免双人图的负向约束。</blockquote>
+            <p>这一层把容易引起模型误解的碎片化描述收拢成更稳定的生图输入。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>ComfyUI 执行参数 <span>execution</span></h3>
+            <code>checkpoint: animagine-xl-4.0-opt.safetensors
+width: 1152
+height: 1440
+steps: 35
+cfg: 6.5
+sampler: dpmpp_2m_sde
+scheduler: sgm_uniform</code>
+            <p>执行层保存模型、尺寸、采样器、seed、promptId 和最终图片路径，便于复跑和追溯。</p>
+          </article>
+
+          <article class="artifact">
+            <h3>发布与导出 <span>publish</span></h3>
+            <blockquote>该 run 保留了本地保存、QQ Bot、Instagram、Bilibili 动态、QQ 空间和 Pixiv 草稿等发布记录。</blockquote>
+            <p>发布层把成品图和社媒文案从资产生产链路送到外部平台或本地目录。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="samples">
+      <span class="tag">作品样例</span>
+      <h2>OpenWaifu-Agent 收藏成功图</h2>
+      <p class="section-intro">
+        这些图片来自 OpenWaifu-Agent 收藏成功图和后续技术美术验证，用于展示同一套 Agent 链路可以连续产出不同场景下的角色图。
+      </p>
+      <div class="samples">
+        <article class="sample">
+          <img src="assets/case-rooftop-final.png" alt="放学后的天台少女">
+          <div>
+            <strong>放学后的天台少女</strong>
+            <span>本页展开展示的完整 run。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/case-alley-final.png" alt="放学后的落阳小径">
+          <div>
+            <strong>放学后的落阳小径</strong>
+            <span>展示校园场景与角色动作的另一组结果。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/favorite-convenience-store.png" alt="深夜便利店与异世界动画的平行线">
+          <div>
+            <strong>深夜便利店</strong>
+            <span>由实时采样扩展出的夜间生活场景。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/favorite-crosslegged-parrot.png" alt="午后画室窗边的玫瑰鹦鹉">
+          <div>
+            <strong>午后画室</strong>
+            <span>角色、动物道具和室内光照共同构成画面。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/favorite-stairs-standing.png" alt="毕业日午后">
+          <div>
+            <strong>毕业日午后</strong>
+            <span>展示光照、校园空间和角色姿态。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/favorite-wall-sitting-notebook.png" alt="放学后的游戏存档点">
+          <div>
+            <strong>游戏存档点</strong>
+            <span>收藏图用于建立后续质量基准。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img class="wide" src="assets/case-rooftop-openpose.png" alt="OpenPose 姿态控制图">
+          <div>
+            <strong>OpenPose 控制图</strong>
+            <span>姿态图用于约束人物动作结构。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/quality-baseline.png" alt="Animagine XL 质量基线">
+          <div>
+            <strong>本地模型质量基线</strong>
+            <span>TechArt-Agent 执行层的画质目标。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img src="assets/pose-retarget-output.png" alt="姿态调整实验输出">
+          <div>
+            <strong>姿态调整实验</strong>
+            <span>从源图到新姿态的迭代样例。</span>
+          </div>
+        </article>
+        <article class="sample">
+          <img class="wide" src="assets/pose-retarget-control.png" alt="姿态调整控制图">
+          <div>
+            <strong>目标姿态输入</strong>
+            <span>用于说明下一阶段姿态变更能力。</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <span class="tag">执行层定位</span>
+      <h2>TechArt-Agent 承接什么</h2>
+      <div class="two-col">
+        <div class="info-box">
+          <h3>从 OpenWaifu-Agent 接收</h3>
+          <ul>
+            <li>角色档案、世界场景稿、三份设计稿。</li>
+            <li>正向提示词、负向提示词、Prompt Guard 审查结果。</li>
+            <li>用户选择的姿态控制图和生成目标。</li>
+          </ul>
+        </div>
+        <div class="info-box">
+          <h3>在本地执行层完成</h3>
+          <ul>
+            <li>管理角色、设定图、姿态图和模型资源。</li>
+            <li>调用 Animagine XL、ControlNet、LoRA、IPAdapter 和高清导出工作流。</li>
+            <li>保存生成任务、版本、收藏图和复跑参数。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      本页展示 OpenWaifu-Agent 的工作台界面、真实 run 全链路、收藏成功图和 TechArt-Agent 执行层位置。
+    </footer>
+  </main>
+</body>
+</html>
