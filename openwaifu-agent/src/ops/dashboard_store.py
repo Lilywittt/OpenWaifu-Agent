@@ -11,8 +11,11 @@ from urllib.parse import quote
 
 from display_order import (
     SCOPE_GLOBAL,
+    SCOPE_PROFILE,
     SURFACE_OPS_RECENT_RUNS,
+    SURFACE_WORKBENCH_HISTORY,
     apply_surface_order,
+    list_surface_pinned_item_ids,
     pin_surface_items,
     reorder_surface_pins,
 )
@@ -29,6 +32,7 @@ from run_detail_store import (
 )
 from runtime_layout import runs_root, runtime_root
 from sidecar_identity import read_bot_display_identity
+from workbench.store import ensure_runtime_run_index_record
 
 from publish.qq_bot_job_queue import job_db_path
 from publish.qq_bot_private_ui import normalize_stage_label
@@ -46,6 +50,7 @@ DEFAULT_RECENT_JOB_LIMIT = 12
 DEFAULT_EVENT_LIMIT = 40
 DEFAULT_RUN_LIMIT = 8
 DEFAULT_LOG_TAIL_LINES = 30
+WORKBENCH_HISTORY_SCOPE_ID = "private"
 
 
 _LOG_TAIL_CACHE_LOCK = threading.Lock()
@@ -543,6 +548,13 @@ def _read_recent_runs(
         item_kind="run",
         item_id_getter=lambda item: item.get("runId", ""),
     )
+    pinned_run_ids = [
+        normalize_spaces(str(item.get("runId", "")))
+        for item in ordered["pinnedItems"]
+        if normalize_spaces(str(item.get("runId", "")))
+    ]
+    if pinned_run_ids:
+        _reorder_workbench_history_pin_prefix(project_dir, pinned_run_ids)
     return ordered["items"]
 
 
@@ -609,14 +621,58 @@ def toggle_dashboard_favorite(project_dir: Path, payload: dict[str, Any]) -> dic
     return toggle_review_favorite(Path(project_dir).resolve(), payload)
 
 
+def _pin_workbench_history_runs(project_dir: Path, item_ids: list[str], *, pinned: bool) -> dict[str, Any]:
+    project_dir = Path(project_dir).resolve()
+    normalized_item_ids = [normalize_spaces(str(item_id)) for item_id in item_ids if normalize_spaces(str(item_id))]
+    if not normalized_item_ids:
+        raise RuntimeError("itemIds 不能为空。")
+    for item_id in normalized_item_ids:
+        ensure_runtime_run_index_record(project_dir, item_id)
+    return pin_surface_items(
+        project_dir,
+        surface_id=SURFACE_WORKBENCH_HISTORY,
+        scope_kind=SCOPE_PROFILE,
+        scope_id=WORKBENCH_HISTORY_SCOPE_ID,
+        item_kind="selection",
+        item_ids=normalized_item_ids,
+        pinned=pinned,
+    )
+
+
+def _reorder_workbench_history_pin_prefix(project_dir: Path, item_ids: list[str]) -> dict[str, Any]:
+    project_dir = Path(project_dir).resolve()
+    normalized_item_ids = [normalize_spaces(str(item_id)) for item_id in item_ids if normalize_spaces(str(item_id))]
+    if not normalized_item_ids:
+        raise RuntimeError("orderedItemIds 不能为空。")
+    _pin_workbench_history_runs(project_dir, normalized_item_ids, pinned=True)
+    current_workbench_pins = list_surface_pinned_item_ids(
+        project_dir,
+        surface_id=SURFACE_WORKBENCH_HISTORY,
+        scope_kind=SCOPE_PROFILE,
+        scope_id=WORKBENCH_HISTORY_SCOPE_ID,
+        item_kind="selection",
+    )
+    priority_ids = set(normalized_item_ids)
+    ordered_workbench_ids = normalized_item_ids + [item_id for item_id in current_workbench_pins if item_id not in priority_ids]
+    return reorder_surface_pins(
+        project_dir,
+        surface_id=SURFACE_WORKBENCH_HISTORY,
+        scope_kind=SCOPE_PROFILE,
+        scope_id=WORKBENCH_HISTORY_SCOPE_ID,
+        item_kind="selection",
+        ordered_item_ids=ordered_workbench_ids,
+    )
+
+
 def pin_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     raw_values = payload.get("itemIds", [])
     item_ids = raw_values if isinstance(raw_values, list) else [raw_values]
     normalized_item_ids = [normalize_spaces(str(value)) for value in item_ids if normalize_spaces(str(value))]
     if not normalized_item_ids:
         raise RuntimeError("itemIds 不能为空。")
-    return pin_surface_items(
-        Path(project_dir).resolve(),
+    project_dir = Path(project_dir).resolve()
+    ops_result = pin_surface_items(
+        project_dir,
         surface_id=SURFACE_OPS_RECENT_RUNS,
         scope_kind=SCOPE_GLOBAL,
         scope_id="ops_dashboard",
@@ -624,6 +680,8 @@ def pin_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) -> dic
         item_ids=normalized_item_ids,
         pinned=bool(payload.get("pinned", False)),
     )
+    workbench_result = _pin_workbench_history_runs(project_dir, normalized_item_ids, pinned=bool(payload.get("pinned", False)))
+    return {**ops_result, "workbenchProjection": workbench_result}
 
 
 def reorder_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -632,14 +690,17 @@ def reorder_dashboard_recent_runs(project_dir: Path, payload: dict[str, Any]) ->
     normalized_item_ids = [normalize_spaces(str(value)) for value in item_ids if normalize_spaces(str(value))]
     if not normalized_item_ids:
         raise RuntimeError("orderedItemIds 不能为空。")
-    return reorder_surface_pins(
-        Path(project_dir).resolve(),
+    project_dir = Path(project_dir).resolve()
+    ops_result = reorder_surface_pins(
+        project_dir,
         surface_id=SURFACE_OPS_RECENT_RUNS,
         scope_kind=SCOPE_GLOBAL,
         scope_id="ops_dashboard",
         item_kind="run",
         ordered_item_ids=normalized_item_ids,
     )
+    workbench_result = _reorder_workbench_history_pin_prefix(project_dir, normalized_item_ids)
+    return {**ops_result, "workbenchProjection": workbench_result}
 
 
 def build_dashboard_snapshot(

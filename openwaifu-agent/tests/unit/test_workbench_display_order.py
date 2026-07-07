@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from io_utils import write_json
+from ops.dashboard_store import pin_dashboard_recent_runs
 from workbench.identity import WorkbenchViewer
 from workbench.profile import PRIVATE_PROFILE, PUBLIC_PROFILE
 from workbench.store import (
@@ -71,6 +72,19 @@ class WorkbenchDisplayOrderTests(unittest.TestCase):
                     "label": title,
                     "ownerId": owner_id,
                 },
+            },
+        )
+        return run_dir
+
+    def _write_runtime_run_summary(self, project_dir: Path, run_id: str, title: str) -> Path:
+        run_dir = project_dir / "runtime" / "runs" / run_id
+        output_dir = run_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_json(
+            output_dir / "run_summary.json",
+            {
+                "runId": run_id,
+                "sceneDraftPremiseZh": title,
             },
         )
         return run_dir
@@ -316,6 +330,39 @@ class WorkbenchDisplayOrderTests(unittest.TestCase):
                 "2026-04-11T11-00-00_run_guest_a",
             ],
         )
+
+    def test_runtime_qq_runs_are_indexed_for_workbench_history(self):
+        viewer = self._private_viewer()
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_id = "2026-06-11T12-07-41_qqbot_generate_demo"
+            self._write_runtime_run_summary(project_dir, run_id, "校园天台")
+
+            snapshot = build_content_workbench_snapshot(
+                project_dir,
+                viewer=viewer,
+                profile=PRIVATE_PROFILE,
+            )
+
+        self.assertEqual(snapshot["history"][0]["runId"], run_id)
+        self.assertEqual(snapshot["history"][0]["sceneDraftPremiseZh"], "校园天台")
+
+    def test_ops_recent_pin_projects_to_workbench_history(self):
+        viewer = self._private_viewer()
+        with TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            run_id = "2026-06-11T12-07-41_qqbot_generate_demo"
+            self._write_runtime_run_summary(project_dir, run_id, "运维置顶")
+
+            pin_dashboard_recent_runs(project_dir, {"itemIds": [run_id], "pinned": True})
+            snapshot = build_content_workbench_snapshot(
+                project_dir,
+                viewer=viewer,
+                profile=PRIVATE_PROFILE,
+            )
+
+        self.assertEqual([item["runId"] for item in snapshot["historyGroups"]["pinned"]], [run_id])
+        self.assertTrue(snapshot["history"][0]["pinned"])
 
 
 if __name__ == "__main__":

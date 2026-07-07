@@ -11,6 +11,8 @@ from websocket._exceptions import WebSocketConnectionClosedException
 
 from generation_slot import read_generation_slot
 from runtime_layout import update_latest
+from test_pipeline import END_STAGE_IMAGE, SOURCE_KIND_LIVE_SAMPLING, SOURCE_KIND_SCENE_DRAFT_TEXT
+from workbench.store import ensure_runtime_run_index_record
 
 from .qq_bot_client import load_qq_bot_message_config, resolve_qq_bot_credentials
 from .qq_bot_executor import (
@@ -76,6 +78,24 @@ from .qq_bot_task_policy import (
 
 DEFAULT_WS_RECV_TIMEOUT_SECONDS = 2.0
 DEFAULT_RECONNECT_DELAY_SECONDS = 3.0
+
+
+def _workbench_index_request_for_qq_task(*, task_type: str, user_openid: str) -> dict[str, Any]:
+    if task_type == "scene_draft_to_image":
+        source_kind = SOURCE_KIND_SCENE_DRAFT_TEXT
+        label = "QQ Bot 场景稿生图"
+    else:
+        source_kind = SOURCE_KIND_LIVE_SAMPLING
+        label = "QQ Bot 实时采样生图"
+    return {
+        "sourceKind": source_kind,
+        "endStage": END_STAGE_IMAGE,
+        "label": label,
+        "ownerId": "private",
+        "ownerDisplay": "QQ Bot",
+        "clientIp": "",
+        "qqBotUserOpenIdMasked": mask_user_openid(user_openid),
+    }
 
 
 def task_worker(
@@ -182,6 +202,12 @@ def task_worker(
                     "summaryPath": str(bundle.output_dir / "run_summary.json"),
                     "sceneDraftPremiseZh": summary["sceneDraftPremiseZh"],
                 },
+            )
+            ensure_runtime_run_index_record(
+                project_dir,
+                bundle.run_id,
+                status="completed",
+                request=_workbench_index_request_for_qq_task(task_type=task_type, user_openid=user_openid),
             )
             append_service_event(
                 project_dir,

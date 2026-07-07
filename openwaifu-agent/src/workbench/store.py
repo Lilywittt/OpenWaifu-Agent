@@ -42,10 +42,13 @@ from workbench.identity import WorkbenchRequestContext, WorkbenchViewer
 from workbench.profile import PRIVATE_PROFILE, WorkbenchProfile
 
 from test_pipeline import (
+    END_STAGE_IMAGE,
     END_STAGE_LABELS,
     SOURCE_ALLOWED_END_STAGES,
     SOURCE_KIND_HINTS,
     SOURCE_KIND_LABELS,
+    SOURCE_KIND_LIVE_SAMPLING,
+    SOURCE_KIND_SCENE_DRAFT_TEXT,
 )
 
 
@@ -1208,6 +1211,13 @@ def _summary_path_from_payload(project_dir: Path, payload: dict[str, Any]) -> Pa
     return None
 
 
+def _timestamp_from_path_mtime(path: Path) -> str:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        return datetime.now().isoformat(timespec="seconds")
+
+
 def _build_run_index_record(project_dir: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
     request = payload.get("request", {}) if isinstance(payload.get("request"), dict) else {}
     run_id = normalize_spaces(str(payload.get("runId", "")))
@@ -1220,7 +1230,6 @@ def _build_run_index_record(project_dir: Path, payload: dict[str, Any]) -> dict[
     summary_payload = summary_payload or {}
     summary_run_root = Path(run_root) if run_root else (runs_root(project_dir) / run_id if run_id else None)
     summary_path_text = str(summary_path) if summary_path is not None else ""
-
     return {
         "recordedAt": datetime.now().isoformat(timespec="seconds"),
         "startedAt": normalize_spaces(str(payload.get("startedAt", ""))),
@@ -1254,6 +1263,14 @@ def _build_run_index_record(project_dir: Path, payload: dict[str, Any]) -> dict[
         "generatedImagePath": normalize_spaces(str(summary_payload.get("generatedImagePath", ""))),
         "promptPackagePath": normalize_spaces(str(summary_payload.get("promptPackagePath", ""))),
         "creativePackagePath": normalize_spaces(str(summary_payload.get("creativePackagePath", ""))),
+        "reportingSkip": bool((summary_payload.get("reporting", {}) or {}).get("skip", False))
+        if isinstance(summary_payload.get("reporting", {}), dict)
+        else False,
+        "reportingSkipReason": normalize_spaces(
+            str((summary_payload.get("reporting", {}) or {}).get("reason", ""))
+        )
+        if isinstance(summary_payload.get("reporting", {}), dict)
+        else "",
     }
 
 
@@ -1275,6 +1292,96 @@ def append_run_index_record(project_dir: Path, payload: dict[str, Any]) -> dict[
     _append_jsonl_record(_run_index_jsonl_path(project_dir), record)
     _rewrite_index_csv(project_dir)
     return record
+
+
+def ensure_runtime_run_index_record(
+    project_dir: Path,
+    run_id: str,
+    *,
+    status: str = "completed",
+    request: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    project_dir = Path(project_dir).resolve()
+    normalized_run_id = normalize_spaces(run_id)
+    if not normalized_run_id:
+        return None
+    for record in reversed(_read_run_index_records(project_dir)):
+        if normalize_spaces(str(record.get("runId", ""))) == normalized_run_id:
+            return record
+
+    run_root = runs_root(project_dir) / normalized_run_id
+    summary_path = run_root / "output" / "run_summary.json"
+    if not summary_path.is_file():
+        return None
+    recorded_at = _timestamp_from_path_mtime(summary_path)
+    request_payload = _default_runtime_run_request(normalized_run_id)
+    if isinstance(request, dict):
+        request_payload.update({key: value for key, value in request.items() if value not in (None, "")})
+    return append_run_index_record(
+        project_dir,
+        {
+            "recordedAt": recorded_at,
+            "finishedAt": recorded_at,
+            "status": normalize_spaces(status) or "completed",
+            "runId": normalized_run_id,
+            "runRoot": str(run_root),
+            "summaryPath": str(summary_path),
+            "request": request_payload,
+        },
+    )
+
+
+def _default_runtime_run_request(run_id: str) -> dict[str, Any]:
+    normalized_run_id = normalize_spaces(run_id)
+    if "_qqbot_scene_" in normalized_run_id:
+        source_kind = SOURCE_KIND_SCENE_DRAFT_TEXT
+        label = "QQ Bot 场景稿生图"
+        owner_display = "QQ Bot"
+    elif "_qqbot_generate_" in normalized_run_id:
+        source_kind = SOURCE_KIND_LIVE_SAMPLING
+        label = "QQ Bot 实时采样生图"
+        owner_display = "QQ Bot"
+    else:
+        source_kind = SOURCE_KIND_LIVE_SAMPLING
+        label = "历史运行"
+        owner_display = "本地运行"
+    return {
+        "sourceKind": source_kind,
+        "endStage": END_STAGE_IMAGE,
+        "label": label,
+        "ownerId": "private",
+        "ownerDisplay": owner_display,
+    }
+
+
+def sync_recent_runtime_runs_to_index(project_dir: Path, *, limit: int = DEFAULT_HISTORY_LIMIT) -> dict[str, int]:
+    project_dir = Path(project_dir).resolve()
+    runs_dir = runs_root(project_dir)
+    if not runs_dir.exists():
+        return {"scanned": 0, "added": 0}
+    existing_run_ids = {
+        normalize_spaces(str(record.get("runId", "")))
+        for record in _read_run_index_records(project_dir)
+        if normalize_spaces(str(record.get("runId", "")))
+    }
+    candidates = sorted(
+        [path for path in runs_dir.iterdir() if path.is_dir() and (path / "output" / "run_summary.json").is_file()],
+        key=lambda path: path.name,
+        reverse=True,
+    )[: max(int(limit), 1)]
+    added = 0
+    for run_dir in candidates:
+        if run_dir.name in existing_run_ids:
+            continue
+        record = ensure_runtime_run_index_record(
+            project_dir,
+            run_dir.name,
+            request=_default_runtime_run_request(run_dir.name),
+        )
+        if record is not None:
+            existing_run_ids.add(run_dir.name)
+            added += 1
+    return {"scanned": len(candidates), "added": added}
 
 
 def _read_run_index_records(project_dir: Path) -> list[dict[str, Any]]:
@@ -1602,6 +1709,7 @@ def build_content_workbench_snapshot(
     profile: WorkbenchProfile = PRIVATE_PROFILE,
 ) -> dict[str, Any]:
     project_dir = Path(project_dir).resolve()
+    sync_recent_runtime_runs_to_index(project_dir, limit=max(int(history_limit), DEFAULT_HISTORY_LIMIT))
     effective_viewer = viewer or WorkbenchViewer(
         owner_id="private",
         display_name="私有工作台",

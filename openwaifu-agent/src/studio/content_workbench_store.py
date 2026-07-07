@@ -18,6 +18,7 @@ content_workbench_state_root = _store.content_workbench_state_root
 delete_workbench_run = _store.delete_workbench_run
 finalize_workbench_runtime = _store.finalize_workbench_runtime
 generate_cleanup_report = _store.generate_cleanup_report
+ensure_runtime_run_index_record = _store.ensure_runtime_run_index_record
 is_workbench_stop_requested = _store.is_workbench_stop_requested
 legacy_content_workbench_state_roots = _store.legacy_content_workbench_state_roots
 migrate_legacy_content_workbench_state = _store.migrate_legacy_content_workbench_state
@@ -27,6 +28,7 @@ read_last_request = _store.read_last_request
 read_workbench_status = _store.read_workbench_status
 request_workbench_stop = _store.request_workbench_stop
 toggle_workbench_favorite = _store.toggle_workbench_favorite
+sync_recent_runtime_runs_to_index = _store.sync_recent_runtime_runs_to_index
 workbench_inventory_paths = _store.workbench_inventory_paths
 write_active_request = _store.write_active_request
 write_active_worker = _store.write_active_worker
@@ -83,6 +85,7 @@ __all__ = [
     "clear_workbench_stop_request",
     "content_workbench_state_root",
     "delete_workbench_run",
+    "ensure_runtime_run_index_record",
     "finalize_workbench_runtime",
     "generate_cleanup_report",
     "is_process_alive",
@@ -96,6 +99,7 @@ __all__ = [
     "read_workbench_status",
     "reconcile_workbench_runtime_state",
     "request_workbench_stop",
+    "sync_recent_runtime_runs_to_index",
     "toggle_workbench_favorite",
     "workbench_inventory_paths",
     "write_active_request",
