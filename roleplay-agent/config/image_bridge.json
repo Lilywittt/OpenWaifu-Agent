@@ -1,0 +1,6 @@
+{
+  "provider": "openwaifu-agent",
+  "projectDir": "../openwaifu-agent",
+  "rejectWhenLegacyQqServiceRunning": true,
+  "maxQueueSize": 1
+}

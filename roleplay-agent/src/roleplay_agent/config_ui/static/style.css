@@ -1,0 +1,628 @@
+:root {
+  color-scheme: light;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: #eef2f5;
+  color: #17212b;
+  --surface: #ffffff;
+  --surface-soft: #f7f9fb;
+  --line: #d6dee6;
+  --line-strong: #b8c4cf;
+  --text-muted: #607080;
+  --accent: #256f7a;
+  --accent-strong: #184f58;
+  --danger: #9b2c2c;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #eef2f5;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #17212b;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+button:hover {
+  background: #263440;
+  box-shadow: 0 8px 22px rgba(23, 33, 43, 0.14);
+}
+
+button.secondary,
+.removeFieldBtn {
+  background: rgba(255, 255, 255, 0.76);
+  color: #24313d;
+  border: 1px solid rgba(184, 196, 207, 0.42);
+}
+
+button.secondary:hover,
+.removeFieldBtn:hover {
+  background: #f1f4f7;
+}
+
+input,
+textarea {
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17212b;
+}
+
+input {
+  height: 36px;
+  padding: 0 10px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+textarea:focus,
+input:focus {
+  outline: 2px solid rgba(37, 111, 122, 0.18);
+  border-color: var(--accent);
+}
+
+.appShell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 18px 14px;
+  background: #ffffff;
+  border-right: 1px solid var(--line);
+}
+
+.brandBlock {
+  padding: 8px 8px 18px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.characterDock {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafb;
+}
+
+.dockLabel {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dockActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 2px 2px 0;
+}
+
+.dockActionBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #52616f;
+  box-shadow: none;
+}
+
+.dockActionBtn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dockActionBtn:hover,
+.dockActionBtn:focus-visible {
+  background: rgba(238, 243, 246, 0.96);
+  color: #17212b;
+  box-shadow: none;
+  outline: 0;
+}
+
+.dangerAction {
+  color: var(--danger);
+}
+
+.dangerAction:hover,
+.dangerAction:focus-visible {
+  background: #fff1f1;
+  color: var(--danger);
+}
+
+.characterList {
+  display: grid;
+  gap: 6px;
+}
+
+.characterPill {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #24313d;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.characterPill:hover {
+  background: #f1f5f8;
+}
+
+.characterPill.active {
+  background: #20313c;
+  color: #ffffff;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.activeCharacterName {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+p {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tabs {
+  display: grid;
+  gap: 6px;
+}
+
+.tab {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #24313d;
+  text-align: left;
+}
+
+.tab:hover {
+  background: #f1f5f8;
+}
+
+.tab.active {
+  background: #e8f3f5;
+  border-color: #bdd7dc;
+  color: #173f46;
+}
+
+.tabTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tabHint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.contentShell {
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 28px;
+  background: rgba(238, 242, 245, 0.96);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+main {
+  padding: 24px 28px 40px;
+}
+
+.panel {
+  display: none;
+}
+
+.panel.active {
+  display: block;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+}
+
+.sectionTitle.spaced {
+  margin-top: 30px;
+}
+
+.fieldList,
+.promptGrid,
+.advancedGrid {
+  display: grid;
+  gap: 0;
+}
+
+.promptGrid,
+.advancedGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fieldBlock {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(23, 33, 43, 0.04);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.fieldBlock:hover,
+.fieldBlock:focus-within {
+  border-color: #afcbd1;
+  box-shadow: 0 8px 24px rgba(23, 33, 43, 0.08);
+}
+
+.insertPoint {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  margin: 2px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(37, 111, 122, 0);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.insertPoint::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  background: rgba(37, 111, 122, 0);
+  transition: background 0.16s ease;
+}
+
+.insertPoint span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0);
+  font-size: 18px;
+  line-height: 1;
+  transform: scale(0.84);
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.insertPoint:hover,
+.insertPoint:focus-visible {
+  color: var(--accent);
+  outline: 0;
+}
+
+.insertPoint:hover::before,
+.insertPoint:focus-visible::before {
+  background: rgba(37, 111, 122, 0.24);
+}
+
+.insertPoint:hover span,
+.insertPoint:focus-visible span {
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(23, 33, 43, 0.12);
+  transform: scale(1);
+}
+
+.fieldBlock > span,
+.fieldHeader {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.fieldHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 10px;
+  align-items: center;
+}
+
+.fieldName {
+  width: 100%;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.removeFieldBtn {
+  min-width: 30px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.dynamicField:hover .removeFieldBtn,
+.dynamicField:focus-within .removeFieldBtn {
+  opacity: 0.64;
+}
+
+.removeFieldBtn:hover,
+.removeFieldBtn:focus-visible {
+  opacity: 1;
+  background: #fff1f1;
+  transform: scale(1);
+}
+
+.codeBlock textarea,
+#systemTemplateEditor {
+  min-height: 260px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+}
+
+.previewTools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+#previewOutput {
+  min-height: 560px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: auto;
+  background: #ffffff;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.modalLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(23, 33, 43, 0.28);
+}
+
+.modalLayer[hidden] {
+  display: none;
+}
+
+.namePanel {
+  display: grid;
+  gap: 14px;
+  width: min(360px, 100%);
+  padding: 18px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(23, 33, 43, 0.22);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+}
+
+.trashPanel {
+  width: min(520px, 100%);
+}
+
+.trashList {
+  display: grid;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.trashRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.trashRow span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.trashActions {
+  display: flex;
+  gap: 8px;
+}
+
+.trashActions button {
+  min-height: 32px;
+}
+
+.trashEmpty {
+  color: var(--text-muted);
+}
+
+@media (max-width: 980px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topbar {
+    position: static;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .promptGrid,
+  .advancedGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .tabs {
+    grid-template-columns: 1fr;
+  }
+
+  main,
+  .topbar {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+  }
+
+  .actions button {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .sectionTitle,
+  .previewTools {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+}

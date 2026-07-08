@@ -1,0 +1,18 @@
+{
+  "defaultCharacterId": "default",
+  "activeModelProfile": "deepseek_chat",
+  "maxHistoryMessages": 24,
+  "maxUserMessageChars": 2000,
+  "maxAssistantMessageChars": 2200,
+  "traceRequests": true,
+  "configUi": {
+    "host": "127.0.0.1",
+    "port": 8781
+  },
+  "qqService": {
+    "maxReplyWorkers": 3,
+    "reconnectDelaySeconds": 3,
+    "readyTimeoutSeconds": 0,
+    "rejectWhenOpenWaifuAgentQqServiceRunning": true
+  }
+}

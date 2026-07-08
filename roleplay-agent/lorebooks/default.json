@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "id": "Lore",
+      "label": "Lore",
+      "enabled": true,
+      "alwaysActive": true,
+      "keys": [],
+      "order": 1,
+      "content": ""
+    }
+  ]
+}

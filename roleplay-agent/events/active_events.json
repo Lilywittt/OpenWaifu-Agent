@@ -1,0 +1,11 @@
+{
+  "events": [
+    {
+      "id": "当前事件",
+      "enabled": true,
+      "title": "当前事件",
+      "content": "",
+      "priority": 100
+    }
+  ]
+}

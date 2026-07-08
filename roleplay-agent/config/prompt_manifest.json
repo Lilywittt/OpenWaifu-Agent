@@ -1,0 +1,9 @@
+{
+  "systemTemplate": "prompts/system.md",
+  "fragments": {
+    "dialogue_policy": "prompts/dialogue_policy.md",
+    "session_profile": "prompts/session_profile.md",
+    "runtime_notes": "prompts/runtime_notes.md",
+    "post_history_instructions": "prompts/post_history_instructions.md"
+  }
+}

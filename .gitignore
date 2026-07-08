@@ -15,3 +15,6 @@ techart-agent/runtime/*
 !techart-agent/runtime/.gitignore
 techart-agent/projects/*
 !techart-agent/projects/README.md
+
+roleplay-agent/.env
+roleplay-agent/runtime/

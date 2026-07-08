@@ -1,0 +1,39 @@
+{
+  "help": [
+    "帮助",
+    "/help",
+    "/h"
+  ],
+  "status": [
+    "状态",
+    "/status",
+    "/s"
+  ],
+  "resetConversation": [
+    "重置对话",
+    "/reset"
+  ],
+  "reloadConfig": [
+    "重载配置",
+    "/reload"
+  ],
+  "enterImageMode": [
+    "系统指令",
+    "生图模式",
+    "/image"
+  ],
+  "exitImageMode": [
+    "退出系统指令",
+    "退出生图",
+    "聊天模式",
+    "/chat"
+  ],
+  "imageGenerate": [
+    "生成",
+    "/g"
+  ],
+  "imageScenePrompt": [
+    "注入场景稿",
+    "/i"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "deepseek_chat": {
+      "provider": "deepseek-openai-compatible",
+      "baseUrl": "https://api.deepseek.com",
+      "chatCompletionsPath": "/chat/completions",
+      "envName": "DEEPSEEK_API_KEY",
+      "model": "deepseek-v4-pro",
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.82,
+      "topP": 0.9,
+      "maxTokens": 1800,
+      "timeoutMs": 180000,
+      "retryAttempts": 4,
+      "retryBaseDelayMs": 2000
+    }
+  }
+}
