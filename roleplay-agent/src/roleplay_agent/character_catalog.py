@@ -255,20 +255,29 @@ def set_active_character(project_dir: Path, character_id: str) -> dict[str, Any]
 def create_character(project_dir: Path, *, name: str = "", source_id: str | None = None) -> dict[str, Any]:
     catalog = load_character_catalog(project_dir)
     base_name = str(name or "").strip() or "新角色"
-    base_id = normalize_character_id(base_name, fallback="character")
     existing = {normalize_character_id(str(item.get("id", ""))) for item in catalog["items"] if isinstance(item, dict)}
+    existing_names = {str(item.get("name", "") or "").strip() for item in catalog["items"] if isinstance(item, dict)}
+    existing_names.update(str(item.get("name", "") or "").strip() for item in trashed_characters(project_dir))
+    clean_name = base_name
+    base_id = normalize_character_id(clean_name, fallback="character")
     safe_id = base_id
     index = 2
-    while safe_id in existing or character_path(project_dir, safe_id).exists() or trash_path(project_dir, safe_id).exists():
-        safe_id = f"{base_id}_{index}"
+    while (
+        clean_name in existing_names
+        or safe_id in existing
+        or character_path(project_dir, safe_id).exists()
+        or trash_path(project_dir, safe_id).exists()
+    ):
+        clean_name = f"{base_name} {index}"
+        safe_id = normalize_character_id(clean_name, fallback=f"character_{index}")
         index += 1
     if source_id:
         source_payload = read_character(project_dir, source_id)
         payload = copy.deepcopy(source_payload) if isinstance(source_payload, dict) else {}
     else:
-        payload = {"id": safe_id, "name": base_name, "sections": []}
+        payload = {"id": safe_id, "name": clean_name, "sections": []}
     payload["id"] = safe_id
-    payload["name"] = base_name
+    payload["name"] = clean_name
     write_character(project_dir, payload)
     catalog["order"].append(safe_id)
     catalog["activeCharacterId"] = safe_id

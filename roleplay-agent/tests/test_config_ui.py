@@ -77,6 +77,12 @@ class ConfigUiTest(unittest.TestCase):
             created_id = created["activeCharacterId"]
             self.assertIn({"id": created_id, "name": "测试角色"}, created["items"])
 
+            duplicate_name = create_character(project_dir, name="测试角色")
+            duplicate_id = "测试角色_2"
+            self.assertIn({"id": duplicate_id, "name": "测试角色 2"}, duplicate_name["items"])
+            delete_character(project_dir, duplicate_id)
+            purge_character(project_dir, duplicate_id)
+
             index_payload = loads((project_dir / "config" / "characters.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(set(index_payload.keys()), {"schemaVersion", "activeCharacterId", "order"})
             self.assertNotIn("items", index_payload)
